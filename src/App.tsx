@@ -22,6 +22,8 @@ import type { ActionResult } from './lib/actions';
 const GUIDE_KEY = 'driver-funnel-cockpit-guide-hidden';
 
 function readGuideHidden(): boolean {
+  // ?guide=0 gives a clean view for presenting or screenshots, without changing the saved choice.
+  if (new URLSearchParams(window.location.search).get('guide') === '0') return true;
   try {
     return localStorage.getItem(GUIDE_KEY) === '1';
   } catch {
