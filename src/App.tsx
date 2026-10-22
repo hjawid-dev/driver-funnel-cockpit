@@ -20,8 +20,12 @@ import { guideSteps } from './lib/guide';
 import type { ActionResult } from './lib/actions';
 import { DemoBar } from './components/DemoBar';
 import { DriverPhone } from './components/driver/DriverPhone';
-import { automationEvents, summarize, type AutoEvent } from './lib/automation';
+import { automationEvents, chatEvents, summarize, type AutoEvent } from './lib/automation';
 import type { Applicant } from './lib/types';
+import type { ChatThread } from './lib/chat/types';
+import { HANDOVER_LABEL } from './lib/chat/types';
+import { waitingThreads } from './lib/chat/threads';
+import { ChatQueue } from './components/ChatQueue';
 import { formatDateTime } from './lib/time';
 
 const GUIDE_KEY = 'driver-funnel-cockpit-guide-hidden';
@@ -55,7 +59,9 @@ const TILE_TO_TAB: Record<FunnelKey, TabKey> = {
 export default function App() {
   const clock = useClock();
   const now = clock.now;
-  const { apps, gigs, update, add, reset } = useDemoData();
+  const { apps, gigs, threads, update, add, upsertThread, reset } = useDemoData();
+  // Bumped when the cockpit opens the phone on the chat; 0 opens it on the steps.
+  const [chatRequest, setChatRequest] = useState(0);
   const [phoneOpen, setPhoneOpen] = useState(() => window.location.hash.startsWith('#driver'));
   // #driver opens the phone; #driver=DRV-1034 opens it as that applicant (handy for presenting).
   const [phoneId, setPhoneId] = useState<string | null>(() => window.location.hash.match(/^#driver=(.+)$/)?.[1] ?? null);
@@ -90,8 +96,26 @@ export default function App() {
   const openAsDriver = useCallback((id: string | null) => {
     setPhoneId(id);
     setPhoneOpen(true);
+    setChatRequest(0);
     setOpenId(null);
   }, []);
+
+  const openDriverChat = useCallback((id: string | null) => {
+    setPhoneId(id);
+    setPhoneOpen(true);
+    setChatRequest(Date.now());
+  }, []);
+
+  const onThread = useCallback(
+    (t: ChatThread) => {
+      const prev = threads.find((x) => x.id === t.id);
+      upsertThread(t);
+      if (t.status === 'waiting' && prev?.status !== 'waiting') {
+        toast.notify(`${t.name} needs a person in the chat${t.reason ? `: ${HANDOVER_LABEL[t.reason].toLowerCase()}` : ''}. See Driver questions.`);
+      }
+    },
+    [threads, upsertThread, toast.notify],
+  );
 
   const onDriverCreate = useCallback(
     (a: Applicant) => {
@@ -116,7 +140,7 @@ export default function App() {
 
   const onAdvance = (ms: number) => {
     const w = clock.advance(ms);
-    const events = automationEvents(apps, w.from, w.to);
+    const events = [...automationEvents(apps, w.from, w.to), ...chatEvents(threads, w.from, w.to)].sort((x, y) => x.at - y.at);
     setLastRun({ ...w, events });
     toast.notify(`Time moved forward. Automation: ${summarize(events)}.`);
   };
@@ -126,8 +150,8 @@ export default function App() {
   const counts = useMemo(() => {
     const stages = apps.map(deriveStage);
     const n = (s: string) => stages.filter((x) => x === s).length;
-    return { review: n('review'), missing: n('registered'), awaiting: n('accepted'), all: apps.length };
-  }, [apps]);
+    return { review: n('review'), missing: n('registered'), awaiting: n('accepted'), chat: waitingThreads(threads).length, all: apps.length };
+  }, [apps, threads]);
   const slot = nextReviewSlot(now);
   const steps = useMemo(() => guideSteps(apps, clock.offset > 0), [apps, clock.offset]);
 
@@ -235,6 +259,8 @@ export default function App() {
               <MissingDocs apps={apps.filter((a) => deriveStage(a) === 'registered')} now={now} onOpen={setOpenId} onResult={onResult} />
             ) : tab === 'awaiting' ? (
               <Activation apps={apps.filter((a) => deriveStage(a) === 'accepted')} now={now} onOpen={setOpenId} />
+            ) : tab === 'chat' ? (
+              <ChatQueue threads={threads} now={now} onThread={onThread} onViewChat={openDriverChat} />
             ) : (
               <AllApplicants apps={apps} now={now} filter={stageFilter} onFilter={setStageFilter} onOpen={setOpenId} />
             )}
@@ -255,10 +281,13 @@ export default function App() {
         applicantId={phoneId}
         apps={apps}
         gigs={gigs}
+        threads={threads}
         now={now}
+        chatRequest={chatRequest}
         onSelect={setPhoneId}
         onCreate={onDriverCreate}
         onUpdate={onDriverUpdate}
+        onThread={onThread}
         onClose={() => setPhoneOpen(false)}
       />
     )}

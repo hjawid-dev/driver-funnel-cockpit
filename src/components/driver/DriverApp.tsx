@@ -1,6 +1,9 @@
 import { useState } from 'react';
-import { Bell, CalendarCheck, Car, Check, ChevronRight, ExternalLink, IdCard, Lock, MessageSquare, ScanFace, ShieldCheck, Sparkles } from 'lucide-react';
+import { Bell, CalendarCheck, Car, Check, ChevronLeft, ChevronRight, ExternalLink, IdCard, Lock, MessageCircle, MessageSquare, ScanFace, ShieldCheck, Sparkles } from 'lucide-react';
 import type { Applicant, Gig } from '../../lib/types';
+import type { ChatThread } from '../../lib/chat/types';
+import { threadIdFor } from '../../lib/chat/threads';
+import { DriverChat } from './DriverChat';
 import { REJECT_REASONS } from '../../lib/types';
 import { driverStep, progress, STEP_ORDER, createApplicant, bookCall, bookOffer, MIN_AGE, type Application } from '../../lib/driverFlow';
 import { receiveDocument } from '../../lib/actions';
@@ -16,44 +19,66 @@ interface Props {
   applicant: Applicant | null;
   apps: Applicant[];
   gigs: Gig[];
+  threads: ChatThread[];
   now: number;
   onCreate: (a: Applicant) => void;
   onUpdate: (a: Applicant) => void;
+  onThread: (t: ChatThread) => void;
+  /** Open on the chat (e.g. from the cockpit's chat queue). */
+  initialView?: 'steps' | 'chat';
 }
 
 /** The applicant's side of the funnel: one step at a time, on a phone. */
-export function DriverApp({ applicant: a, apps, gigs, now, onCreate, onUpdate }: Props) {
-  const [view, setView] = useState<'steps' | 'inbox'>('steps');
+export function DriverApp({ applicant: a, apps, gigs, threads, now, onCreate, onUpdate, onThread, initialView = 'steps' }: Props) {
+  const [view, setView] = useState<'steps' | 'inbox' | 'chat'>(initialView);
   const inbox = a ? driverInbox(a, now) : [];
+  const thread = threads.find((t) => t.id === threadIdFor(a?.id ?? null));
+  const unreadOps = thread?.messages.at(-1)?.from === 'ops';
+  const headerBtn = 'relative flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold hover:bg-white/10';
 
   return (
     <div className="flex h-full flex-col bg-white text-navy">
       <header className="bg-navy px-4 pb-3 pt-4 text-white">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold">Drive with us</span>
-          {a && (
-            <button
-              type="button"
-              onClick={() => setView(view === 'inbox' ? 'steps' : 'inbox')}
-              className="relative flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold hover:bg-white/10"
-              aria-label={`Messages, ${inbox.length}`}
-            >
-              {view === 'inbox' ? 'Back to steps' : (<><Bell size={15} aria-hidden /> {inbox.length}</>)}
+        <div className="flex items-center justify-between gap-2">
+          {view === 'steps' ? (
+            <span className="text-sm font-semibold">Drive with us</span>
+          ) : (
+            <button type="button" onClick={() => setView('steps')} className={`${headerBtn} -ml-2`}>
+              <ChevronLeft size={15} aria-hidden /> {view === 'chat' ? 'Help chat' : 'Messages'}
             </button>
           )}
+          <div className="flex items-center gap-1">
+            {view !== 'chat' && (
+              <button type="button" onClick={() => setView('chat')} className={headerBtn} aria-label="Help chat">
+                <MessageCircle size={15} aria-hidden /> Help
+                {unreadOps && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-green" aria-label="New reply from ops" />}
+              </button>
+            )}
+            {a && view === 'steps' && (
+              <button type="button" onClick={() => setView('inbox')} className={headerBtn} aria-label={`Messages, ${inbox.length}`}>
+                <Bell size={15} aria-hidden /> {inbox.length}
+              </button>
+            )}
+          </div>
         </div>
         {a && view === 'steps' && <Progress a={a} />}
       </header>
 
+      {view === 'chat' ? (
+        <div className="min-h-0 flex-1">
+          <DriverChat applicant={a} thread={thread} gigs={gigs} now={now} onThread={onThread} />
+        </div>
+      ) : (
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {!a ? (
-          <Start onCreate={(input) => onCreate(createApplicant(input, apps, now))} />
+          <Start onCreate={(input) => onCreate(createApplicant(input, apps, now))} onChat={() => setView('chat')} />
         ) : view === 'inbox' ? (
           <Inbox items={inbox} />
         ) : (
           <Step a={a} apps={apps} gigs={gigs} now={now} onUpdate={onUpdate} onInbox={() => setView('inbox')} />
         )}
       </div>
+      )}
     </div>
   );
 }
@@ -112,7 +137,7 @@ const Simulated = () => <p className="mt-2 text-center text-[11px] text-muted">S
 
 // ---------------- Start + pre-qualifying ----------------
 
-function Start({ onCreate }: { onCreate: (a: Application) => void }) {
+function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onChat: () => void }) {
   const [started, setStarted] = useState(false);
   const [name, setName] = useState('');
   const [area, setArea] = useState('Solna');
@@ -140,6 +165,9 @@ function Start({ onCreate }: { onCreate: (a: Application) => void }) {
         <Primary onClick={() => setStarted(true)}>
           Start application <ChevronRight size={16} aria-hidden />
         </Primary>
+        <button type="button" onClick={onChat} className="flex w-full items-center justify-center gap-1.5 text-sm font-semibold text-indigo hover:underline">
+          <MessageCircle size={15} aria-hidden /> Questions first? Ask our assistant
+        </button>
       </div>
     );
   }

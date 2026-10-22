@@ -6,6 +6,7 @@ import { generateGigs } from '../gigs';
 import { slaStatus } from '../sla';
 import { DAY, HOUR } from '../time';
 import { mk, NOW } from './helpers';
+import { seedThreads } from '../chat/threads';
 
 describe('buildTimeline', () => {
   it('orders every transition in time and marks upcoming items', () => {
@@ -29,7 +30,8 @@ describe('buildTimeline', () => {
 describe('persist', () => {
   const seed = generateSeed(NOW);
   const gigs = generateGigs(NOW);
-  const data = { apps: seed, gigs };
+  const threads = seedThreads(seed, NOW);
+  const data = { apps: seed, gigs, threads };
   it('round-trips without change when saved recently', () => {
     expect(restore(serialize(data, NOW), NOW + HOUR)).toEqual(data);
   });
@@ -41,6 +43,14 @@ describe('persist', () => {
     const elin = (xs: typeof seed) => xs.find((a) => a.name === 'Elin Johansson')!;
     expect(slaStatus(elin(restored).docsCompleteAt!, later).label).toBe(slaStatus(elin(seed).docsCompleteAt!, NOW).label);
     expect(restored[0].log[0].at).toBe(seed[0].log[0].at + 5 * DAY);
+    expect(out.threads[0].messages[0].at).toBe(threads[0].messages[0].at + 5 * DAY);
+    const waiting = threads.find((t) => t.status === 'waiting')!;
+    expect(out.threads.find((t) => t.id === waiting.id)!.waitingSince).toBe(waiting.waitingSince! + 5 * DAY);
+  });
+  it('keeps a save from the previous version (v3) and adds the demo conversations', () => {
+    const out = restore(JSON.stringify({ version: 3, savedAt: NOW, apps: seed, gigs }), NOW + HOUR)!;
+    expect(out.apps).toEqual(seed);
+    expect(out.threads.length).toBe(threads.length);
   });
   it('discards saves from an older version of the app', () => {
     const old = seed.map((x) => {

@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import type { Applicant, Gig } from '../../lib/types';
+import type { ChatThread } from '../../lib/chat/types';
 import { DriverApp } from './DriverApp';
 import { driverStep } from '../../lib/driverFlow';
 
@@ -7,10 +8,14 @@ interface Props {
   applicantId: string | null;
   apps: Applicant[];
   gigs: Gig[];
+  threads: ChatThread[];
   now: number;
+  /** Changes when the cockpit asks the phone to open on the chat. */
+  chatRequest: number;
   onSelect: (id: string | null) => void;
   onCreate: (a: Applicant) => void;
   onUpdate: (a: Applicant) => void;
+  onThread: (t: ChatThread) => void;
   onClose: () => void;
 }
 
@@ -18,7 +23,7 @@ interface Props {
  * The driver's phone, docked next to the cockpit on desktop and full screen on a phone.
  * It shares the same data, so every step shows up in the cockpit at once.
  */
-export function DriverPhone({ applicantId, apps, gigs, now, onSelect, onCreate, onUpdate, onClose }: Props) {
+export function DriverPhone({ applicantId, apps, gigs, threads, now, chatRequest, onSelect, onCreate, onUpdate, onThread, onClose }: Props) {
   const a = applicantId ? (apps.find((x) => x.id === applicantId) ?? null) : null;
   const self = apps.filter((x) => x.source === 'self');
   const others = apps.filter((x) => x.source !== 'self').sort((x, y) => x.name.localeCompare(y.name));
@@ -62,7 +67,18 @@ export function DriverPhone({ applicantId, apps, gigs, now, onSelect, onCreate, 
 
       <div className="flex flex-1 items-start justify-center overflow-hidden p-0 lg:p-5">
         <div className="anim-fade h-full w-full overflow-hidden bg-white lg:h-[min(780px,calc(100vh-110px))] lg:w-[360px] lg:rounded-[2.2rem] lg:border-[10px] lg:border-navy lg:shadow-2xl">
-          <DriverApp key={applicantId ?? 'new'} applicant={a} apps={apps} gigs={gigs} now={now} onCreate={onCreate} onUpdate={onUpdate} />
+          <DriverApp
+            key={`${applicantId ?? 'new'}-${chatRequest}`}
+            applicant={a}
+            apps={apps}
+            gigs={gigs}
+            threads={threads}
+            now={now}
+            onCreate={onCreate}
+            onUpdate={onUpdate}
+            onThread={onThread}
+            initialView={chatRequest ? 'chat' : 'steps'}
+          />
         </div>
       </div>
     </aside>

@@ -5,6 +5,7 @@ export const TABS: { key: TabKey; label: string }[] = [
   { key: 'review', label: 'Review queue' },
   { key: 'missing', label: 'Missing documents' },
   { key: 'awaiting', label: 'Awaiting first gig' },
+  { key: 'chat', label: 'Driver questions' },
   { key: 'all', label: 'All applicants' },
 ];
 

@@ -2,6 +2,8 @@ import type { Applicant } from './types';
 import { REJECT_REASONS } from './types';
 import { NUDGE_OFFSETS, NO_RESPONSE_MS, nudgeMessage } from './nudges';
 import { DAY, HOUR, formatDateTime } from './time';
+import type { ChatThread } from './chat/types';
+import { CHAT_SLA_MS } from './chat/threads';
 
 /**
  * The automation layer: what runs by itself (HubSpot workflows and the driver chat in
@@ -21,7 +23,8 @@ export type AutoKind =
   | 'call_task'
   | 'dormant'
   | 'gig_reminder'
-  | 'activated';
+  | 'activated'
+  | 'chat_sla';
 
 export interface AutoEvent {
   at: number;
@@ -112,6 +115,22 @@ export function automationEvents(apps: Applicant[], from: number, to: number): A
   return out.sort((x, y) => x.at - y.at);
 }
 
+/** A driver question handed to a person and still unanswered after 15 minutes alerts ops. */
+export function chatEvents(threads: ChatThread[], from: number, to: number): AutoEvent[] {
+  return threads
+    .filter((t) => t.status === 'waiting' && t.waitingSince !== undefined)
+    .map((t) => ({ at: t.waitingSince! + CHAT_SLA_MS, t }))
+    .filter(({ at }) => at > from && at <= to)
+    .map(({ at, t }) => ({
+      at,
+      applicantId: t.applicantId ?? 'visitor',
+      name: t.name,
+      audience: 'ops' as const,
+      kind: 'chat_sla' as const,
+      title: `Chat alert: ${t.name} has waited 15 min for a person`,
+    }));
+}
+
 /** The driver's inbox: everything sent to them, newest first. */
 export function driverInbox(a: Applicant, now: number): AutoEvent[] {
   return automationEvents([a], a.registeredAt - 1, now)
@@ -126,6 +145,7 @@ export function summarize(events: AutoEvent[]): string {
   const parts = [
     [n(['nudge']), 'nudge'],
     [n(['sla_24', 'sla_overdue']), 'SLA alert'],
+    [n(['chat_sla']), 'chat alert'],
     [n(['call_reminder']), 'call reminder'],
     [n(['welcome_task', 'book_task', 'call_task', 'close_task']), 'task'],
     [events.filter((e) => e.audience === 'driver' && e.kind === 'decision').length, 'decision message'],

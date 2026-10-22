@@ -3,8 +3,10 @@ import type { Applicant, Gig } from './lib/types';
 import { generateSeed } from './lib/seed';
 import { generateGigs } from './lib/gigs';
 import { restore, serialize, STORAGE_KEY, type DemoData } from './lib/persist';
+import { seedThreads } from './lib/chat/threads';
+import type { ChatThread } from './lib/chat/types';
 
-export type TabKey = 'review' | 'missing' | 'awaiting' | 'all';
+export type TabKey = 'review' | 'missing' | 'awaiting' | 'chat' | 'all';
 
 const OFFSET_KEY = 'driver-funnel-cockpit-offset';
 
@@ -52,7 +54,8 @@ export function useClock(intervalMs = 30_000) {
 }
 
 function fresh(now: number): DemoData {
-  return { apps: generateSeed(now), gigs: generateGigs(now) };
+  const apps = generateSeed(now);
+  return { apps, gigs: generateGigs(now), threads: seedThreads(apps, now) };
 }
 
 function load(): DemoData {
@@ -105,6 +108,11 @@ export function useDemoData() {
     setData((d) => ({ ...d, apps: [...d.apps, a] }));
   }, []);
 
+  /** Add or replace a chat thread. */
+  const upsertThread = useCallback((t: ChatThread) => {
+    setData((d) => ({ ...d, threads: d.threads.some((x) => x.id === t.id) ? d.threads.map((x) => (x.id === t.id ? t : x)) : [...d.threads, t] }));
+  }, []);
+
   /** Fresh demo data; returns the applicants so callers can take a new baseline. */
   const reset = useCallback((): Applicant[] => {
     const next = fresh(Date.now());
@@ -112,5 +120,5 @@ export function useDemoData() {
     return next.apps;
   }, []);
 
-  return { apps: data.apps, gigs: data.gigs as Gig[], update, add, reset };
+  return { apps: data.apps, gigs: data.gigs as Gig[], threads: data.threads, update, add, upsertThread, reset };
 }

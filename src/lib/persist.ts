@@ -1,10 +1,12 @@
 import type { Applicant, Gig } from './types';
 import { DOC_KEYS, REJECT_REASONS } from './types';
 import { HOUR } from './time';
+import type { ChatThread } from './chat/types';
+import { isThread, seedThreads, shiftThread } from './chat/threads';
 
 export const STORAGE_KEY = 'driver-funnel-cockpit-v1';
-/** Bump when the data model changes. Saves from another version are discarded, not migrated. */
-export const DATA_VERSION = 3;
+/** Bump when the data model changes. Saves from older versions are discarded, except v3, which only lacks the chat. */
+export const DATA_VERSION = 4;
 /** If the saved demo is older than this, move every timestamp forward so clocks still look live. */
 export const REBASE_AFTER_MS = 12 * HOUR;
 
@@ -13,11 +15,13 @@ export interface Saved {
   savedAt: number;
   apps: Applicant[];
   gigs: Gig[];
+  threads?: ChatThread[];
 }
 
 export interface DemoData {
   apps: Applicant[];
   gigs: Gig[];
+  threads: ChatThread[];
 }
 
 function isGig(g: unknown): g is Gig {
@@ -69,16 +73,23 @@ export function restore(raw: string | null, now: number): DemoData | null {
   if (!raw) return null;
   try {
     const saved = JSON.parse(raw) as Saved;
-    if (saved?.version !== DATA_VERSION || !Array.isArray(saved.apps) || typeof saved.savedAt !== 'number') return null;
+    if ((saved?.version !== DATA_VERSION && saved?.version !== 3) || !Array.isArray(saved.apps) || typeof saved.savedAt !== 'number') return null;
     if (!saved.apps.every(isCurrentShape) || !Array.isArray(saved.gigs) || !saved.gigs.every(isGig)) return null;
+    // v3 had no chat: add the demo conversations, dated as of that save.
+    const threads = saved.version === 3 ? seedThreads(saved.apps, saved.savedAt) : saved.threads;
+    if (!Array.isArray(threads) || !threads.every(isThread)) return null;
     const gap = now - saved.savedAt;
-    if (gap <= REBASE_AFTER_MS) return { apps: saved.apps, gigs: saved.gigs };
-    return { apps: saved.apps.map((a) => shiftApplicant(a, gap)), gigs: saved.gigs.map((g) => ({ ...g, at: g.at + gap })) };
+    if (gap <= REBASE_AFTER_MS) return { apps: saved.apps, gigs: saved.gigs, threads };
+    return {
+      apps: saved.apps.map((a) => shiftApplicant(a, gap)),
+      gigs: saved.gigs.map((g) => ({ ...g, at: g.at + gap })),
+      threads: threads.map((t) => shiftThread(t, gap)),
+    };
   } catch {
     return null;
   }
 }
 
 export function serialize(data: DemoData, now: number): string {
-  return JSON.stringify({ version: DATA_VERSION, savedAt: now, apps: data.apps, gigs: data.gigs } satisfies Saved);
+  return JSON.stringify({ version: DATA_VERSION, savedAt: now, apps: data.apps, gigs: data.gigs, threads: data.threads } satisfies Saved);
 }
