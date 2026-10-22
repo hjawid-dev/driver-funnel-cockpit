@@ -1,3 +1,5 @@
+import type { ChatAction } from './selfService';
+
 /**
  * The driver chat: an AI assistant that answers from the help articles and hands over to a
  * person in ops when it should. Shared by the app and the server function (types only).
@@ -19,9 +21,19 @@ export const HANDOVER_LABEL: Record<HandoverReason, string> = {
   urgent: 'Urgent: ongoing drive',
 };
 
+/** An action the assistant proposed; nothing happens until the driver confirms. */
+export interface Proposal {
+  optionId: string;
+  label: string;
+  /** Checked again against the driver's current options when they confirm. */
+  action: ChatAction;
+  status: 'open' | 'done' | 'declined' | 'stale';
+}
+
 export interface ChatMsg {
   id: string;
-  from: 'driver' | 'ai' | 'ops' | 'note';
+  /** 'auto' = an automatic reminder or status message (derived, not stored in the thread). */
+  from: 'driver' | 'ai' | 'ops' | 'note' | 'auto';
   text: string;
   at: number;
   /** Help articles the answer is based on. */
@@ -34,6 +46,13 @@ export interface ChatMsg {
   gapClosed?: boolean;
   /** Ops sender name. */
   by?: string;
+  /** Title and kind of an automatic message (see AutoKind in automation.ts). */
+  title?: string;
+  autoKind?: string;
+  /** On an AI answer: an action the driver can confirm. */
+  proposal?: Proposal;
+  /** On a note: something the driver did from the chat (self-service). */
+  actionDone?: string;
 }
 
 export interface ChatThread {
@@ -46,6 +65,8 @@ export interface ChatThread {
   status: 'ai' | 'waiting' | 'ops';
   waitingSince?: number;
   reason?: HandoverReason;
+  /** When the driver last opened the chat (for the unread badge). */
+  seenAt?: number;
 }
 
 /**
@@ -58,6 +79,8 @@ export interface DriverContext {
   status?: string;
   /** Short facts, e.g. "Call booked: Fri 24 Oct, 09:15". */
   facts?: string[];
+  /** Actions the assistant may offer, by id. The driver confirms with a button. */
+  options?: { id: string; label: string }[];
 }
 
 export interface ChatTurn {
@@ -73,7 +96,7 @@ export interface ChatRequest {
 /** One line of the streamed reply (newline-delimited JSON). */
 export type ChatEvent =
   | { t: 'delta'; text: string }
-  | { t: 'done'; sources: string[]; handover: HandoverReason | null }
+  | { t: 'done'; sources: string[]; handover: HandoverReason | null; action: string | null }
   | { t: 'error'; message: string };
 
 /** Returned as plain JSON when the AI is switched off or not configured: the app falls back to article search. */

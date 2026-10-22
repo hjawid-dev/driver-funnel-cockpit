@@ -1,5 +1,5 @@
 import type { Applicant, DocKey } from './types';
-import { DAY, HOUR, formatDuration } from './time';
+import { DAY, HOUR, formatDateTime, formatDuration } from './time';
 
 /** Automatic reminders after registration: +2 h, +24 h, +72 h. */
 export const NUDGE_OFFSETS = [2 * HOUR, 24 * HOUR, 72 * HOUR];
@@ -13,20 +13,33 @@ export interface NudgeState {
   label: string; // "Next nudge in 5 h" / "All nudges sent"
 }
 
+/** Is a scheduled reminder at time t silenced by the driver's own choice in the chat? */
+export function reminderSilenced(a: Applicant, t: number): boolean {
+  const r = a.reminders;
+  if (!r) return false;
+  if (r.offAt !== undefined && t >= r.offAt) return true;
+  return !!r.snooze && t > r.snooze.at && t < r.snooze.until;
+}
+
 export function nudgeState(a: Applicant, now: number): NudgeState {
-  // Scheduled nudges stop once the file is complete.
+  // Scheduled nudges stop once the file is complete, or when the driver pauses or stops them.
   const cutoff = Math.min(now, a.docsCompleteAt ?? Infinity);
-  const scheduled = NUDGE_OFFSETS.map((o) => a.registeredAt + o);
+  const scheduled = NUDGE_OFFSETS.map((o) => a.registeredAt + o).filter((t) => !reminderSilenced(a, t));
+  const snooze = a.reminders?.snooze;
+  if (snooze && !reminderSilenced({ ...a, reminders: { offAt: a.reminders?.offAt } }, snooze.until)) scheduled.push(snooze.until);
+  scheduled.sort((x, y) => x - y);
   const autoSent = scheduled.filter((t) => t <= cutoff);
   const pending = a.docsCompleteAt ? [] : scheduled.filter((t) => t > now);
   const nextAt = pending[0] ?? null;
-  return {
-    autoSent,
-    manual: [...a.nudges],
-    total: autoSent.length + a.nudges.length,
-    nextAt,
-    label: nextAt ? `Next nudge in ${formatDuration(nextAt - now)}` : 'All nudges sent',
-  };
+  const stopped = a.reminders?.offAt !== undefined && a.reminders.offAt <= now;
+  const label = stopped
+    ? 'Driver stopped reminders in the chat'
+    : nextAt
+      ? snooze && nextAt === snooze.until
+        ? `Driver asked for a reminder ${formatDateTime(nextAt)}`
+        : `Next nudge in ${formatDuration(nextAt - now)}`
+      : 'All nudges sent';
+  return { autoSent, manual: [...a.nudges], total: autoSent.length + a.nudges.length, nextAt, label };
 }
 
 /** Registered more than 14 days ago and the file is still incomplete. */

@@ -55,6 +55,14 @@ export function shiftApplicant(a: Applicant, delta: number): Applicant {
     ...(a.decision ? { decision: { ...a.decision, at: a.decision.at + delta } } : {}),
     ...(a.welcomeCallAt !== undefined ? { welcomeCallAt: s(a.welcomeCallAt) } : {}),
     ...(a.callAt !== undefined ? { callAt: s(a.callAt) } : {}),
+    ...(a.reminders
+      ? {
+          reminders: {
+            ...(a.reminders.snooze ? { snooze: { at: a.reminders.snooze.at + delta, until: a.reminders.snooze.until + delta } } : {}),
+            ...(a.reminders.offAt !== undefined ? { offAt: a.reminders.offAt + delta } : {}),
+          },
+        }
+      : {}),
     ...(a.firstGig
       ? {
           firstGig: {

@@ -1,6 +1,8 @@
 import type { Applicant } from '../types';
 import { DAY, MIN } from '../time';
-import type { ChatMsg, ChatThread, HandoverReason } from './types';
+import type { ChatMsg, ChatThread, HandoverReason, Proposal } from './types';
+import type { AutoEvent } from '../automation';
+import type { ActionOption } from './selfService';
 
 /** Ops answers a handed-over question within this time (staffed hours). */
 export const CHAT_SLA_MS = 15 * MIN;
@@ -28,9 +30,54 @@ export function addDriverMessage(t: ChatThread, text: string, now: number): Chat
   return t.status === 'ops' ? { ...next, status: 'waiting', waitingSince: now } : next;
 }
 
-export function addAiAnswer(t: ChatThread, text: string, sources: string[], handover: HandoverReason | null, now: number): ChatThread {
-  const next = add(t, { from: 'ai', text, at: now, ...(sources.length ? { sources } : {}), ...(handover ? { handover } : {}) });
+export function addAiAnswer(t: ChatThread, text: string, sources: string[], handover: HandoverReason | null, now: number, option?: ActionOption): ChatThread {
+  const proposal: Proposal | undefined = option && !handover ? { optionId: option.id, label: option.label, action: option.action, status: 'open' } : undefined;
+  // A newer proposal replaces any older one that is still open.
+  const base = proposal ? { ...t, messages: t.messages.map((m) => (m.proposal?.status === 'open' ? { ...m, proposal: { ...m.proposal, status: 'stale' as const } } : m)) } : t;
+  const next = add(base, { from: 'ai', text, at: now, ...(sources.length ? { sources } : {}), ...(handover ? { handover } : {}), ...(proposal ? { proposal } : {}) });
   return handover ? { ...next, status: 'waiting', waitingSince: now, reason: handover } : next;
+}
+
+/** The driver answered a proposal card. `done` is the confirmation text when the action went through. */
+export function resolveProposal(t: ChatThread, msgId: string, outcome: { done: string } | { stale: string } | 'declined', now: number): ChatThread {
+  const target = t.messages.find((m) => m.id === msgId);
+  if (!target?.proposal || target.proposal.status !== 'open') return t;
+  const status: Proposal['status'] = outcome === 'declined' ? 'declined' : 'done' in outcome ? 'done' : 'stale';
+  const next: ChatThread = { ...t, messages: t.messages.map((m) => (m.id === msgId ? { ...m, proposal: { ...m.proposal!, status } } : m)) };
+  if (outcome === 'declined') return add(next, { from: 'note', text: 'Okay, nothing was changed.', at: now });
+  if ('done' in outcome) return add(next, { from: 'note', text: outcome.done, at: now, actionDone: target.proposal.label });
+  return add(next, { from: 'note', text: `${outcome.stale} Ask again and I'll find another option.`, at: now });
+}
+
+/** The driver tapped a quick reply that does something (the tap is the confirmation). */
+export function addSelfService(t: ChatThread, driverText: string, done: string, label: string, now: number): ChatThread {
+  return add(add(t, { from: 'driver', text: driverText, at: now }), { from: 'note', text: done, at: now, actionDone: label });
+}
+
+/** A quick reply that needs no AI and changes nothing, e.g. "I'll be there". */
+export function addAck(t: ChatThread, driverText: string, reply: string, now: number): ChatThread {
+  return add(add(t, { from: 'driver', text: driverText, at: now }), { from: 'note', text: reply, at: now });
+}
+
+export function markSeen(t: ChatThread, now: number): ChatThread {
+  return { ...t, seenAt: now };
+}
+
+/**
+ * One conversation: the thread plus the automatic messages sent to the driver (reminders,
+ * call reminder, decision, first-drive offers), which are derived from timestamps, not stored.
+ */
+export function chatTimeline(t: ChatThread | undefined, events: AutoEvent[]): ChatMsg[] {
+  const autos: ChatMsg[] = events
+    .filter((e) => e.audience === 'driver')
+    .map((e) => ({ id: `auto-${e.kind}-${e.at}`, from: 'auto' as const, title: e.title, autoKind: e.kind, text: e.body ?? '', at: e.at }));
+  // Stable: at the same time, automatic messages come before the conversation.
+  return [...autos, ...(t?.messages ?? [])].map((m, i) => ({ m, i })).sort((x, y) => x.m.at - y.m.at || x.i - y.i).map((x) => x.m);
+}
+
+/** Automatic messages and ops replies the driver hasn't seen yet. */
+export function unreadCount(timeline: ChatMsg[], seenAt: number | undefined): number {
+  return timeline.filter((m) => (m.from === 'auto' || m.from === 'ops') && m.at > (seenAt ?? 0)).length;
 }
 
 export function addOfflineAnswer(t: ChatThread, text: string, sources: string[], now: number): ChatThread {
@@ -70,6 +117,8 @@ export function questionBefore(t: ChatThread, msgIdx: number): string {
 }
 
 export interface ChatStats {
+  /** Things drivers did themselves in the chat (booked or moved a call, marked the extract, picked a drive, reminders). */
+  selfService: number;
   questions: number; // answered by AI + handed over (offline answers excluded)
   byAi: number;
   handedOver: number;
@@ -85,12 +134,14 @@ export interface ChatStats {
 export function chatStats(threads: ChatThread[], now: number, windowMs = 7 * DAY): ChatStats {
   let byAi = 0;
   let handedOver = 0;
+  let selfService = 0;
   const byReason: ChatStats['byReason'] = {};
   const replyMins: number[] = [];
   for (const t of threads) {
     let waitingFrom: number | null = null;
     for (const m of t.messages) {
       const inWindow = now - m.at <= windowMs && m.at <= now;
+      if (m.actionDone && inWindow) selfService++;
       if (m.handover) {
         if (inWindow) {
           handedOver++;
@@ -107,6 +158,7 @@ export function chatStats(threads: ChatThread[], now: number, windowMs = 7 * DAY
   const questions = byAi + handedOver;
   replyMins.sort((a, b) => a - b);
   return {
+    selfService,
     questions,
     byAi,
     handedOver,
@@ -155,7 +207,10 @@ const HISTORY: { name: string; daysAgo: number; lines: Line[]; waiting?: Handove
   ] },
   { name: 'Wilma Eriksson', daysAgo: 0.2, lines: [
     ['driver', 'hur lång tid tar det att få utdraget?', 0],
-    ['ai', 'Det brukar ta några dagar, ibland upp till två veckor. Tryck på "Det har kommit" i appen när det är här, så kan du boka samtalet direkt.', 0.2, { sources: ['extract-order', 'extract-delay'] }],
+    ['ai', 'Det brukar ta några dagar, ibland upp till två veckor. Säg till här när du har beställt det, så påminner vi dig att boka samtalet när det har kommit.', 0.2, { sources: ['extract-order', 'extract-delay'] }],
+    ['driver', 'jag har beställt det nu', 1],
+    ['ai', 'Toppen! Bekräfta med knappen nedan så noterar jag att utdraget är beställt.', 1.2, { proposal: { optionId: 'ORDERED', label: 'Mark your extract as ordered', action: { type: 'extract_ordered' }, status: 'done' } }],
+    ['note', "Noted: your extract is ordered. Tell me when it arrives and we'll book your call.", 1.4, { actionDone: 'Mark your extract as ordered' }],
     ['driver', 'Can I do the other steps while I wait?', 3],
     ['ai', 'Yes. BankID, the licence photo and the profile photo can all be done while you wait for the extract.', 3.2, { sources: ['extract-delay'] }],
   ] },
@@ -171,6 +226,8 @@ const HISTORY: { name: string; daysAgo: number; lines: Line[]; waiting?: Handove
   { name: 'Liam Persson', daysAgo: 1.2, lines: [
     ['driver', 'what do you pay per job', 0],
     ['ai', 'Every job shows its pay before you accept it. Short city drives pay around 300–350 SEK and longer ones like Stockholm–Uppsala around 650–700 SEK. Public transport to and from the job is refunded on top.', 0.2, { sources: ['pay', 'travel-costs'] }],
+    ['driver', "I've ordered it", 30],
+    ['note', "Noted: your extract is ordered. Tell me when it arrives and we'll book your call.", 30, { actionDone: 'Mark your extract as ordered' }],
   ] },
   { name: 'Ebba Gustafsson', daysAgo: 1.6, lines: [
     ['driver', 'Is there a bonus if I refer a friend?', 0],

@@ -1,6 +1,6 @@
 import type { Applicant } from './types';
 import { REJECT_REASONS } from './types';
-import { NUDGE_OFFSETS, NO_RESPONSE_MS, nudgeMessage } from './nudges';
+import { NUDGE_OFFSETS, NO_RESPONSE_MS, nudgeMessage, reminderSilenced } from './nudges';
 import { DAY, HOUR, formatDateTime } from './time';
 import type { ChatThread } from './chat/types';
 import { CHAT_SLA_MS } from './chat/threads';
@@ -51,11 +51,18 @@ export function automationEvents(apps: Applicant[], from: number, to: number): A
     // Reminders while the file is incomplete (2 h, 24 h, 72 h after registration).
     NUDGE_OFFSETS.forEach((o, i) => {
       const t = a.registeredAt + o;
-      if (completeBy(t) || decidedBy(t)) return;
+      if (completeBy(t) || decidedBy(t) || reminderSilenced(a, t)) return;
       const stillIncomplete = !a.docsCompleteAt && !a.decision;
       push(t, 'driver', 'nudge', `Reminder ${i + 1} of 3`, stillIncomplete ? nudgeMessage(a) : `Hi ${first(a)}, a few things were still missing in your application.`);
       push(t, 'ops', 'nudge', `Auto-nudge ${i + 1} sent to ${a.name}`);
     });
+
+    // A reminder the driver asked for in the chat ("remind me tomorrow").
+    const snooze = a.reminders?.snooze;
+    if (snooze && !completeBy(snooze.until) && !decidedBy(snooze.until) && !reminderSilenced({ ...a, reminders: { offAt: a.reminders?.offAt } }, snooze.until)) {
+      push(snooze.until, 'driver', 'nudge', 'The reminder you asked for', nudgeMessage(a));
+      push(snooze.until, 'ops', 'nudge', `Requested reminder sent to ${a.name}`);
+    }
 
     // 14 days without a complete file: a person closes it (never automatic).
     const t14 = a.registeredAt + NO_RESPONSE_MS;

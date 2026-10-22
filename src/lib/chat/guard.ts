@@ -40,6 +40,12 @@ export function validateChatRequest(body: unknown): Checked {
     if (isStr(c.firstName, 40) && c.firstName.trim()) ctx.firstName = c.firstName;
     if (isStr(c.status, 160) && c.status.trim()) ctx.status = c.status;
     if (Array.isArray(c.facts)) ctx.facts = c.facts.filter((f): f is string => isStr(f, 160)).slice(0, 6);
+    if (Array.isArray(c.options)) {
+      ctx.options = c.options
+        .filter((o): o is { id: string; label: string } => !!o && typeof o === 'object' && typeof o.id === 'string' && /^[A-Z0-9_]{1,12}$/.test(o.id) && isStr(o.label, 140))
+        .map((o) => ({ id: o.id, label: o.label }))
+        .slice(0, 12);
+    }
   }
   return { ok: true, value: { messages: turns, context: ctx } };
 }

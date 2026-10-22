@@ -136,7 +136,7 @@ The app checks the photo instantly and tells you if something needs fixing. A pe
     body: `We move customers' cars and keys, so we ask everyone for an extract from the criminal record (belastningsregistret).
 1. Go to polisen.se and order an extract of your own data from the criminal record. It is free.
 2. It is sent to you, usually within a few days, sometimes up to two weeks.
-3. In the app, tap "I've ordered it". We'll remind you.
+3. In the app, tap "I've ordered it", or just tell the assistant in the chat. We'll remind you.
 4. When it arrives, tap "It has arrived" and book your call.
 You show the extract in the call. We never keep a copy and never write down what it says.`,
   },
@@ -163,8 +163,8 @@ You can still finish the other steps (BankID, licence, photo) while you wait.`,
     title: 'Reminders while your application is open',
     category: 'Documents',
     tags: ['reminder', 'påminnelse', 'messages', 'notifications', 'stop', 'spam'],
-    body: `While something is missing we send up to three reminders: about 2 hours, 1 day and 3 days after you started. Each one says exactly what is left.
-Reply "stop" to end them. Your application stays open.
+    body: `While something is missing we send up to three reminders in the chat: about 2 hours, 1 day and 3 days after you started. Each one says exactly what is left.
+You can answer a reminder right there: "Remind me tomorrow", "Remind me in 3 days", or "Stop reminders". Your application stays open either way.
 If nothing has happened in 14 days, a person on our team looks at your application before it is closed. You can always start again.`,
   },
 
@@ -182,7 +182,8 @@ The call is 15 minutes, by video. You need your extract, your driving licence an
     title: 'Changing or cancelling your call',
     category: 'The call and decision',
     tags: ['reschedule', 'boka om', 'cancel call', 'avboka', 'move call', 'change time', 'missed call'],
-    body: `You can't change a booked call in the app yet. Ask to talk to a person in the chat and tell us which times suit you; we move it for you.
+    body: `You can move your call yourself in the chat, up to 2 hours before it starts: tell the assistant when suits you, and it offers free times. Nothing changes until you tap Confirm.
+Less than 2 hours before, or if no free time suits you, ask to talk to a person in the chat.
 If you miss your call, ask in the chat for a new time. Missing one call doesn't affect your application.`,
   },
   {
@@ -400,6 +401,7 @@ You can ask to see your data, correct it or have it deleted: ask in the chat.`,
     category: 'Privacy',
     tags: ['ai', 'bot', 'chatbot', 'assistant', 'robot', 'human', 'person', 'människa', 'is this a bot'],
     body: `The chat assistant is an AI. It answers from our help articles and from the status of your own application, nothing else. It can't make decisions about your application.
+It can suggest things on your own application: booking or moving your call, marking your extract as ordered or arrived, picking your first drive, or pausing reminders. Nothing happens until you tap Confirm.
 You can talk to a person at any time: tap "Talk to a person" or just ask. The assistant also hands you over when it isn't sure.
 Don't share sensitive details in the chat, such as health information or anything from your criminal-record extract.`,
   },

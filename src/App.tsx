@@ -133,6 +133,10 @@ export default function App() {
       if (!prev) return;
       if (!prev.docsCompleteAt && next.docsCompleteAt) toast.notify(`${next.name}: file complete, auto-queued for review.`);
       else if (!prev.callAt && next.callAt) toast.notify(`${next.name} booked the extract call: ${formatDateTime(next.callAt)}.`);
+      else if (prev.callAt && next.callAt && prev.callAt !== next.callAt) toast.notify(`${next.name} moved the extract call to ${formatDateTime(next.callAt)}.`);
+      else if (!prev.reminders?.offAt && next.reminders?.offAt) toast.notify(`${next.name} stopped the reminders in the chat.`);
+      else if (next.reminders?.snooze && prev.reminders?.snooze?.until !== next.reminders.snooze.until)
+        toast.notify(`${next.name} asked for a reminder ${formatDateTime(next.reminders.snooze.until)}.`);
       else if (!prev.firstGig?.gigId && next.firstGig?.gigId) toast.notify(`${next.name} picked a first drive. It shows in Awaiting first gig.`);
     },
     [apps, update, toast.notify],

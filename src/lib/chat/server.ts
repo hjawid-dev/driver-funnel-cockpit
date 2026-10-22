@@ -63,6 +63,7 @@ export function createChatHandler(opts: { env: ChatEnv; client?: ModelClient; no
     const checked = validateChatRequest(body);
     if (!checked.ok) return json({ error: checked.error }, 400);
     const { messages, context } = checked.value;
+    const knownOptions = new Set((context.options ?? []).map((o) => o.id));
 
     client ??= wrap(new Anthropic({ apiKey: opts.env.ANTHROPIC_API_KEY }));
     const stream = client.stream({
@@ -94,16 +95,16 @@ export function createChatHandler(opts: { env: ChatEnv; client?: ModelClient; no
             }
           }
           const final = await stream.finalMessage();
-          const { text, meta } = splitter.end(KNOWN_SOURCES);
+          const { text, meta } = splitter.end(KNOWN_SOURCES, knownOptions);
           if (text) {
             shown += text;
             send({ t: 'delta', text });
           }
           if (final.stop_reason === 'refusal' || !shown.trim()) {
             if (!shown.trim()) send({ t: 'delta', text: FALLBACK_TEXT });
-            send({ t: 'done', sources: [], handover: meta.handover ?? 'sensitive' });
+            send({ t: 'done', sources: [], handover: meta.handover ?? 'sensitive', action: null });
           } else {
-            send({ t: 'done', sources: meta.sources, handover: meta.handover });
+            send({ t: 'done', sources: meta.sources, handover: meta.handover, action: meta.action });
           }
           // Cost and cache check in the logs. Never the conversation itself.
           const u = final.usage;

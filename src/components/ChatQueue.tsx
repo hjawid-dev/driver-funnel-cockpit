@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bot, CircleCheck, FilePlus2, Smartphone, UserRound } from 'lucide-react';
+import { Bot, CircleCheck, FilePlus2, MousePointerClick, Smartphone, UserRound } from 'lucide-react';
 import type { ChatThread } from '../lib/chat/types';
 import { HANDOVER_LABEL } from '../lib/chat/types';
 import { AI_TARGET, CHAT_SLA_MS, backToAi, chatStats, closeGap, contentGaps, opsReply, waitingThreads } from '../lib/chat/threads';
@@ -107,7 +107,7 @@ function Stats({ stats }: { stats: ReturnType<typeof chatStats> }) {
   const tone = rate === null ? 'text-muted' : rate >= AI_TARGET ? 'text-ok' : rate >= AI_TARGET - 10 ? 'text-warn' : 'text-bad';
   const reasons = Object.entries(stats.byReason) as [keyof typeof HANDOVER_LABEL, number][];
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <article className="rounded-xl border border-lavender p-4">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold">
           <Bot size={15} className="text-indigo" aria-hidden /> Answered by AI
@@ -123,6 +123,13 @@ function Stats({ stats }: { stats: ReturnType<typeof chatStats> }) {
         </h3>
         <p className="num mt-1 text-2xl font-semibold">{stats.handedOver}</p>
         <p className="text-xs text-muted">{reasons.length ? reasons.map(([r, n]) => `${HANDOVER_LABEL[r]} ${n}`).join(' · ') : 'None this week'}</p>
+      </article>
+      <article className="rounded-xl border border-lavender p-4">
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+          <MousePointerClick size={15} className="text-indigo" aria-hidden /> Done in the chat
+        </h3>
+        <p className="num mt-1 text-2xl font-semibold">{stats.selfService}</p>
+        <p className="text-xs text-muted">Calls booked or moved, extracts marked, first drives picked, reminders. Confirmed by the driver, last 7 days</p>
       </article>
       <article className="rounded-xl border border-lavender p-4">
         <h3 className="text-sm font-semibold">Ops reply time</h3>
@@ -183,9 +190,9 @@ function ThreadView({ t, now, onThread, onViewChat }: { t: ChatThread; now: numb
       </div>
       <ol className="max-h-[420px] space-y-2 overflow-y-auto px-4 py-3">
         {t.messages.map((m) => (
-          <li key={m.id} className={m.from === 'note' ? 'text-center text-[11px] text-muted' : 'text-sm'}>
+          <li key={m.id} className={m.from === 'note' ? `text-center text-[11px] ${m.actionDone ? 'font-semibold text-ok' : 'text-muted'}` : 'text-sm'}>
             {m.from === 'note' ? (
-              m.text
+              m.actionDone ? `✓ Done in the chat: ${m.actionDone}` : m.text
             ) : (
               <div className={`rounded-xl px-3 py-2 ${m.from === 'driver' ? 'bg-card' : m.from === 'ops' ? 'bg-ok-bg' : 'border border-lavender'}`}>
                 <p className="mb-0.5 flex justify-between gap-2 text-[11px] font-semibold text-muted">
@@ -196,6 +203,11 @@ function ThreadView({ t, now, onThread, onViewChat }: { t: ChatThread; now: numb
                   <span className="num font-normal">{formatDateTime(m.at)}</span>
                 </p>
                 <p className="whitespace-pre-line">{m.text}</p>
+                {m.proposal && (
+                  <p className="mt-1 text-[11px] font-semibold text-indigo">
+                    Proposed: {m.proposal.label} · {{ open: 'waiting for the driver', done: 'confirmed', declined: 'declined', stale: 'no longer available' }[m.proposal.status]}
+                  </p>
+                )}
                 {m.sources && m.sources.length > 0 && (
                   <p className="mt-1 text-[11px] text-muted">Sources: {m.sources.map((s) => HELP_BY_ID[s]?.title ?? s).join(' · ')}</p>
                 )}

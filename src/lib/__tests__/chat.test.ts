@@ -54,7 +54,7 @@ describe('MetaSplitter', () => {
     const shown = chunks.map((c) => s.push(c)).join('');
     const { text, meta } = s.end(KNOWN);
     expect(shown + text).toBe('Pay is shown before you accept.\n');
-    expect(meta).toEqual({ sources: ['pay'], handover: null });
+    expect(meta).toEqual({ sources: ['pay'], handover: null, action: null });
   });
   it('does not hold back a "<" that is not the tag', () => {
     const s = new MetaSplitter();
@@ -68,11 +68,11 @@ describe('MetaSplitter', () => {
     const shown = s.push('Answer without a tag');
     const end = s.end(KNOWN);
     expect(shown + end.text).toBe('Answer without a tag');
-    expect(end.meta).toEqual({ sources: [], handover: null });
-    expect(parseMeta('{oops', KNOWN)).toEqual({ sources: [], handover: null });
+    expect(end.meta).toEqual({ sources: [], handover: null, action: null });
+    expect(parseMeta('{oops', KNOWN)).toEqual({ sources: [], handover: null, action: null });
   });
   it('drops unknown article ids and unknown handover reasons', () => {
-    expect(parseMeta('{"sources":["pay","made-up","pay"],"handover":"later"}', KNOWN)).toEqual({ sources: ['pay'], handover: null });
+    expect(parseMeta('{"sources":["pay","made-up","pay"],"handover":"later"}', KNOWN)).toEqual({ sources: ['pay'], handover: null, action: null });
     expect(parseMeta('{"sources":[],"handover":"urgent"}', KNOWN).handover).toBe('urgent');
   });
 });
@@ -285,7 +285,7 @@ describe('chat server', () => {
     expect(res.headers.get('content-type')).toContain('ndjson');
     const ev = await events(res);
     expect(ev.filter((e) => e.t === 'delta').map((e) => e.text).join('')).toBe('Every job shows its pay. Short drives pay around 300 SEK.\n');
-    expect(ev.at(-1)).toEqual({ t: 'done', sources: ['pay'], handover: null });
+    expect(ev.at(-1)).toEqual({ t: 'done', sources: ['pay'], handover: null, action: null });
     const p = calls[0];
     expect(p.model).toBe(CHAT_MODEL);
     expect(p.model).toBe('claude-haiku-5-5');

@@ -68,6 +68,8 @@ export interface Applicant {
   decision?: Decision;
   welcomeCallAt?: number;
   firstGig?: FirstGig;
+  /** The driver's own choice in the chat: pause reminders until a time, or stop them. */
+  reminders?: { snooze?: { at: number; until: number }; offAt?: number };
   log: { at: number; text: string }[];
 }
 

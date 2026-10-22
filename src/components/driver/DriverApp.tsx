@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Bell, CalendarCheck, Car, Check, ChevronLeft, ChevronRight, ExternalLink, IdCard, Lock, MessageCircle, MessageSquare, ScanFace, ShieldCheck, Sparkles } from 'lucide-react';
+import { CalendarCheck, Car, Check, ChevronLeft, ChevronRight, ExternalLink, IdCard, Lock, MessageCircle, MessageSquare, ScanFace, ShieldCheck, Sparkles } from 'lucide-react';
 import type { Applicant, Gig } from '../../lib/types';
 import type { ChatThread } from '../../lib/chat/types';
-import { threadIdFor } from '../../lib/chat/threads';
+import { chatTimeline, threadIdFor, unreadCount } from '../../lib/chat/threads';
 import { DriverChat } from './DriverChat';
 import { REJECT_REASONS } from '../../lib/types';
 import { driverStep, progress, STEP_ORDER, createApplicant, bookCall, bookOffer, MIN_AGE, type Application } from '../../lib/driverFlow';
@@ -30,10 +30,10 @@ interface Props {
 
 /** The applicant's side of the funnel: one step at a time, on a phone. */
 export function DriverApp({ applicant: a, apps, gigs, threads, now, onCreate, onUpdate, onThread, initialView = 'steps' }: Props) {
-  const [view, setView] = useState<'steps' | 'inbox' | 'chat'>(initialView);
-  const inbox = a ? driverInbox(a, now) : [];
+  const [view, setView] = useState<'steps' | 'chat'>(initialView);
   const thread = threads.find((t) => t.id === threadIdFor(a?.id ?? null));
-  const unreadOps = thread?.messages.at(-1)?.from === 'ops';
+  // Reminders, status messages and ops replies all arrive in the chat.
+  const unread = view === 'chat' ? 0 : unreadCount(chatTimeline(thread, a ? driverInbox(a, now) : []), thread?.seenAt);
   const headerBtn = 'relative flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold hover:bg-white/10';
 
   return (
@@ -44,38 +44,29 @@ export function DriverApp({ applicant: a, apps, gigs, threads, now, onCreate, on
             <span className="text-sm font-semibold">Drive with us</span>
           ) : (
             <button type="button" onClick={() => setView('steps')} className={`${headerBtn} -ml-2`}>
-              <ChevronLeft size={15} aria-hidden /> {view === 'chat' ? 'Help chat' : 'Messages'}
+              <ChevronLeft size={15} aria-hidden /> {a ? 'My application' : 'Back'}
             </button>
           )}
-          <div className="flex items-center gap-1">
-            {view !== 'chat' && (
-              <button type="button" onClick={() => setView('chat')} className={headerBtn} aria-label="Help chat">
-                <MessageCircle size={15} aria-hidden /> Help
-                {unreadOps && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-green" aria-label="New reply from ops" />}
-              </button>
-            )}
-            {a && view === 'steps' && (
-              <button type="button" onClick={() => setView('inbox')} className={headerBtn} aria-label={`Messages, ${inbox.length}`}>
-                <Bell size={15} aria-hidden /> {inbox.length}
-              </button>
-            )}
-          </div>
+          {view !== 'chat' && (
+            <button type="button" onClick={() => setView('chat')} className={headerBtn} aria-label={`Messages and help${unread ? `, ${unread} unread` : ''}`}>
+              <MessageCircle size={15} aria-hidden /> Messages
+              {unread > 0 && <span className="num ml-0.5 rounded-full bg-green px-1.5 text-[11px] font-bold text-navy">{unread}</span>}
+            </button>
+          )}
         </div>
         {a && view === 'steps' && <Progress a={a} />}
       </header>
 
       {view === 'chat' ? (
         <div className="min-h-0 flex-1">
-          <DriverChat applicant={a} thread={thread} gigs={gigs} now={now} onThread={onThread} />
+          <DriverChat applicant={a} thread={thread} apps={apps} gigs={gigs} now={now} onThread={onThread} onUpdate={onUpdate} onSteps={() => setView('steps')} />
         </div>
       ) : (
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {!a ? (
           <Start onCreate={(input) => onCreate(createApplicant(input, apps, now))} onChat={() => setView('chat')} />
-        ) : view === 'inbox' ? (
-          <Inbox items={inbox} />
         ) : (
-          <Step a={a} apps={apps} gigs={gigs} now={now} onUpdate={onUpdate} onInbox={() => setView('inbox')} />
+          <Step a={a} apps={apps} gigs={gigs} now={now} onUpdate={onUpdate} onInbox={() => setView('chat')} />
         )}
       </div>
       )}
@@ -261,7 +252,7 @@ function PrivacyNotice() {
           <strong>Your criminal-record extract is only shown in a call.</strong> We never keep a copy or write down what it says.
         </li>
         <li>A person makes every decision. You can ask why and ask for a review; we reply within two weeks.</li>
-        <li>We send up to three reminders while your application is open. Reply "stop" to end them.</li>
+        <li>We send up to three reminders in the chat while your application is open. Tap "Stop reminders" or write "stop" to end them.</li>
         <li>Incomplete applications are deleted after 6 months, rejected ones after 2 years.</li>
       </ul>
     </details>
@@ -397,7 +388,7 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox }: { a: Applicant; apps: A
           </Card>
           <p className="text-sm text-muted">You can ask us to explain the decision and to review it. We reply within two weeks.</p>
           <button type="button" onClick={onInbox} className="text-sm font-semibold text-indigo hover:underline">
-            See your messages
+            Open your messages
           </button>
         </div>
       );
@@ -539,22 +530,5 @@ function OffersStep({ a, apps, gigs, now, onPick }: { a: Applicant; apps: Applic
         ))
       )}
     </div>
-  );
-}
-
-function Inbox({ items }: { items: ReturnType<typeof driverInbox> }) {
-  if (!items.length) return <p className="py-8 text-center text-sm text-muted">No messages yet.</p>;
-  return (
-    <ol className="space-y-2">
-      {items.map((m, i) => (
-        <li key={i} className="rounded-xl bg-card p-3">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-sm font-semibold">{m.title}</span>
-            <span className="num shrink-0 text-[11px] text-muted">{formatDateTime(m.at)}</span>
-          </div>
-          {m.body && <p className="mt-1 whitespace-pre-line text-sm text-muted">{m.body}</p>}
-        </li>
-      ))}
-    </ol>
   );
 }

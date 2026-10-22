@@ -2,17 +2,27 @@ import type { ChatEvent, ChatMsg, ChatTurn, DriverContext, HandoverReason, Offli
 import { LIMITS } from './guard';
 
 export type AskResult =
-  | { mode: 'ai'; text: string; sources: string[]; handover: HandoverReason | null }
+  | { mode: 'ai'; text: string; sources: string[]; handover: HandoverReason | null; action: string | null }
   | { mode: 'offline'; reason: OfflineReply['reason'] | 'error' }
   | { mode: 'limited'; message: string };
 
-/** The conversation as the model sees it: driver and assistant turns, ops replies folded in. */
+/**
+ * The conversation as the model sees it: driver and assistant turns, with ops replies, automatic
+ * reminders and actions done in the chat folded in as assistant turns, so "yes" and "tomorrow" make sense.
+ */
 export function toTurns(messages: ChatMsg[], question: string): ChatTurn[] {
   const turns: ChatTurn[] = [];
   for (const m of messages) {
-    if (m.from === 'note' || m.offline) continue;
+    if (m.offline || (m.from === 'note' && !m.actionDone)) continue;
     const role = m.from === 'driver' ? 'user' : 'assistant';
-    const content = m.from === 'ops' ? `(Reply from ${m.by ?? 'ops'}) ${m.text}` : m.text;
+    const content =
+      m.from === 'ops'
+        ? `(Reply from ${m.by ?? 'ops'}) ${m.text}`
+        : m.from === 'auto'
+          ? `(Automatic message) ${m.title ?? ''}${m.text ? `: ${m.text}` : ''}`
+          : m.from === 'note'
+            ? `(Done in the app) ${m.text}`
+            : m.text;
     const last = turns[turns.length - 1];
     if (last?.role === role) last.content = `${last.content}\n${content}`.slice(0, role === 'user' ? LIMITS.questionChars : LIMITS.answerChars);
     else turns.push({ role, content: content.slice(0, role === 'user' ? LIMITS.questionChars : LIMITS.answerChars) });
@@ -21,10 +31,10 @@ export function toTurns(messages: ChatMsg[], question: string): ChatTurn[] {
   const last = turns[turns.length - 1];
   if (last?.role === 'user') last.content = `${last.content}\n${question}`.slice(-LIMITS.questionChars);
   else turns.push({ role: 'user', content: question });
-  while (turns.length && turns[0].role !== 'user') turns.shift();
-  // Keep the most recent turns within the limit, starting with the driver.
-  let recent = turns.slice(-(LIMITS.turns - 1));
-  if (recent[0]?.role !== 'user') recent = recent.slice(1);
+  // Keep the most recent turns within the limit. The conversation must start with the driver, so
+  // when it starts with an automatic message, a short opening line keeps that message in view.
+  const recent = turns.slice(-(LIMITS.turns - 1));
+  if (recent[0]?.role !== 'user') recent.unshift({ role: 'user', content: '(Opened the chat)' });
   return recent;
 }
 
@@ -75,5 +85,5 @@ export async function askAssistant(turns: ChatTurn[], context: DriverContext, on
     }
   }
   if (!done || !text.trim()) return { mode: 'offline', reason: 'error' };
-  return { mode: 'ai', text: text.trim(), sources: done.sources, handover: done.handover };
+  return { mode: 'ai', text: text.trim(), sources: done.sources, handover: done.handover, action: done.action ?? null };
 }
