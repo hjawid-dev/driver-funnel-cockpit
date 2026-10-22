@@ -234,3 +234,33 @@ export function computeFunnel(apps: Applicant[]): Funnel {
 
   return { tiles, edges, rejected: count('rejected') };
 }
+
+// ---------- Change since the page was opened ----------
+
+/** true = up is good, false = down is good, null = neither (diagnostic). */
+export const HIGHER_IS_BETTER: Record<Kpi['key'], boolean | null> = {
+  docCompletion: true,
+  timeToDecision: false,
+  acceptance: null,
+  activation: true,
+  appToActive: true,
+  quality: true,
+};
+
+export interface KpiDelta {
+  text: string; // "▼ 6 h" / "▲ 3 pp"
+  good: boolean | null;
+}
+
+/** Change of one KPI against a baseline. Null when there is no visible change. */
+export function kpiDelta(base: Kpi | undefined, cur: Kpi): KpiDelta | null {
+  if (!base || base.value === null || cur.value === null) return null;
+  const diff = Math.round(cur.value - base.value);
+  if (diff === 0) return null;
+  const unit = cur.key === 'timeToDecision' ? 'h' : 'pp';
+  const pref = HIGHER_IS_BETTER[cur.key];
+  return {
+    text: `${diff > 0 ? '▲' : '▼'} ${Math.abs(diff)} ${unit}`,
+    good: pref === null ? null : diff > 0 === pref,
+  };
+}

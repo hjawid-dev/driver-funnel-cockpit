@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { CalendarClock, Network, RotateCcw } from 'lucide-react';
+import { CalendarClock, Compass, Network, RotateCcw } from 'lucide-react';
 import { useApplicants, useNow, type TabKey } from './state';
 import { computeFunnel, computeKpis, type FunnelKey } from './lib/kpis';
 import { deriveStage } from './lib/stage';
@@ -15,7 +15,27 @@ import { AllApplicants, type StageFilter } from './components/AllApplicants';
 import { HubspotModal } from './components/HubspotModal';
 import { ApplicantDrawer } from './components/ApplicantDrawer';
 import { Toast, useToast } from './components/Toast';
+import { DemoGuide } from './components/DemoGuide';
+import { guideSteps } from './lib/guide';
 import type { ActionResult } from './lib/actions';
+
+const GUIDE_KEY = 'driver-funnel-cockpit-guide-hidden';
+
+function readGuideHidden(): boolean {
+  try {
+    return localStorage.getItem(GUIDE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeGuideHidden(hidden: boolean) {
+  try {
+    localStorage.setItem(GUIDE_KEY, hidden ? '1' : '0');
+  } catch {
+    // Per-viewer convenience only.
+  }
+}
 
 const TILE_TO_TAB: Record<FunnelKey, TabKey> = {
   registered: 'missing',
@@ -34,6 +54,13 @@ export default function App() {
   const [showHubspot, setShowHubspot] = useState(false);
   const closeHubspot = useCallback(() => setShowHubspot(false), []);
   const toast = useToast();
+  // KPI values when the page was opened (or the demo reset): the ▲▼ chips compare against this.
+  const [baseline, setBaseline] = useState(() => computeKpis(apps, Date.now()));
+  const [guideHidden, setGuideHidden] = useState(readGuideHidden);
+  const toggleGuide = (hidden: boolean) => {
+    setGuideHidden(hidden);
+    writeGuideHidden(hidden);
+  };
   const open = apps.find((a) => a.id === openId) ?? null;
   const close = useCallback(() => setOpenId(null), []);
 
@@ -55,6 +82,7 @@ export default function App() {
     return { review: n('review'), missing: n('registered'), awaiting: n('accepted'), all: apps.length };
   }, [apps]);
   const slot = nextReviewSlot(now);
+  const steps = useMemo(() => guideSteps(apps, now), [apps, now]);
 
   const jumpTo = (key: FunnelKey) => {
     setTab(TILE_TO_TAB[key]);
@@ -83,7 +111,8 @@ export default function App() {
             <button
               type="button"
               onClick={() => {
-                reset();
+                const fresh = reset();
+                setBaseline(computeKpis(fresh, Date.now()));
                 setOpenId(null);
                 setStageFilter('all');
                 toast.notify('Demo reset with fresh data.');
@@ -104,6 +133,16 @@ export default function App() {
             <h1 className="text-2xl font-bold tracking-tight">Driver Funnel Cockpit</h1>
             <p className="text-sm text-muted mt-0.5">Application to active driver, Stockholm</p>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+          {guideHidden && (
+            <button
+              type="button"
+              onClick={() => toggleGuide(false)}
+              className="flex items-center gap-1.5 rounded-lg border border-lavender px-3 py-2 text-sm font-semibold text-indigo hover:border-indigo"
+            >
+              <Compass size={15} aria-hidden /> Demo guide
+            </button>
+          )}
           <div className="flex items-center gap-2 rounded-lg bg-card px-3 py-2 text-sm">
             <CalendarClock size={16} className="text-indigo" aria-hidden />
             <span>
@@ -111,10 +150,15 @@ export default function App() {
               <span className="text-muted"> · in {formatDuration(slot.at - now)}</span>
             </span>
           </div>
+          </div>
         </div>
 
+        {!guideHidden && (
+          <DemoGuide steps={steps} onOpen={setOpenId} onHubspot={() => setShowHubspot(true)} onHide={() => toggleGuide(true)} />
+        )}
+
         <Scoreboard funnel={funnel} onSelect={jumpTo} />
-        <KpiRow kpis={kpis} />
+        <KpiRow kpis={kpis} baseline={baseline} />
 
         <section id="worklists" className="scroll-mt-4">
           <Tabs active={tab} counts={counts} onChange={setTab} />

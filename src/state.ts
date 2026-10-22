@@ -42,7 +42,12 @@ export function useApplicants() {
     setApps((xs) => xs.map((a) => (a.id === next.id ? next : a)));
   }, []);
 
-  const reset = useCallback(() => setApps(generateSeed(Date.now())), []);
+  /** Fresh demo data; returns it so callers can take a new baseline. */
+  const reset = useCallback(() => {
+    const fresh = generateSeed(Date.now());
+    setApps(fresh);
+    return fresh;
+  }, []);
 
   return { apps, update, reset };
 }

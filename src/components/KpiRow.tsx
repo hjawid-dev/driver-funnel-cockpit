@@ -1,25 +1,50 @@
 import { Star } from 'lucide-react';
-import type { Kpi } from '../lib/kpis';
+import { kpiDelta, type Kpi, type KpiDelta } from '../lib/kpis';
 import { SectionHeader, StatusChip, STATUS_STYLE } from './ui';
 
-export function KpiRow({ kpis }: { kpis: Kpi[] }) {
+export function KpiRow({ kpis, baseline }: { kpis: Kpi[]; baseline: Kpi[] }) {
   const north = kpis.find((k) => k.northStar)!;
   const rest = kpis.filter((k) => !k.northStar);
+  const delta = (k: Kpi) => kpiDelta(baseline.find((b) => b.key === k.key), k);
+  const anyChange = kpis.some((k) => delta(k));
 
   return (
     <section>
-      <SectionHeader title="Six metrics, reviewed weekly" aside="Live from the data · targets are a starting proposal" />
-      <NorthStar kpi={north} />
+      <SectionHeader
+        title="Six metrics, reviewed weekly"
+        aside={anyChange ? '▲▼ = change since you opened this page' : 'Live from the data · targets are a starting proposal'}
+      />
+      <NorthStar kpi={north} delta={delta(north)} />
       <div className="mt-3 grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3 [&>*:last-child]:col-span-2 lg:[&>*:last-child]:col-span-1">
         {rest.map((k) => (
-          <KpiCard key={k.key} kpi={k} />
+          <KpiCard key={k.key} kpi={k} delta={delta(k)} />
         ))}
       </div>
     </section>
   );
 }
 
-function KpiCard({ kpi }: { kpi: Kpi }) {
+const DELTA_STYLE = {
+  light: { good: 'bg-ok-bg text-ok', bad: 'bg-bad-bg text-bad', neutral: 'bg-idle-bg text-idle' },
+  dark: { good: 'bg-green/20 text-green', bad: 'bg-white/15 text-[#FFB4AB]', neutral: 'bg-white/15 text-white/80' },
+};
+
+/** Small chip showing how far a KPI moved since the page was opened. Re-animates on every change. */
+function DeltaChip({ delta, dark = false }: { delta: KpiDelta | null; dark?: boolean }) {
+  if (!delta) return null;
+  const tone = delta.good === null ? 'neutral' : delta.good ? 'good' : 'bad';
+  return (
+    <span
+      key={delta.text}
+      title="Change since you opened this page"
+      className={`anim-rise num inline-flex rounded-md px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap ${DELTA_STYLE[dark ? 'dark' : 'light'][tone]}`}
+    >
+      {delta.text}
+    </span>
+  );
+}
+
+function KpiCard({ kpi, delta }: { kpi: Kpi; delta: KpiDelta | null }) {
   return (
     <article className="relative overflow-hidden rounded-xl border border-lavender bg-white p-3 pl-4 sm:p-4 sm:pl-5">
       <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${STATUS_STYLE[kpi.status].bar}`} />
@@ -27,7 +52,10 @@ function KpiCard({ kpi }: { kpi: Kpi }) {
         <h3 className="text-sm font-semibold leading-tight">{kpi.label}</h3>
         <StatusChip status={kpi.status} />
       </div>
-      <div className="num mt-2 text-xl sm:text-2xl font-semibold tracking-tight">{kpi.display}</div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="num text-xl sm:text-2xl font-semibold tracking-tight">{kpi.display}</span>
+        <DeltaChip delta={delta} />
+      </div>
       {kpi.sub && <div className="text-xs text-muted leading-snug">{kpi.sub}</div>}
       <div className="mt-2 sm:mt-3 border-t border-lavender pt-2 text-xs">
         <div className="font-medium">{kpi.target}</div>
@@ -38,7 +66,7 @@ function KpiCard({ kpi }: { kpi: Kpi }) {
 }
 
 /** Application → active, emphasised: same intake, more drivers. */
-function NorthStar({ kpi }: { kpi: Kpi }) {
+function NorthStar({ kpi, delta }: { kpi: Kpi; delta: KpiDelta | null }) {
   const SCALE = 50; // bar runs 0–50%
   const value = kpi.value ?? 0;
   const fill = Math.min(100, (value / SCALE) * 100);
@@ -57,7 +85,10 @@ function NorthStar({ kpi }: { kpi: Kpi }) {
 
       <div className="flex items-end gap-3">
         <span className="num text-5xl font-semibold text-green leading-none">{kpi.display}</span>
-        <StatusChip status={kpi.status} className="mb-1" />
+        <div className="mb-1 flex flex-col items-start gap-1">
+          <DeltaChip delta={delta} dark />
+          <StatusChip status={kpi.status} />
+        </div>
       </div>
 
       <div className="flex-1 min-w-0">

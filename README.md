@@ -28,6 +28,8 @@ The cockpit gives every stage an owner, a clock and written rules. **Every actio
 
 ## What's in it
 
+- **Demo guide:** a short intro with three things to try (accept a clean file, hit a borderline rule, close a silent applicant). It ticks off each step and can be hidden.
+- **Change since you opened the page:** ▲▼ chips on the metrics show how your clicks moved them, green when the change is good.
 - **Funnel scoreboard:** Registered → Docs submitted → Under review → Accepted → Active, with step conversion and the biggest drop-off highlighted. Click a stage to jump to its list.
 - **Six metrics:** document completion, time to decision, acceptance rate (with top reject reasons), activation rate, application → active (the north star), and first-gig quality (guardrail). All are computed live, with the rule for who is counted shown under each number.
 - **Review queue:** sorted by SLA (48 h from a complete file), with live clocks and auto-detected flags. The drawer shows the written criteria in three tiers and allows only the decision the rules allow:
@@ -60,7 +62,7 @@ Thresholds are a starting proposal, to be set with the team.
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 101 unit tests (Vitest)
+npm test         # 107 unit tests (Vitest)
 npm run build
 ```
 
