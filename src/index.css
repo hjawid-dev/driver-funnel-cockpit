@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand */
+  --color-navy: #1D1A58;
+  --color-indigo: #3F39B9;
+  --color-green: #37DB88;
+  --color-sky: #7DB2F4;
+  --color-lime: #DACF4A;
+  --color-magenta: #DE6BF9;
+  --color-mint: #BCF3D7;
+
+  /* Neutrals */
+  --color-card: #F1F1FA;
+  --color-lavender: #E4E3FA;
+  --color-muted: #5A5876;
+
+  /* Semantic status (separate from brand, AA contrast on white) */
+  --color-ok: #137A43;
+  --color-ok-bg: #E3F6EC;
+  --color-warn: #8A5A00;
+  --color-warn-bg: #FFF2D6;
+  --color-bad: #B42318;
+  --color-bad-bg: #FDE7E5;
+  --color-idle: #5A5876;
+  --color-idle-bg: #ECECF2;
+
+  --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+html, body { background: #FFFFFF; color: var(--color-navy); }
+body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--color-indigo); outline-offset: 2px; }
+
+/* Motion: short and calm; off for people who ask for less motion. */
+@keyframes drawer-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise-in { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+.anim-drawer { animation: drawer-in 180ms ease-out; }
+.anim-fade { animation: fade-in 150ms ease-out; }
+.anim-rise { animation: rise-in 180ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .anim-drawer, .anim-fade, .anim-rise { animation: none; }
+  * { scroll-behavior: auto !important; }
+}

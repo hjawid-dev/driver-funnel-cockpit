@@ -1,0 +1,35 @@
+export const MIN = 60_000;
+export const HOUR = 60 * MIN;
+export const DAY = 24 * HOUR;
+
+/** "25 min", "9 h", "3 d" — compact, for chips and clocks. */
+export function formatDuration(ms: number): string {
+  const abs = Math.max(0, ms);
+  if (abs < HOUR) return `${Math.max(1, Math.floor(abs / MIN))} min`;
+  if (abs < 2 * DAY) return `${Math.floor(abs / HOUR)} h`;
+  return `${Math.floor(abs / DAY)} d`;
+}
+
+/** Whole hours, floored. SLA clocks use hours even past 2 days ("Overdue 28 h"). */
+export function formatHours(ms: number): string {
+  const abs = Math.max(0, ms);
+  if (abs < HOUR) return `${Math.max(1, Math.floor(abs / MIN))} min`;
+  return `${Math.floor(abs / HOUR)} h`;
+}
+
+/** "3 h ago", "12 d ago" */
+export function ago(ts: number, now: number): string {
+  return `${formatDuration(now - ts)} ago`;
+}
+
+export function daysBetween(from: number, to: number): number {
+  return (to - from) / DAY;
+}
+
+/** "Mon 20 Oct, 14:32" */
+export function formatDateTime(ts: number): string {
+  const d = new Date(ts);
+  const date = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  return `${date}, ${time}`;
+}

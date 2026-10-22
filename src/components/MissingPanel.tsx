@@ -1,0 +1,112 @@
+import { Ban, FlaskConical, MessageSquare, Send } from 'lucide-react';
+import type { Applicant, DocKey, DocStatus } from '../lib/types';
+import { isNoResponse, NUDGE_OFFSETS, nudgeMessage, nudgeState, outstandingDocs } from '../lib/nudges';
+import { closeNoResponse, logNudge, receiveDocument, type ActionResult } from '../lib/actions';
+import { formatDateTime, HOUR } from '../lib/time';
+import { DOC_LABEL, DocStatusPill } from './chips';
+import { DrawerSection } from './ui';
+
+/** What a document becomes when it arrives (demo). */
+const RECEIVED_AS: Record<DocKey, DocStatus> = { licence: 'uploaded', id: 'verified', background: 'verified', photo: 'uploaded' };
+
+interface Props {
+  a: Applicant;
+  now: number;
+  onResult: (r: ActionResult, close?: boolean) => void;
+}
+
+export function MissingPanel({ a, now, onResult }: Props) {
+  const nudge = nudgeState(a, now);
+  const stale = isNoResponse(a, now);
+  const outstanding = outstandingDocs(a);
+
+  const receive = (k: DocKey) => {
+    const next = receiveDocument(a, k, RECEIVED_AS[k], now);
+    const complete = !!next.docsCompleteAt;
+    onResult({
+      ok: true,
+      applicant: next,
+      message: complete ? `File complete: ${a.name}. Auto-queued for review.` : `${DOC_LABEL[k]} received: ${a.name}.`,
+    });
+  };
+
+  return (
+    <>
+      <DrawerSection title="What's missing">
+        <ul className="divide-y divide-lavender rounded-lg border border-lavender">
+          {outstanding.map((k) => (
+            <li key={k} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+              <span className="font-medium">{DOC_LABEL[k]}</span>
+              <span className="flex items-center gap-2">
+                <DocStatusPill docKey={k} status={a.docs[k]} />
+                <button
+                  type="button"
+                  onClick={() => receive(k)}
+                  title="Demo only: simulate the document arriving"
+                  className="inline-flex items-center gap-1 rounded-md border border-dashed border-lavender px-2 py-0.5 text-xs text-muted hover:border-indigo hover:text-indigo"
+                >
+                  <FlaskConical size={12} aria-hidden /> Mark received
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-1.5 text-xs text-muted">"Mark received" is a demo shortcut. When the last document arrives the file is auto-queued for review.</p>
+      </DrawerSection>
+
+      <DrawerSection title="Nudges" aside={<span className="text-xs text-muted">{nudge.label}</span>}>
+        <ol className="space-y-1 text-sm">
+          {NUDGE_OFFSETS.map((o, i) => {
+            const at = a.registeredAt + o;
+            const sent = nudge.autoSent.includes(at);
+            return (
+              <li key={o} className="flex items-center gap-3">
+                <span className={`h-2 w-2 shrink-0 rounded-full ${sent ? 'bg-indigo' : 'border border-muted'}`} aria-hidden />
+                <span className="w-16 text-muted">+{o / HOUR} h</span>
+                <span className="num text-xs">{formatDateTime(at)}</span>
+                <span className="text-xs text-muted">{sent ? `Auto-nudge ${i + 1} sent` : 'Scheduled'}</span>
+              </li>
+            );
+          })}
+          {nudge.manual.map((t) => (
+            <li key={t} className="flex items-center gap-3">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-magenta" aria-hidden />
+              <span className="w-16 text-muted">Manual</span>
+              <span className="num text-xs">{formatDateTime(t)}</span>
+              <span className="text-xs text-muted">Logged by ops</span>
+            </li>
+          ))}
+        </ol>
+
+        <div className="mt-3 rounded-lg bg-card p-3">
+          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted">
+            <MessageSquare size={13} aria-hidden /> Reminder text · via driver chat in production
+          </div>
+          <p className="whitespace-pre-line text-sm">{nudgeMessage(a)}</p>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onResult(logNudge(a, now))}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-2 text-sm font-semibold text-white hover:bg-navy"
+          >
+            <Send size={15} aria-hidden /> Send nudge now
+          </button>
+          {stale && (
+            <button
+              type="button"
+              onClick={() => onResult(closeNoResponse(a, now), true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-bad px-3 py-2 text-sm font-semibold text-bad hover:bg-bad hover:text-white"
+            >
+              <Ban size={15} aria-hidden /> Close: no response
+            </button>
+          )}
+        </div>
+        <p className="mt-1.5 text-xs text-muted">
+          {stale ? 'Registered over 14 days ago with documents still missing. Closing logs reason code "No response after 14 days".' : 'Logged only. No SMS or email is sent in this demo.'}
+        </p>
+      </DrawerSection>
+    </>
+  );
+}
