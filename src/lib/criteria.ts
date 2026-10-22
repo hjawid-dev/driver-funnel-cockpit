@@ -198,12 +198,17 @@ export function reviewChips(a: Applicant): Chip[] {
     if (m.key === 'photo') chips.push({ label: 'Photo missing', tone: 'bad' });
   }
   const extract = ev.mustHaves.find((m) => m.key === 'extract')!;
-  if (extract.result === 'manual') chips.push({ label: 'Extract call', tone: 'info' });
+  if (extract.result === 'manual') chips.push({ label: a.callAt ? `Call ${shortTime(a.callAt)}` : 'Extract call', tone: 'info' });
   const photo = ev.mustHaves.find((m) => m.key === 'photo')!;
   if (photo.result === 'manual') {
     chips.push(a.docs.photo === 'remark' ? { label: 'Photo unclear', tone: 'warn' } : { label: 'Photo unchecked', tone: 'info' });
   }
   return chips;
+}
+
+function shortTime(ts: number): string {
+  const d = new Date(ts);
+  return `${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 export function fmtYears(y: number): string {

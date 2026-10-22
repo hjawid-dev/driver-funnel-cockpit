@@ -18,6 +18,11 @@ import { Toast, useToast } from './components/Toast';
 import { DemoGuide } from './components/DemoGuide';
 import { guideSteps } from './lib/guide';
 import type { ActionResult } from './lib/actions';
+import { DemoBar } from './components/DemoBar';
+import { DriverPhone } from './components/driver/DriverPhone';
+import { automationEvents, summarize, type AutoEvent } from './lib/automation';
+import type { Applicant } from './lib/types';
+import { formatDateTime } from './lib/time';
 
 const GUIDE_KEY = 'driver-funnel-cockpit-guide-hidden';
 
@@ -50,7 +55,10 @@ const TILE_TO_TAB: Record<FunnelKey, TabKey> = {
 export default function App() {
   const clock = useClock();
   const now = clock.now;
-  const { apps, update, reset } = useDemoData();
+  const { apps, gigs, update, add, reset } = useDemoData();
+  const [phoneOpen, setPhoneOpen] = useState(() => window.location.hash === '#driver');
+  const [phoneId, setPhoneId] = useState<string | null>(null);
+  const [lastRun, setLastRun] = useState<{ from: number; to: number; events: AutoEvent[] } | null>(null);
   const [tab, setTab] = useState<TabKey>('review');
   const [openId, setOpenId] = useState<string | null>(null);
   const [stageFilter, setStageFilter] = useState<StageFilter>('all');
@@ -77,6 +85,41 @@ export default function App() {
     [update, toast.notify],
   );
 
+  // ---- Demo: the driver's phone and the clock ----
+  const openAsDriver = useCallback((id: string | null) => {
+    setPhoneId(id);
+    setPhoneOpen(true);
+    setOpenId(null);
+  }, []);
+
+  const onDriverCreate = useCallback(
+    (a: Applicant) => {
+      add(a);
+      setPhoneId(a.id);
+      toast.notify(`New applicant: ${a.name} registered in the driver app.`);
+    },
+    [add, toast.notify],
+  );
+
+  const onDriverUpdate = useCallback(
+    (next: Applicant) => {
+      const prev = apps.find((a) => a.id === next.id);
+      update(next);
+      if (!prev) return;
+      if (!prev.docsCompleteAt && next.docsCompleteAt) toast.notify(`${next.name}: file complete, auto-queued for review.`);
+      else if (!prev.callAt && next.callAt) toast.notify(`${next.name} booked the extract call: ${formatDateTime(next.callAt)}.`);
+      else if (!prev.firstGig?.gigId && next.firstGig?.gigId) toast.notify(`${next.name} picked a first drive. It shows in Awaiting first gig.`);
+    },
+    [apps, update, toast.notify],
+  );
+
+  const onAdvance = (ms: number) => {
+    const w = clock.advance(ms);
+    const events = automationEvents(apps, w.from, w.to);
+    setLastRun({ ...w, events });
+    toast.notify(`Time moved forward. Automation: ${summarize(events)}.`);
+  };
+
   const funnel = useMemo(() => computeFunnel(apps), [apps]);
   const kpis = useMemo(() => computeKpis(apps, now), [apps, now]);
   const counts = useMemo(() => {
@@ -95,7 +138,8 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex">
+    <div className="min-w-0 flex-1 flex flex-col">
       <header className="bg-navy text-white">
         <div className="mx-auto max-w-7xl px-4 h-14 flex items-center gap-3">
           <span className="font-semibold tracking-tight whitespace-nowrap">Driver Ops</span>
@@ -115,6 +159,9 @@ export default function App() {
               type="button"
               onClick={() => {
                 const fresh = reset();
+                clock.resetTime();
+                setLastRun(null);
+                setPhoneId(null);
                 setBaseline(computeKpis(fresh, Date.now()));
                 setOpenId(null);
                 setStageFilter('all');
@@ -129,6 +176,14 @@ export default function App() {
           </div>
         </div>
       </header>
+      <DemoBar
+        now={now}
+        offset={clock.offset}
+        phoneOpen={phoneOpen}
+        onTogglePhone={() => setPhoneOpen((v) => !v)}
+        onAdvance={onAdvance}
+        lastRun={lastRun}
+      />
 
       <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-6 space-y-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -179,13 +234,26 @@ export default function App() {
         </section>
       </main>
 
-      {open && <ApplicantDrawer applicant={open} now={now} onClose={close} onUpdate={update} onResult={onResult} />}
+      {open && <ApplicantDrawer applicant={open} now={now} onClose={close} onUpdate={update} onResult={onResult} onViewAsDriver={openAsDriver} />}
       {showHubspot && <HubspotModal onClose={closeHubspot} />}
       <Toast message={toast.message} onDismiss={toast.dismiss} />
 
       <footer className="text-xs text-muted text-center px-4 py-6 border-t border-lavender">
         Prototype by Hjalmar Widlund · demo data, no real people
       </footer>
+    </div>
+    {phoneOpen && (
+      <DriverPhone
+        applicantId={phoneId}
+        apps={apps}
+        gigs={gigs}
+        now={now}
+        onSelect={setPhoneId}
+        onCreate={onDriverCreate}
+        onUpdate={onDriverUpdate}
+        onClose={() => setPhoneOpen(false)}
+      />
+    )}
     </div>
   );
 }

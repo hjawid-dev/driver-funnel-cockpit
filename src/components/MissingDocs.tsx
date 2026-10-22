@@ -88,6 +88,7 @@ export function MissingDocs({ apps, now, onOpen, onResult }: Props) {
                 <td className="px-4 py-3">
                   <div className="num text-xs">{ago(a.registeredAt, now)}</div>
                   {isStale && <StaleFlag />}
+                  {a.prequalIssue && <PrequalFlag />}
                 </td>
                 <td className="px-4 py-3">
                   <DocChecklist docs={a.docs} />
@@ -134,6 +135,7 @@ export function MissingDocs({ apps, now, onOpen, onResult }: Props) {
               <DocChecklist docs={a.docs} />
             </div>
             {isStale && <StaleFlag />}
+            {a.prequalIssue && <PrequalFlag />}
             <div className="mt-2">
               <Actions a={a} stale={isStale} />
             </div>
@@ -141,6 +143,14 @@ export function MissingDocs({ apps, now, onOpen, onResult }: Props) {
         ))}
       </ul>
       <p className="mt-2 text-xs text-muted">Nudges are logged only. This demo never sends a real SMS or email.</p>
+    </div>
+  );
+}
+
+function PrequalFlag() {
+  return (
+    <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-warn-bg px-2 py-0.5 text-xs font-semibold text-warn">
+      <TriangleAlert size={12} aria-hidden /> Pre-qualify: a person reviews
     </div>
   );
 }

@@ -140,6 +140,11 @@ describe('automationEvents', () => {
     expect(close?.audience).toBe('ops');
     expect(a.decision).toBeUndefined();
   });
+  it('the first-gig reminder stays in the inbox after the drive is done', () => {
+    const at = NOW - 3 * DAY;
+    const a = mk({ docsCompleteAt: at - DAY, decision: { type: 'accepted', at, by: 'x' }, firstGig: { gigId: 'JOB-1', bookedFor: NOW - DAY, doneAt: NOW - DAY + 2 * HOUR, onTime: true, ok: true } });
+    expect(driverInbox(a, NOW).map((e) => e.kind)).toEqual(expect.arrayContaining(['gig_reminder', 'activated']));
+  });
   it('summarize counts what ran', () => {
     const a = apply();
     expect(summarize(automationEvents([a], NOW, NOW + DAY + HOUR))).toBe('2 nudges');

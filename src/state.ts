@@ -6,17 +6,36 @@ import { restore, serialize, STORAGE_KEY, type DemoData } from './lib/persist';
 
 export type TabKey = 'review' | 'missing' | 'awaiting' | 'all';
 
+const OFFSET_KEY = 'driver-funnel-cockpit-offset';
+
+function readOffset(): number {
+  try {
+    const v = Number(localStorage.getItem(OFFSET_KEY));
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  } catch {
+    return 0;
+  }
+}
+
 /**
  * Demo clock: real time plus a simulated offset, so "+1 day" shows what automation does.
- * Re-renders every 30 s so SLA clocks tick live. The offset is not saved: a reload is back to now.
+ * Re-renders every 30 s so SLA clocks tick live.
  */
 export function useClock(intervalMs = 30_000) {
   const [real, setReal] = useState(() => Date.now());
-  const [offset, setOffset] = useState(0);
+  // Saved with the data, so a reload after fast-forwarding keeps timestamps consistent.
+  const [offset, setOffset] = useState(readOffset);
   useEffect(() => {
     const t = setInterval(() => setReal(Date.now()), intervalMs);
     return () => clearInterval(t);
   }, [intervalMs]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(OFFSET_KEY, String(offset));
+    } catch {
+      // Not critical.
+    }
+  }, [offset]);
   const now = real + offset;
   /** Move simulated time forward; returns the window that passed. */
   const advance = useCallback((ms: number) => {

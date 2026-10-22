@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { Smartphone, X } from 'lucide-react';
 import type { Applicant } from '../lib/types';
 import { DOC_KEYS } from '../lib/types';
 import { deriveStage, STAGE_LABEL } from '../lib/stage';
@@ -22,9 +22,10 @@ interface Props {
   /** Apply a change. Results that end the task (a decision) close the drawer. */
   onUpdate: (next: Applicant) => void;
   onResult: (r: ActionResult, close?: boolean) => void;
+  onViewAsDriver?: (id: string) => void;
 }
 
-export function ApplicantDrawer({ applicant: a, now, onClose, onUpdate, onResult }: Props) {
+export function ApplicantDrawer({ applicant: a, now, onClose, onUpdate, onResult, onViewAsDriver }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const stage = deriveStage(a);
 
@@ -61,6 +62,15 @@ export function ApplicantDrawer({ applicant: a, now, onClose, onUpdate, onResult
               {stage === 'review' && <SlaChip {...slaStatus(a.docsCompleteAt!, now)} />}
             </div>
           </div>
+          {onViewAsDriver && (
+            <button
+              type="button"
+              onClick={() => onViewAsDriver(a.id)}
+              className="flex items-center gap-1 rounded-md border border-lavender px-2 py-1 text-xs font-semibold text-indigo hover:border-indigo"
+            >
+              <Smartphone size={13} aria-hidden /> Driver's view
+            </button>
+          )}
           <button ref={closeRef} type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1.5 text-muted hover:bg-card hover:text-navy">
             <X size={20} />
           </button>
@@ -87,6 +97,8 @@ function Facts({ a, now }: { a: Applicant; now: number }) {
     ['Availability', a.availability === 'full' ? 'Full' : `Limited${a.availabilityNote ? `: ${a.availabilityNote}` : ''}`],
     ['Registered', <When ts={a.registeredAt} now={now} />],
     ['File complete', a.docsCompleteAt ? <When ts={a.docsCompleteAt} now={now} /> : <span className="text-muted">Not yet</span>],
+    ...(a.callAt ? ([['Extract call', <When ts={a.callAt} now={now} />]] as [string, ReactNode][]) : []),
+    ...(a.source === 'self' ? ([['Source', 'Applied in the driver app']] as [string, ReactNode][]) : []),
     ['Data retention', <RetentionText a={a} />],
   ];
   return (

@@ -17,9 +17,9 @@ export function formatHours(ms: number): string {
   return `${Math.floor(abs / HOUR)} h`;
 }
 
-/** "3 h ago", "12 d ago" */
+/** "3 h ago", "12 d ago", or "in 14 h" for a time ahead */
 export function ago(ts: number, now: number): string {
-  return `${formatDuration(now - ts)} ago`;
+  return ts > now ? `in ${formatDuration(ts - now)}` : `${formatDuration(now - ts)} ago`;
 }
 
 export function daysBetween(from: number, to: number): number {

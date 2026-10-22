@@ -1,7 +1,8 @@
 import { Ban, FlaskConical, MessageSquare, Send } from 'lucide-react';
 import type { Applicant, DocKey, DocStatus } from '../lib/types';
 import { isNoResponse, NUDGE_OFFSETS, nudgeMessage, nudgeState, outstandingDocs } from '../lib/nudges';
-import { closeNoResponse, logNudge, receiveDocument, type ActionResult } from '../lib/actions';
+import { applyDecision, closeNoResponse, logNudge, receiveDocument, type ActionResult } from '../lib/actions';
+import { MIN_AGE } from '../lib/driverFlow';
 import { formatDateTime, HOUR } from '../lib/time';
 import { DOC_LABEL, DocStatusPill } from './chips';
 import { DrawerSection } from './ui';
@@ -34,8 +35,35 @@ export function MissingPanel({ a, now, onResult }: Props) {
     });
   };
 
+  const closePrequal = () =>
+    onResult(
+      a.prequalIssue === 'licence'
+        ? applyDecision(a, { type: 'rejected', reason: 'no_valid_licence' }, now)
+        : applyDecision(a, { type: 'rejected', reason: 'other', note: `Below the minimum age set by our insurance (${MIN_AGE})` }, now),
+      true,
+    );
+
   return (
     <>
+      {a.prequalIssue && (
+        <DrawerSection title="Pre-qualifying">
+          <div className="rounded-lg bg-warn-bg p-3 text-sm">
+            <p className="font-semibold text-warn">
+              {a.prequalIssue === 'licence' ? 'Says the B licence is held under 1 year' : `Says they are under ${MIN_AGE} (insurance requirement)`}
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              Nothing was decided automatically. Check the answer with the applicant if needed, then close the file. They get the reason and can ask for a review.
+            </p>
+            <button
+              type="button"
+              onClick={closePrequal}
+              className="mt-2 rounded-lg border border-bad bg-white px-3 py-1.5 text-xs font-semibold text-bad hover:bg-bad hover:text-white"
+            >
+              Close: requirement not met
+            </button>
+          </div>
+        </DrawerSection>
+      )}
       <DrawerSection title="What's missing">
         <ul className="divide-y divide-lavender rounded-lg border border-lavender">
           {outstanding.map((k) => (

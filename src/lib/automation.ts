@@ -97,7 +97,10 @@ export function automationEvents(apps: Applicant[], from: number, to: number): A
     push(d.at, 'ops', 'welcome_task', `Task: welcome call to ${a.name}, due within 24 h`);
 
     const gig = a.firstGig;
-    if (gig?.bookedFor && !gig.doneAt) push(gig.bookedFor - 12 * HOUR, 'driver', 'gig_reminder', 'Your first drive is tomorrow', `Start ${time(gig.bookedFor)}. Ops is on standby the whole drive.`);
+    const reminderAt = gig?.bookedFor ? gig.bookedFor - 12 * HOUR : 0;
+    if (gig?.bookedFor && (!gig.doneAt || gig.doneAt > reminderAt)) {
+      push(reminderAt, 'driver', 'gig_reminder', 'Your first drive is tomorrow', `Start ${time(gig.bookedFor)}. Ops is on standby the whole drive.`);
+    }
     if (gig?.doneAt) push(gig.doneAt, 'driver', 'activated', 'You are now an active driver', 'Great first drive. New jobs show up in the app every day.');
 
     const booked = !!gig?.bookedFor;
