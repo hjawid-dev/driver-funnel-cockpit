@@ -31,7 +31,7 @@ export function applyDecision(a: Applicant, input: DecisionInput, now: number, b
   let text: string;
   let message: string;
   if (input.type === 'rejected') {
-    const label = REJECT_REASONS.find((r) => r.value === input.reason)!.label;
+    const label = REJECT_REASONS.find((r) => r.value === input.reason)?.label ?? String(input.reason);
     text = `Rejected: ${label}${decision.note ? ` (${decision.note})` : ''}${decision.secondReviewer ? `, confirmed by ${decision.secondReviewer}` : ''}`;
     message = `Rejected: ${a.name}. Reason: ${label}.`;
   } else {

@@ -37,6 +37,17 @@ describe('persist', () => {
     expect(slaStatus(elin(restored).docsCompleteAt!, later).label).toBe(slaStatus(elin(seed).docsCompleteAt!, NOW).label);
     expect(restored[0].log[0].at).toBe(seed[0].log[0].at + 5 * DAY);
   });
+  it('discards saves from an older version of the app', () => {
+    const old = seed.map((x) => {
+      const { extract, ...docs } = x.docs;
+      return { ...x, docs: { ...docs, background: extract === 'ready' ? 'verified' : extract } };
+    });
+    // Previous version: no version field and the old document key.
+    expect(restore(JSON.stringify({ savedAt: NOW, apps: old }), NOW)).toBeNull();
+    // Same version number but an unknown reason code from an older model.
+    const badReason = seed.map((x) => (x.decision?.type === 'rejected' ? { ...x, decision: { ...x.decision, reason: 'background_failed' } } : x));
+    expect(restore(JSON.stringify({ version: 2, savedAt: NOW, apps: badReason }), NOW)).toBeNull();
+  });
   it('ignores missing or broken data', () => {
     expect(restore(null, NOW)).toBeNull();
     expect(restore('{not json', NOW)).toBeNull();

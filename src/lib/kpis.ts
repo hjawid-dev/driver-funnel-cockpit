@@ -167,8 +167,8 @@ export function topRejectReasons(apps: Applicant[]) {
     .map(([reason, count]) => ({
       reason,
       count,
-      short: SHORT_REASON[reason],
-      label: REJECT_REASONS.find((r) => r.value === reason)!.label,
+      short: SHORT_REASON[reason] ?? 'Other',
+      label: REJECT_REASONS.find((r) => r.value === reason)?.label ?? reason,
     }))
     .sort((a, b) => b.count - a.count);
 }
