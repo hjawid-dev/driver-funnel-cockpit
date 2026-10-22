@@ -56,8 +56,9 @@ export default function App() {
   const clock = useClock();
   const now = clock.now;
   const { apps, gigs, update, add, reset } = useDemoData();
-  const [phoneOpen, setPhoneOpen] = useState(() => window.location.hash === '#driver');
-  const [phoneId, setPhoneId] = useState<string | null>(null);
+  const [phoneOpen, setPhoneOpen] = useState(() => window.location.hash.startsWith('#driver'));
+  // #driver opens the phone; #driver=DRV-1034 opens it as that applicant (handy for presenting).
+  const [phoneId, setPhoneId] = useState<string | null>(() => window.location.hash.match(/^#driver=(.+)$/)?.[1] ?? null);
   const [lastRun, setLastRun] = useState<{ from: number; to: number; events: AutoEvent[] } | null>(null);
   const [tab, setTab] = useState<TabKey>('review');
   const [openId, setOpenId] = useState<string | null>(null);
@@ -128,7 +129,7 @@ export default function App() {
     return { review: n('review'), missing: n('registered'), awaiting: n('accepted'), all: apps.length };
   }, [apps]);
   const slot = nextReviewSlot(now);
-  const steps = useMemo(() => guideSteps(apps, now), [apps, now]);
+  const steps = useMemo(() => guideSteps(apps, clock.offset > 0), [apps, clock.offset]);
 
   const jumpTo = (key: FunnelKey) => {
     setTab(TILE_TO_TAB[key]);
@@ -212,7 +213,14 @@ export default function App() {
         </div>
 
         {!guideHidden && (
-          <DemoGuide steps={steps} onOpen={setOpenId} onHubspot={() => setShowHubspot(true)} onHide={() => toggleGuide(true)} />
+          <DemoGuide
+            steps={steps}
+            onOpen={setOpenId}
+            onPhone={() => openAsDriver(apps.find((a) => a.source === 'self')?.id ?? null)}
+            onAdvance={() => onAdvance(24 * 3_600_000)}
+            onHubspot={() => setShowHubspot(true)}
+            onHide={() => toggleGuide(true)}
+          />
         )}
 
         <Scoreboard funnel={funnel} onSelect={jumpTo} />

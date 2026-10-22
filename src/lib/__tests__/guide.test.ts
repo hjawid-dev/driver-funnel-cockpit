@@ -1,29 +1,35 @@
 import { describe, expect, it } from 'vitest';
 import { guideSteps } from '../guide';
 import { generateSeed } from '../seed';
-import { applyDecision, closeNoResponse } from '../actions';
+import { applyDecision, receiveDocument } from '../actions';
+import { bookCall, createApplicant } from '../driverFlow';
+import { DAY } from '../time';
 import { computeKpis, kpiDelta } from '../kpis';
 import { NOW } from './helpers';
 
 describe('guideSteps', () => {
   const seed = generateSeed(NOW);
-  it('starts with nothing done and points at the right applicants', () => {
-    const steps = guideSteps(seed, NOW);
+  it('starts with nothing done: apply, decide, move time', () => {
+    const steps = guideSteps(seed, false);
+    expect(steps.map((s) => s.key)).toEqual(['apply', 'accept', 'time']);
     expect(steps.map((s) => s.done)).toEqual([false, false, false]);
-    expect(seed.find((a) => a.id === steps[0].targetId)!.name).toBe('Elin Johansson');
-    expect(steps[2].targetId).not.toBeNull();
+    expect(seed.find((a) => a.id === steps[1].targetId)!.name).toBe('Elin Johansson');
   });
-  it('marks steps done when the visitor makes the decisions', () => {
-    const elin = seed.find((a) => a.name === 'Elin Johansson')!;
-    const r = applyDecision({ ...elin, photoApproved: true, extractShown: true }, { type: 'accepted' }, NOW);
-    const stale = seed.find((a) => a.id === guideSteps(seed, NOW)[2].targetId)!;
-    const c = closeNoResponse(stale, NOW);
-    if (!r.ok || !c.ok) throw new Error('setup');
-    const next = seed.map((a) => (a.id === elin.id ? r.applicant : a.id === stale.id ? c.applicant : a));
-    expect(guideSteps(next, NOW).map((s) => s.done)).toEqual([true, false, true]);
+  it('marks steps done as the visitor goes', () => {
+    let nova = createApplicant({ name: 'Nova Lind', area: 'Solna', licenceYears: 6, meetsMinAge: true, availability: 'full' }, seed, NOW);
+    for (const k of ['id', 'licence', 'photo'] as const) nova = receiveDocument(nova, k, k === 'photo' ? 'uploaded' : 'verified', NOW);
+    nova = bookCall(receiveDocument(nova, 'extract', 'ready', NOW), NOW + DAY, NOW);
+    const withNova = [...seed, nova];
+    const steps = guideSteps(withNova, true);
+    expect(steps[0].done).toBe(true);
+    expect(steps[1].targetId).toBe(nova.id); // the next decision is the visitor's own applicant
+    expect(steps[2].done).toBe(true);
+    const r = applyDecision({ ...nova, photoApproved: true, extractShown: true }, { type: 'accepted' }, NOW);
+    if (!r.ok) throw new Error(r.error);
+    expect(guideSteps(withNova.map((a) => (a.id === nova.id ? r.applicant : a)), true)[1].done).toBe(true);
   });
   it('seed decisions by the ops team do not count as done', () => {
-    expect(guideSteps(seed, NOW).some((s) => s.done)).toBe(false);
+    expect(guideSteps(seed, false).some((s) => s.done)).toBe(false);
   });
 });
 

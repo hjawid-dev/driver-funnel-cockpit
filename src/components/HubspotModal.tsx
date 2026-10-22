@@ -115,6 +115,34 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
             ))}
           </ul>
 
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl bg-card p-4 text-sm">
+              <h3 className="font-semibold">Configured in HubSpot</h3>
+              <p className="mt-1 text-xs text-muted">Most of the ops side is setup, not code:</p>
+              <ul className="mt-2 space-y-1 text-xs">
+                <li>Pipeline stages, required fields and reason-code dropdowns</li>
+                <li>Workflows for reminders, SLA alerts and tasks (the "Move time" button shows them running)</li>
+                <li>Meetings for booking the extract call in the 09:00 and 14:00 slots</li>
+                <li>Funnel and KPI reports from the timestamps</li>
+              </ul>
+            </div>
+            <div className="rounded-xl bg-lavender p-4 text-sm">
+              <h3 className="font-semibold">Built on top</h3>
+              <p className="mt-1 text-xs text-muted">What HubSpot can't do on its own:</p>
+              <ul className="mt-2 space-y-1 text-xs">
+                <li>
+                  <strong>The driver's onboarding flow:</strong> one guided path on the phone with BankID, licence check, photo check and status
+                </li>
+                <li>
+                  <strong>First-gig matching:</strong> needs the open jobs from the order system, matched on area, availability and an easy first drive
+                </li>
+                <li>
+                  <strong>Decision rules:</strong> only the accept variant the written criteria allow, second reviewer on suitability rejections
+                </li>
+              </ul>
+            </div>
+          </div>
+
           <div className="mt-4 rounded-xl border border-lavender p-4 text-sm">
             <h3 className="flex items-center gap-1.5 font-semibold">
               <ShieldCheck size={16} className="text-ok" aria-hidden /> Privacy and fairness, built in

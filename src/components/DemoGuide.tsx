@@ -4,12 +4,14 @@ import type { GuideStep } from '../lib/guide';
 interface Props {
   steps: GuideStep[];
   onOpen: (id: string) => void;
+  onPhone: () => void;
+  onAdvance: () => void;
   onHubspot: () => void;
   onHide: () => void;
 }
 
 /** First-visit guide: what this is, and three things to try. */
-export function DemoGuide({ steps, onOpen, onHubspot, onHide }: Props) {
+export function DemoGuide({ steps, onOpen, onPhone, onAdvance, onHubspot, onHide }: Props) {
   const done = steps.filter((s) => s.done).length;
 
   return (
@@ -26,11 +28,12 @@ export function DemoGuide({ steps, onOpen, onHubspot, onHide }: Props) {
       <div className="pr-8">
         <div className="text-xs font-semibold uppercase tracking-[0.08em] text-indigo">Demo guide · {done}/3 tried</div>
         <h2 id="guide-title" className="mt-1 text-lg font-bold leading-snug">
-          The daily workspace for driver onboarding.
+          Two sides of one funnel: the driver's phone and the ops cockpit.
         </h2>
         <p className="mt-1 max-w-3xl text-sm text-muted">
-          Reviewers work the queues below twice a day. Every click writes a timestamp or a reason code, so the scoreboard and the six metrics
-          come straight out of the work. Try three things and watch the numbers move:
+          Drivers finish their application on the phone and book their own call. Ops decides in the call, using written rules. Reminders,
+          alerts and tasks run by themselves, and every click writes a timestamp or reason code, so the numbers below come straight out of the
+          work. Try three things:
         </p>
       </div>
 
@@ -39,8 +42,8 @@ export function DemoGuide({ steps, onOpen, onHubspot, onHide }: Props) {
           <li key={s.key}>
             <button
               type="button"
-              disabled={!s.targetId}
-              onClick={() => s.targetId && onOpen(s.targetId)}
+              disabled={s.action === 'open' && !s.targetId}
+              onClick={() => (s.action === 'phone' ? onPhone() : s.action === 'advance' ? onAdvance() : s.targetId && onOpen(s.targetId))}
               className={`group flex h-full w-full items-start gap-3 rounded-xl border bg-white p-3 text-left transition-colors ${
                 s.done ? 'border-ok/40' : 'border-lavender hover:border-indigo'
               } disabled:cursor-default`}
