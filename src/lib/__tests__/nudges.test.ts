@@ -43,9 +43,9 @@ describe('isNoResponse', () => {
 import { nudgeMessage, outstandingDocs } from '../nudges';
 
 describe('outstandingDocs and nudgeMessage', () => {
-  const a = mk({ name: 'Wilma Eriksson', docs: { licence: 'uploaded', id: 'verified', background: 'pending', photo: 'missing' } });
-  it('lists the background check first', () => {
-    expect(outstandingDocs(a)).toEqual(['background', 'photo']);
+  const a = mk({ name: 'Wilma Eriksson', docs: { licence: 'uploaded', id: 'verified', extract: 'pending', photo: 'missing' } });
+  it('lists the extract first', () => {
+    expect(outstandingDocs(a)).toEqual(['extract', 'photo']);
   });
   it('writes a reminder that names what is left', () => {
     const msg = nudgeMessage(a);
@@ -54,8 +54,9 @@ describe('outstandingDocs and nudgeMessage', () => {
     expect(msg).toContain('on its way from Polisen');
     expect(msg).toContain('profile photo');
   });
-  it('asks the applicant to order the background check when it is missing', () => {
-    const b = mk({ docs: { licence: 'uploaded', id: 'verified', background: 'missing', photo: 'uploaded' } });
+  it('asks the applicant to order the extract, and says no copy is kept', () => {
+    const b = mk({ docs: { licence: 'uploaded', id: 'verified', extract: 'missing', photo: 'uploaded' } });
     expect(nudgeMessage(b)).toContain('polisen.se');
+    expect(nudgeMessage(b)).toContain('never keep a copy');
   });
 });

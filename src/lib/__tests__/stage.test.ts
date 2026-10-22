@@ -23,9 +23,9 @@ describe('deriveStage', () => {
 });
 
 describe('allDocsSubmitted', () => {
-  it('pending and missing are not submitted; remark and failed are', () => {
+  it('pending and missing are not submitted; ready, remark and failed are', () => {
     expect(allDocsSubmitted(mk())).toBe(true);
-    expect(allDocsSubmitted(mk({ docs: { licence: 'verified', id: 'verified', background: 'pending', photo: 'uploaded' } }))).toBe(false);
-    expect(allDocsSubmitted(mk({ docs: { licence: 'verified', id: 'failed', background: 'remark', photo: 'remark' } }))).toBe(true);
+    expect(allDocsSubmitted(mk({ docs: { licence: 'verified', id: 'verified', extract: 'pending', photo: 'uploaded' } }))).toBe(false);
+    expect(allDocsSubmitted(mk({ docs: { licence: 'verified', id: 'failed', extract: 'ready', photo: 'remark' } }))).toBe(true);
   });
 });

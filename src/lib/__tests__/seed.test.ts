@@ -54,28 +54,30 @@ describe('seed tells the baseline story', () => {
 
 describe('the 8 review cases behave as described', () => {
   const sla = (n: string) => slaStatus(byName(n).docsCompleteAt!, NOW).bucket;
-  const approve = (n: string) => ({ ...byName(n), photoApproved: true });
+  const approve = (n: string) => ({ ...byName(n), photoApproved: true, extractShown: true });
 
-  it('Elin: clean accept once the photo is ticked', () => {
-    expect(evaluate(byName('Elin Johansson')).acceptBlockedBy).toHaveLength(1); // photo not ticked yet
+  it('Elin: clean accept once the photo and the extract call are ticked', () => {
+    expect(evaluate(byName('Elin Johansson')).acceptBlockedBy).toHaveLength(2); // photo + extract not ticked yet
     expect(validateDecision(approve('Elin Johansson'), { type: 'accepted' }, NOW)).toBeNull();
     expect(sla('Elin Johansson')).toBe('ok');
   });
   it('Ahmed: simple drives first', () => {
     expect(evaluate(byName('Ahmed Hassan')).acceptType).toBe('accepted_simple');
   });
-  it('Sara: needs a second reviewer', () => {
-    expect(validateDecision(approve('Sara Lindqvist'), { type: 'accepted' }, NOW)).toMatch(/second reviewer/);
-    expect(validateDecision(approve('Sara Lindqvist'), { type: 'accepted', secondReviewer: 'Backup' }, NOW)).toBeNull();
+  it('Sara: a suitability rejection needs a second reviewer', () => {
+    const r = { type: 'rejected' as const, reason: 'requirements_not_met' as const };
+    expect(validateDecision(approve('Sara Lindqvist'), r, NOW)).toMatch(/second reviewer/);
+    expect(validateDecision(approve('Sara Lindqvist'), { ...r, secondReviewer: 'Backup' }, NOW)).toBeNull();
+    expect(validateDecision(approve('Sara Lindqvist'), { type: 'accepted' }, NOW)).toBeNull();
   });
   it('Johan: accept + flag activation, SLA amber', () => {
     expect(evaluate(byName('Johan Berg')).acceptType).toBe('accepted_flagged');
     expect(sla('Johan Berg')).toBe('warn');
   });
-  it('Maja: background remark blocks accept, reject reason suggested', () => {
+  it('Maja: ID not verified with BankID blocks accept, reason suggested', () => {
     const ev = evaluate(approve('Maja Karlsson'));
     expect(ev.acceptBlockedBy.length).toBeGreaterThan(0);
-    expect(ev.suggestedReject).toBe('background_failed');
+    expect(ev.suggestedReject).toBe('id_unverified');
   });
   it('Oskar: photo has a remark', () => {
     expect(byName('Oskar Nilsson').docs.photo).toBe('remark');
@@ -86,7 +88,7 @@ describe('the 8 review cases behave as described', () => {
     expect(sla('Erik Svensson')).toBe('overdue');
   });
   it('Erik: licence too new', () => {
-    expect(evaluate(byName('Erik Svensson')).suggestedReject).toBe('licence_too_new');
+    expect(evaluate(byName('Erik Svensson')).suggestedReject).toBe('no_valid_licence');
   });
 });
 
@@ -96,9 +98,9 @@ describe('missing documents and activation lists', () => {
     expect(n).toBeGreaterThanOrEqual(2);
     expect(n).toBeLessThanOrEqual(3);
   });
-  it('background check is pending for about half of the incomplete files', () => {
+  it('the extract is on its way for about half of the incomplete files', () => {
     const missing = seed.filter((a) => deriveStage(a) === 'registered');
-    const pending = missing.filter((a) => a.docs.background === 'pending').length;
+    const pending = missing.filter((a) => a.docs.extract === 'pending').length;
     expect(pending).toBeGreaterThanOrEqual(6);
     expect(pending).toBeLessThanOrEqual(9);
   });

@@ -5,6 +5,12 @@ import { isNoResponse } from './nudges';
 /**
  * Written review criteria, three tiers.
  * Thresholds are a starting proposal, to be set with the team.
+ *
+ * Privacy by design:
+ * - No criminal-record or traffic-offence data is stored (GDPR art. 10). The applicant shows
+ *   the extract in a short call; the reviewer ticks "shown" and records nothing from it.
+ * - Reason codes are generic, so a rejection never reveals an offence.
+ * - The system supports the decision; a human always makes it and can explain it.
  */
 export const MIN_LICENCE_YEARS = 2;
 export const BORDERLINE_LICENCE_YEARS = 1;
@@ -12,13 +18,13 @@ export const BORDERLINE_LICENCE_YEARS = 1;
 export type CheckResult = 'pass' | 'fail' | 'borderline' | 'manual';
 
 export interface MustHave {
-  key: 'licence' | 'id' | 'background' | 'photo';
+  key: 'licence' | 'id' | 'extract' | 'photo';
   label: string;
   result: CheckResult;
   detail: string;
 }
 
-export type BorderlineKey = 'licence_1_2' | 'minor_violation' | 'limited_availability';
+export type BorderlineKey = 'licence_1_2' | 'limited_availability';
 
 export interface BorderlineRule {
   key: BorderlineKey;
@@ -33,18 +39,20 @@ export interface Evaluation {
   acceptType: Exclude<DecisionType, 'rejected'>;
   /** Why accepting is not possible yet. Empty = accept allowed. */
   acceptBlockedBy: string[];
-  needsSecondReviewer: boolean;
   /** Pre-selected reason when a must-have fails. */
   suggestedReject?: RejectReason;
 }
+
+/** Objective photo standard, the same for everyone. */
+export const PHOTO_STANDARD = 'Face clearly visible, recent, no sunglasses. Head coverings are fine.';
 
 export function evaluate(a: Applicant): Evaluation {
   const y = a.licenceYears;
   const licence: MustHave = {
     key: 'licence',
-    label: `B licence held ≥ ${MIN_LICENCE_YEARS} years`,
+    label: `Valid B licence, held ≥ ${MIN_LICENCE_YEARS} years`,
     ...(a.docs.licence === 'failed'
-      ? { result: 'fail', detail: 'Licence revoked or invalid' }
+      ? { result: 'fail', detail: 'No valid B licence' }
       : a.docs.licence === 'missing' || a.docs.licence === 'pending'
         ? { result: 'fail', detail: 'Licence not submitted' }
         : y >= MIN_LICENCE_YEARS
@@ -59,31 +67,29 @@ export function evaluate(a: Applicant): Evaluation {
     label: 'ID verified via personnummer (BankID)',
     ...(a.docs.id === 'verified'
       ? { result: 'pass', detail: 'Verified with BankID' }
-      : { result: 'fail', detail: a.docs.id === 'missing' ? 'ID not submitted' : 'ID could not be verified' }),
+      : { result: 'fail', detail: a.docs.id === 'missing' ? 'ID not submitted' : 'ID could not be verified with BankID' }),
   };
 
-  const background: MustHave = {
-    key: 'background',
-    label: 'Clean background check',
-    ...(a.docs.background === 'verified'
-      ? { result: 'pass', detail: 'Extract from Polisen, no remarks' }
-      : a.docs.background === 'remark'
-        ? { result: 'fail', detail: a.docNote?.background ?? 'Extract has a remark' }
-        : a.docs.background === 'failed'
-          ? { result: 'fail', detail: 'Background check failed' }
-          : { result: 'fail', detail: 'Background check not received' }),
+  const extract: MustHave = {
+    key: 'extract',
+    label: 'Criminal-record extract shown',
+    ...(a.docs.extract !== 'ready'
+      ? { result: 'fail', detail: a.docs.extract === 'pending' ? 'Ordered, not yet ready to show' : 'Not ordered yet' }
+      : a.extractShown
+        ? { result: 'pass', detail: 'Shown in a call. Nothing from it is stored.' }
+        : { result: 'manual', detail: 'Applicant shows it in a short call. Tick when seen; record nothing from it.' }),
   };
 
   const photo: MustHave = {
     key: 'photo',
-    label: 'Profile photo meets standard',
+    label: 'Profile photo meets the standard',
     ...(a.docs.photo === 'missing' || a.docs.photo === 'pending'
       ? { result: 'fail', detail: 'Photo not submitted' }
       : a.photoApproved
-        ? { result: 'pass', detail: 'Checked by reviewer' }
+        ? { result: 'pass', detail: 'Checked against the standard' }
         : a.docs.photo === 'remark'
-          ? { result: 'manual', detail: a.docNote?.photo ?? 'Photo has a remark: check before accepting' }
-          : { result: 'manual', detail: 'Reviewer must check the photo' }),
+          ? { result: 'manual', detail: a.docNote?.photo ?? `Check: ${PHOTO_STANDARD}` }
+          : { result: 'manual', detail: PHOTO_STANDARD }),
   };
 
   const borderline: BorderlineRule[] = [];
@@ -94,13 +100,6 @@ export function evaluate(a: Applicant): Evaluation {
       rule: 'Licence held 1–2 years → accept for simple drives first',
     });
   }
-  if (a.violations === 'minor') {
-    borderline.push({
-      key: 'minor_violation',
-      chip: 'Minor violation',
-      rule: 'Minor traffic violation → owner + backup decide together',
-    });
-  }
   if (a.availability === 'limited') {
     borderline.push({
       key: 'limited_availability',
@@ -109,7 +108,7 @@ export function evaluate(a: Applicant): Evaluation {
     });
   }
 
-  const mustHaves = [licence, id, background, photo];
+  const mustHaves = [licence, id, extract, photo];
   const acceptBlockedBy = mustHaves
     .filter((m) => m.result === 'fail' || m.result === 'manual')
     .map((m) => (m.result === 'manual' ? `${m.label}: not checked yet` : `${m.label}: ${m.detail}`));
@@ -118,18 +117,24 @@ export function evaluate(a: Applicant): Evaluation {
   const acceptType = has('licence_1_2') ? 'accepted_simple' : has('limited_availability') ? 'accepted_flagged' : 'accepted';
 
   let suggestedReject: RejectReason | undefined;
-  if (background.result === 'fail') suggestedReject = 'background_failed';
-  else if (licence.result === 'fail') suggestedReject = 'licence_too_new';
-  else if (id.result === 'fail') suggestedReject = 'id_unverified';
+  if (licence.result === 'fail' && a.docs.licence !== 'missing') suggestedReject = 'no_valid_licence';
+  else if (id.result === 'fail' && a.docs.id !== 'missing') suggestedReject = 'id_unverified';
 
-  return {
-    mustHaves,
-    borderline,
-    acceptType,
-    acceptBlockedBy,
-    needsSecondReviewer: has('minor_violation'),
-    suggestedReject,
-  };
+  return { mustHaves, borderline, acceptType, acceptBlockedBy, suggestedReject };
+}
+
+/** Reasons that need a second reviewer before the rejection is saved. */
+export const NEEDS_SECOND_REVIEWER: RejectReason[] = ['requirements_not_met'];
+
+/**
+ * Words that suggest a note contains offence details. Notes are a free-text field, so this
+ * guard stops the most likely mistake: writing down what the extract said.
+ */
+const SENSITIVE_NOTE =
+  /(dömd|domd|dom för|brott|belastning|straff|fängelse|böter|boter|fortkörning|rattfyll|stöld|bedrägeri|convict|criminal|offen[cs]e|felony|prison|speeding|theft|fraud|dui|record extract)/i;
+
+export function noteLooksSensitive(note: string | undefined): boolean {
+  return !!note && SENSITIVE_NOTE.test(note);
 }
 
 export interface DecisionInput {
@@ -143,6 +148,10 @@ export interface DecisionInput {
 export function validateDecision(a: Applicant, input: DecisionInput, now: number): string | null {
   const stage = deriveStage(a);
 
+  if (noteLooksSensitive(input.note)) {
+    return 'Notes must not contain offence details or anything from the extract. Use the generic reason code.';
+  }
+
   if (input.type === 'rejected') {
     if (!input.reason) return 'Pick a reason code to reject.';
     if (input.reason === 'other' && !input.note?.trim()) return '"Other" needs a note.';
@@ -151,6 +160,9 @@ export function validateDecision(a: Applicant, input: DecisionInput, now: number
       return null;
     }
     if (stage !== 'review') return 'Only applicants under review can be decided.';
+    if (NEEDS_SECOND_REVIEWER.includes(input.reason) && !input.secondReviewer?.trim()) {
+      return 'A suitability rejection needs a second reviewer to confirm.';
+    }
     return null;
   }
 
@@ -158,7 +170,6 @@ export function validateDecision(a: Applicant, input: DecisionInput, now: number
   const ev = evaluate(a);
   if (ev.acceptBlockedBy.length) return `Can't accept: ${ev.acceptBlockedBy[0]}.`;
   if (input.type !== ev.acceptType) return `The written rules call for "${DECISION_LABEL[ev.acceptType]}" here.`;
-  if (ev.needsSecondReviewer && !input.secondReviewer?.trim()) return 'Minor violation: a second reviewer must confirm.';
   return null;
 }
 
@@ -180,11 +191,12 @@ export function reviewChips(a: Applicant): Chip[] {
   const chips: Chip[] = ev.borderline.map((b) => ({ label: b.chip, tone: 'warn' as const }));
   for (const m of ev.mustHaves) {
     if (m.result !== 'fail') continue;
-    if (m.key === 'licence') chips.push({ label: `Licence ${fmtYears(a.licenceYears)}`, tone: 'bad' });
-    if (m.key === 'background') chips.push({ label: a.docs.background === 'remark' ? 'Background remark' : 'Background failed', tone: 'bad' });
+    if (m.key === 'licence') chips.push({ label: a.docs.licence === 'failed' ? 'No valid licence' : `Licence ${fmtYears(a.licenceYears)}`, tone: 'bad' });
     if (m.key === 'id') chips.push({ label: 'ID not verified', tone: 'bad' });
     if (m.key === 'photo') chips.push({ label: 'Photo missing', tone: 'bad' });
   }
+  const extract = ev.mustHaves.find((m) => m.key === 'extract')!;
+  if (extract.result === 'manual') chips.push({ label: 'Extract call', tone: 'info' });
   const photo = ev.mustHaves.find((m) => m.key === 'photo')!;
   if (photo.result === 'manual') {
     chips.push(a.docs.photo === 'remark' ? { label: 'Photo unclear', tone: 'warn' } : { label: 'Photo unchecked', tone: 'info' });

@@ -33,10 +33,11 @@ The cockpit gives every stage an owner, a clock and written rules. **Every actio
 - **Funnel scoreboard:** Registered → Docs submitted → Under review → Accepted → Active, with step conversion and the biggest drop-off highlighted. Click a stage to jump to its list.
 - **Six metrics:** document completion, time to decision, acceptance rate (with top reject reasons), activation rate, application → active (the north star), and first-gig quality (guardrail). All are computed live, with the rule for who is counted shown under each number.
 - **Review queue:** sorted by SLA (48 h from a complete file), with live clocks and auto-detected flags. The drawer shows the written criteria in three tiers and allows only the decision the rules allow:
-  - **Must-have:** B licence ≥ 2 years, ID via BankID, clean background check, photo ticked by the reviewer.
-  - **Borderline:** licence 1–2 years → simple drives first; minor violation → second reviewer must confirm; limited availability → accept and flag for activation.
-  - **Reject:** only with a reason code. "Other" needs a note.
+  - **Must-have:** valid B licence held ≥ 2 years, ID via BankID, criminal-record extract shown in a short call (viewed, never stored), photo meeting an objective standard.
+  - **Borderline:** licence 1–2 years → simple drives first; limited availability → accept and flag for activation (never a reason to reject).
+  - **Reject:** only with a generic reason code. A suitability rejection needs a second reviewer. "Other" needs a note, and notes that look like offence details are blocked.
 - **Missing documents:** a checklist per applicant, the auto-nudge schedule (2 h, 24 h, 72 h), the reminder text that would go out, "Send nudge now" (logged only, never sent), and closing after 14 days without a response. A complete file is auto-queued for review.
+- **Privacy by design:** no criminal-record or traffic-offence data is stored anywhere, reason codes are generic, a human makes every decision, and every file shows when its data will be deleted.
 - **Awaiting first gig:** activation status (on track, book first gig, call driver, dormant), a welcome call within 24 h, first-gig booking, and completion with on-time and no-incident checks.
 - **All applicants:** filter and search, plus a full timeline per applicant.
 - **How this maps to HubSpot:** pipeline stages, the fields required to move on, and workflows.
@@ -57,12 +58,23 @@ The demo data (44 applicants over about 40 days, generated relative to now) is t
 
 Thresholds are a starting proposal, to be set with the team.
 
+## Privacy and fairness
+
+Built to follow GDPR and Swedish rules from the start. This is a design, not legal advice; a DPO should confirm it before real use.
+
+- **No criminal-record data (GDPR art. 10).** Private companies may not keep it without a legal basis. The applicant orders their own extract from Polisen and shows it in a short call; the cockpit records only "extract shown". Reason codes never reveal an offence, and notes with offence details are blocked.
+- **No traffic-offence data.** Speeding fines are criminal-offence data too. The cockpit only records that the B licence is valid and how long it has been held.
+- **Humans decide, reasons can be explained.** The rules block what is not allowed; a person makes every decision. Suitability rejections need a second reviewer. Applicants can ask for the reason and a review.
+- **Retention.** Incomplete applications are deleted after 6 months, rejected ones 2 years after the decision.
+- **Fair criteria.** Minimum age and licence years follow insurance and safety needs; the photo standard is objective; limited availability never leads to rejection.
+- **Ready for platform-work rules.** Information before applying, human oversight, and no automatic suspensions ("dormant" is only a label), in line with the EU Platform Work Directive.
+
 ## Run it
 
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 107 unit tests (Vitest)
+npm test         # 124 unit tests (Vitest)
 npm run build
 ```
 

@@ -80,11 +80,11 @@ describe('first-gig quality', () => {
 
 describe('acceptance rate', () => {
   it('excludes no-response closes and lists top reject reasons', () => {
-    const rej = (reason: 'background_failed' | 'no_response_14d') =>
+    const rej = (reason: 'requirements_not_met' | 'no_response_14d') =>
       mk({ docsCompleteAt: reason === 'no_response_14d' ? undefined : NOW - 3 * DAY, decision: { type: 'rejected', reason, at: NOW - DAY, by: 'x' } });
-    const k = kpi([accepted(3), rej('background_failed'), rej('no_response_14d')], 'acceptance');
+    const k = kpi([accepted(3), rej('requirements_not_met'), rej('no_response_14d')], 'acceptance');
     expect(k.value).toBe(50);
-    expect(k.sub).toContain('Background ×1');
+    expect(k.sub).toContain('Requirements ×1');
   });
 });
 

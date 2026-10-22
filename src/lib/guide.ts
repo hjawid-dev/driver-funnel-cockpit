@@ -16,7 +16,7 @@ const byMe = (a?: Applicant) => a?.decision?.by === REVIEWER;
 export function guideSteps(apps: Applicant[], now: number): GuideStep[] {
   const find = (name: string) => apps.find((a) => a.name === name);
   const elin = find('Elin Johansson');
-  const sara = find('Sara Lindqvist');
+  const ahmed = find('Ahmed Hassan');
   const stale = apps.find((a) => isNoResponse(a, now));
   const closed = apps.some((a) => a.decision?.reason === 'no_response_14d' && byMe(a));
 
@@ -24,16 +24,16 @@ export function guideSteps(apps: Applicant[], now: number): GuideStep[] {
     {
       key: 'accept',
       title: 'Accept a clean file',
-      hint: 'Elin Johansson: tick the photo, then Accept. Watch the numbers move.',
+      hint: 'Elin Johansson: tick the photo and the extract call, then Accept. Watch the numbers move.',
       targetId: elin?.id ?? null,
       done: byMe(elin),
     },
     {
       key: 'second',
       title: 'Hit a borderline rule',
-      hint: 'Sara Lindqvist has a minor violation: Accept stays locked until a second reviewer confirms.',
-      targetId: sara?.id ?? null,
-      done: byMe(sara),
+      hint: 'Ahmed Hassan has held his licence 1.5 years: the written rule only allows "simple drives first".',
+      targetId: ahmed?.id ?? null,
+      done: byMe(ahmed),
     },
     {
       key: 'close',

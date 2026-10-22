@@ -15,14 +15,12 @@ import { REJECT_REASONS } from './types';
  */
 
 type Docs = Record<DocKey, DocStatus>;
-const ALL_OK: Docs = { licence: 'verified', id: 'verified', background: 'verified', photo: 'uploaded' };
+const ALL_OK: Docs = { licence: 'verified', id: 'verified', extract: 'ready', photo: 'uploaded' };
 
 interface Base {
   name: string;
   area: string;
-  age: number;
   lic: number;
-  minor?: string; // violation note
   limited?: string; // availability note
   docs?: Partial<Docs>;
   docNote?: Applicant['docNote'];
@@ -46,23 +44,27 @@ function build(
   const docs: Docs = { ...ALL_OK, ...b.docs };
   const log: Applicant['log'] = [{ at: t.reg, text: 'Registered' }];
 
-  // When each received document arrived: ID first (BankID), background check last (slowest).
+  // When each item arrived: ID first (BankID), the extract last (ordered from Polisen, slowest).
   const docTimes: Partial<Record<DocKey, number>> = {};
   const end = t.complete ?? Math.min(now, t.reg + 2 * DAY);
   const span = Math.max(end - t.reg, 30 * MIN);
-  const share: Record<DocKey, number> = { id: 0.05, licence: 0.15, photo: 0.4, background: 1 };
+  const share: Record<DocKey, number> = { id: 0.05, licence: 0.15, photo: 0.4, extract: 1 };
   for (const k of DOC_KEYS) {
     if (docs[k] === 'missing' || docs[k] === 'pending') continue;
-    const at = t.complete && k === 'background' ? t.complete : t.reg + span * Math.min(share[k], 0.9);
+    const at = t.complete && k === 'extract' ? t.complete : t.reg + span * Math.min(share[k], 0.9);
     docTimes[k] = Math.min(at, now - MIN);
   }
-  for (const k of DOC_KEYS) if (docTimes[k]) log.push({ at: docTimes[k]!, text: `Document received: ${k}` });
-  if (docs.background === 'pending') log.push({ at: t.reg + 10 * MIN, text: 'Applicant ordered background check from Polisen' });
+  for (const k of DOC_KEYS) if (docTimes[k]) log.push({ at: docTimes[k]!, text: k === 'extract' ? 'Extract ready to show (nothing uploaded)' : `Document received: ${k}` });
+  if (docs.extract === 'pending') log.push({ at: t.reg + 10 * MIN, text: 'Applicant ordered extract from Polisen' });
   if (t.complete) log.push({ at: t.complete, text: 'File complete, queued for review' });
 
   let decision: Decision | undefined;
   if (t.decision) {
-    decision = { ...t.decision, by: 'Ops team' };
+    decision = {
+      ...t.decision,
+      by: 'Ops team',
+      ...(t.decision.reason === 'requirements_not_met' ? { secondReviewer: 'Sofia (backup)' } : {}),
+    };
     const label =
       decision.type === 'rejected'
         ? `Rejected: ${REJECT_REASONS.find((r) => r.value === decision!.reason)!.label}`
@@ -78,10 +80,7 @@ function build(
   return {
     name: b.name,
     area: b.area,
-    age: b.age,
     licenceYears: b.lic,
-    violations: b.minor ? 'minor' : 'none',
-    ...(b.minor ? { violationNote: b.minor } : {}),
     availability: b.limited ? 'limited' : 'full',
     ...(b.limited ? { availabilityNote: b.limited } : {}),
     registeredAt: t.reg,
@@ -90,6 +89,8 @@ function build(
     ...(b.docNote ? { docNote: b.docNote } : {}),
     // Historical decisions were accepted, so their photos were approved.
     ...(decision && decision.type !== 'rejected' ? { photoApproved: true } : {}),
+    // Decided files went through the extract call; only the tick is kept, never the content.
+    ...(decision && t.complete ? { extractShown: true } : {}),
     nudges: t.nudges ?? [],
     ...(t.complete ? { docsCompleteAt: t.complete } : {}),
     ...(decision ? { decision } : {}),
@@ -112,36 +113,25 @@ export function generateSeed(now: number): Applicant[] {
 
   // ---------- Review queue: 8 hand-crafted cases ----------
   const review: [Base, number /* docs complete h ago */, number /* reg→complete days */][] = [
-    [{ name: 'Elin Johansson', area: 'Solna', age: 29, lic: 6 }, 3, 2],
-    [{ name: 'Ahmed Hassan', area: 'Sundbyberg', age: 23, lic: 1.5 }, 9, 4],
-    [{ name: 'Sara Lindqvist', area: 'Nacka', age: 34, lic: 9, minor: 'Speeding fine (2025)' }, 20, 3],
-    [{ name: 'Johan Berg', area: 'Bromma', age: 46, lic: 22, limited: 'Weekends only' }, 27, 5],
-    [
-      {
-        name: 'Maja Karlsson',
-        area: 'Huddinge',
-        age: 28,
-        lic: 7,
-        docs: { background: 'remark' },
-        docNote: { background: 'Extract from Polisen shows a remark (2024)' },
-      },
-      35,
-      6,
-    ],
+    [{ name: 'Elin Johansson', area: 'Solna', lic: 6 }, 3, 2],
+    [{ name: 'Ahmed Hassan', area: 'Sundbyberg', lic: 1.5 }, 9, 4],
+    [{ name: 'Sara Lindqvist', area: 'Nacka', lic: 9 }, 20, 3],
+    [{ name: 'Johan Berg', area: 'Bromma', lic: 22, limited: 'Weekends only' }, 27, 5],
+    // Maja uploaded a scanned ID instead of verifying with BankID.
+    [{ name: 'Maja Karlsson', area: 'Huddinge', lic: 7, docs: { id: 'uploaded' } }, 35, 6],
     [
       {
         name: 'Oskar Nilsson',
         area: 'Kungsholmen',
-        age: 25,
         lic: 5,
         docs: { photo: 'remark' },
-        docNote: { photo: 'Blurry, face partly hidden by sunglasses' },
+        docNote: { photo: 'Face partly hidden by sunglasses' },
       },
       44,
       4,
     ],
-    [{ name: 'Fatima Ali', area: 'Järfälla', age: 37, lic: 12 }, 51, 5],
-    [{ name: 'Erik Svensson', area: 'Täby', age: 19, lic: 0.8 }, 76, 7],
+    [{ name: 'Fatima Ali', area: 'Järfälla', lic: 12 }, 51, 5],
+    [{ name: 'Erik Svensson', area: 'Täby', lic: 0.8 }, 76, 7],
   ];
   for (const [b, hAgo, regDays] of review) {
     const complete = ago(hAgo * HOUR);
@@ -153,21 +143,21 @@ export function generateSeed(now: number): Applicant[] {
   const M = 'missing' as const;
   const U = 'uploaded' as const;
   const missing: [Base, number /* registered ago ms */, number[] /* manual nudges, days after reg */][] = [
-    [{ name: 'Lucas Andersson', area: 'Haninge', age: 24, lic: 3, docs: { licence: U, id: M, background: M, photo: M } }, 2 * HOUR, []],
-    [{ name: 'Wilma Eriksson', area: 'Södermalm', age: 31, lic: 8, docs: { licence: U, background: P, photo: M } }, 6 * HOUR, []],
-    [{ name: 'Hugo Larsson', area: 'Sollentuna', age: 27, lic: 6, docs: { licence: U, background: P } }, 14 * HOUR, []],
-    [{ name: 'Alva Olsson', area: 'Lidingö', age: 42, lic: 20, docs: { licence: M, background: M } }, 1 * DAY, []],
-    [{ name: 'Liam Persson', area: 'Solna', age: 22, lic: 2.5, docs: { licence: U, background: P } }, 2 * DAY, []],
-    [{ name: 'Ebba Gustafsson', area: 'Nacka', age: 35, lic: 15, docs: { licence: U, id: M, background: P } }, 3 * DAY, []],
-    [{ name: 'Noah Pettersson', area: 'Huddinge', age: 26, lic: 4, docs: { licence: U, background: P, photo: M } }, 5 * DAY, []],
-    [{ name: 'Astrid Jonsson', area: 'Bromma', age: 39, lic: 18, docs: { licence: U, background: P } }, 8 * DAY, [5]],
-    [{ name: 'Ali Mohammed', area: 'Järfälla', age: 30, lic: 9, docs: { licence: U, background: M, photo: M } }, 9 * DAY, []],
-    [{ name: 'Freja Lundberg', area: 'Täby', age: 24, lic: 5, docs: { licence: U, id: M, background: P } }, 11 * DAY, []],
-    [{ name: 'William Lindström', area: 'Sundbyberg', age: 51, lic: 30, docs: { licence: U, background: M } }, 12 * DAY, [6]],
-    [{ name: 'Nora Axelsson', area: 'Kungsholmen', age: 28, lic: 7, docs: { licence: M, background: P } }, 13 * DAY, [8]],
-    [{ name: 'Adam Jakobsson', area: 'Haninge', age: 21, lic: 2, docs: { licence: U, id: M, background: M, photo: M } }, 16 * DAY, []],
-    [{ name: 'Selma Holm', area: 'Sollentuna', age: 33, lic: 11, docs: { licence: U, background: M, photo: M } }, 19 * DAY, [6]],
-    [{ name: 'Elias Sandberg', area: 'Södermalm', age: 45, lic: 25, docs: { licence: M, id: M, background: M, photo: M } }, 25 * DAY, []],
+    [{ name: 'Lucas Andersson', area: 'Haninge', lic: 3, docs: { licence: U, id: M, extract: M, photo: M } }, 2 * HOUR, []],
+    [{ name: 'Wilma Eriksson', area: 'Södermalm', lic: 8, docs: { licence: U, extract: P, photo: M } }, 6 * HOUR, []],
+    [{ name: 'Hugo Larsson', area: 'Sollentuna', lic: 6, docs: { licence: U, extract: P } }, 14 * HOUR, []],
+    [{ name: 'Alva Olsson', area: 'Lidingö', lic: 20, docs: { licence: M, extract: M } }, 1 * DAY, []],
+    [{ name: 'Liam Persson', area: 'Solna', lic: 2.5, docs: { licence: U, extract: P } }, 2 * DAY, []],
+    [{ name: 'Ebba Gustafsson', area: 'Nacka', lic: 15, docs: { licence: U, id: M, extract: P } }, 3 * DAY, []],
+    [{ name: 'Noah Pettersson', area: 'Huddinge', lic: 4, docs: { licence: U, extract: P, photo: M } }, 5 * DAY, []],
+    [{ name: 'Astrid Jonsson', area: 'Bromma', lic: 18, docs: { licence: U, extract: P } }, 8 * DAY, [5]],
+    [{ name: 'Ali Mohammed', area: 'Järfälla', lic: 9, docs: { licence: U, extract: M, photo: M } }, 9 * DAY, []],
+    [{ name: 'Freja Lundberg', area: 'Täby', lic: 5, docs: { licence: U, id: M, extract: P } }, 11 * DAY, []],
+    [{ name: 'William Lindström', area: 'Sundbyberg', lic: 30, docs: { licence: U, extract: M } }, 12 * DAY, [6]],
+    [{ name: 'Nora Axelsson', area: 'Kungsholmen', lic: 7, docs: { licence: M, extract: P } }, 13 * DAY, [8]],
+    [{ name: 'Adam Jakobsson', area: 'Haninge', lic: 2, docs: { licence: U, id: M, extract: M, photo: M } }, 16 * DAY, []],
+    [{ name: 'Selma Holm', area: 'Sollentuna', lic: 11, docs: { licence: U, extract: M, photo: M } }, 19 * DAY, [6]],
+    [{ name: 'Elias Sandberg', area: 'Södermalm', lic: 25, docs: { licence: M, id: M, extract: M, photo: M } }, 25 * DAY, []],
   ];
   for (const [b, regAgo, nudgeDays] of missing) {
     const reg = ago(regAgo);
@@ -176,12 +166,12 @@ export function generateSeed(now: number): Applicant[] {
 
   // ---------- Awaiting first gig: 6 (accepted ~1, 4, 9, 12, 18, 34 days ago) ----------
   const awaiting: [Base, number /* accepted d ago */, number /* decision h */, number /* reg→complete d */, Partial<{ welcome: boolean; bookedTomorrow: boolean; type: Decision['type'] }>][] = [
-    [{ name: 'Viktor Engström', area: 'Solna', age: 30, lic: 10 }, 20 / 24, 30, 3, {}], // accepted 20 h ago: welcome call still due
-    [{ name: 'Klara Forsberg', area: 'Nacka', age: 27, lic: 6 }, 4, 80, 3, { welcome: true, bookedTomorrow: true }],
-    [{ name: 'Mohammed Yusuf', area: 'Sundbyberg', age: 22, lic: 1.4 }, 9, 72, 2, { welcome: true, type: 'accepted_simple' }],
-    [{ name: 'Ida Sjöberg', area: 'Lidingö', age: 41, lic: 19, limited: 'Evenings and weekends' }, 12, 90, 4, { welcome: true, type: 'accepted_flagged' }],
-    [{ name: 'Anton Wallin', area: 'Bromma', age: 36, lic: 14 }, 18, 96, 3, { welcome: true }],
-    [{ name: 'Lova Hedlund', area: 'Huddinge', age: 25, lic: 4 }, 34, 120, 3, {}],
+    [{ name: 'Viktor Engström', area: 'Solna', lic: 10 }, 20 / 24, 30, 3, {}], // accepted 20 h ago: welcome call still due
+    [{ name: 'Klara Forsberg', area: 'Nacka', lic: 6 }, 4, 80, 3, { welcome: true, bookedTomorrow: true }],
+    [{ name: 'Mohammed Yusuf', area: 'Sundbyberg', lic: 1.4 }, 9, 72, 2, { welcome: true, type: 'accepted_simple' }],
+    [{ name: 'Ida Sjöberg', area: 'Lidingö', lic: 19, limited: 'Evenings and weekends' }, 12, 90, 4, { welcome: true, type: 'accepted_flagged' }],
+    [{ name: 'Anton Wallin', area: 'Bromma', lic: 14 }, 18, 96, 3, { welcome: true }],
+    [{ name: 'Lova Hedlund', area: 'Huddinge', lic: 4 }, 34, 120, 3, {}],
   ];
   for (const [b, accAgo, decH, regDays, o] of awaiting) {
     const at = ago(accAgo * DAY);
@@ -204,16 +194,16 @@ export function generateSeed(now: number): Applicant[] {
   // ---------- Active: 10 (old, slow process: 20–130 h to decision) ----------
   // Two activated late (16 and 20 days after acceptance) to show the activation gap.
   const active: [Base, number /* reg d ago */, number /* reg→complete d */, number /* decision h */, number /* gig d after decision */, boolean /* on time */][] = [
-    [{ name: 'Isak Bergström', area: 'Solna', age: 32, lic: 11 }, 40, 2, 30, 3, true],
-    [{ name: 'Julia Lindgren', area: 'Täby', age: 29, lic: 8 }, 38, 3, 50, 2, true],
-    [{ name: 'Filip Nyström', area: 'Haninge', age: 44, lic: 24 }, 36, 4, 96, 20, true],
-    [{ name: 'Emma Holmberg', area: 'Kungsholmen', age: 26, lic: 5 }, 33, 3, 120, 5, true],
-    [{ name: 'Leo Mattsson', area: 'Järfälla', age: 38, lic: 17 }, 29, 2, 72, 16, true],
-    [{ name: 'Agnes Ekström', area: 'Södermalm', age: 31, lic: 9 }, 27, 3, 20, 4, true],
-    [{ name: 'Theo Danielsson', area: 'Sollentuna', age: 23, lic: 3 }, 24, 2, 110, 6, false],
-    [{ name: 'Linnea Björk', area: 'Nacka', age: 35, lic: 13 }, 21, 3, 60, 3, true],
-    [{ name: 'Omar Khalil', area: 'Sundbyberg', age: 28, lic: 7 }, 18, 2, 88, 7, true],
-    [{ name: 'Saga Fransson', area: 'Lidingö', age: 40, lic: 20 }, 15, 2, 45, 2, true],
+    [{ name: 'Isak Bergström', area: 'Solna', lic: 11 }, 40, 2, 30, 3, true],
+    [{ name: 'Julia Lindgren', area: 'Täby', lic: 8 }, 38, 3, 50, 2, true],
+    [{ name: 'Filip Nyström', area: 'Haninge', lic: 24 }, 36, 4, 96, 20, true],
+    [{ name: 'Emma Holmberg', area: 'Kungsholmen', lic: 5 }, 33, 3, 120, 5, true],
+    [{ name: 'Leo Mattsson', area: 'Järfälla', lic: 17 }, 29, 2, 72, 16, true],
+    [{ name: 'Agnes Ekström', area: 'Södermalm', lic: 9 }, 27, 3, 20, 4, true],
+    [{ name: 'Theo Danielsson', area: 'Sollentuna', lic: 3 }, 24, 2, 110, 6, false],
+    [{ name: 'Linnea Björk', area: 'Nacka', lic: 13 }, 21, 3, 60, 3, true],
+    [{ name: 'Omar Khalil', area: 'Sundbyberg', lic: 7 }, 18, 2, 88, 7, true],
+    [{ name: 'Saga Fransson', area: 'Lidingö', lic: 20 }, 15, 2, 45, 2, true],
   ];
   for (const [b, regAgo, regDays, decH, gigD, onTime] of active) {
     const reg = ago(regAgo * DAY);
@@ -239,17 +229,11 @@ export function generateSeed(now: number): Applicant[] {
 
   // ---------- Rejected: 5 ----------
   const rejected: [Base, number /* reg d ago */, number /* reg→complete d, 0 = never */, number /* decision h */, Decision['reason']][] = [
-    [{ name: 'Rasmus Lund', area: 'Bromma', age: 33, lic: 10, docs: { background: 'failed' } }, 28, 5, 70, 'background_failed'],
-    [
-      { name: 'Moa Sundström', area: 'Solna', age: 27, lic: 6, docs: { background: 'remark' }, docNote: { background: 'Extract shows a remark (2023)' } },
-      20,
-      4,
-      100,
-      'background_failed',
-    ],
-    [{ name: 'Albin Åberg', area: 'Täby', age: 18, lic: 0.6 }, 34, 2, 130, 'licence_too_new'],
-    [{ name: 'Hanna Strand', area: 'Haninge', age: 30, lic: 8, docs: { id: 'failed' } }, 12, 3, 26, 'id_unverified'],
-    [{ name: 'Daniel Nordin', area: 'Sollentuna', age: 24, lic: 4, docs: { id: 'missing', background: 'missing', photo: 'missing' } }, 23, 0, 0, 'no_response_14d'],
+    [{ name: 'Rasmus Lund', area: 'Bromma', lic: 10 }, 28, 5, 70, 'requirements_not_met'],
+    [{ name: 'Moa Sundström', area: 'Solna', lic: 6 }, 20, 4, 100, 'requirements_not_met'],
+    [{ name: 'Albin Åberg', area: 'Täby', lic: 0.6 }, 34, 2, 130, 'no_valid_licence'],
+    [{ name: 'Hanna Strand', area: 'Haninge', lic: 8, docs: { id: 'failed' } }, 12, 3, 26, 'id_unverified'],
+    [{ name: 'Daniel Nordin', area: 'Sollentuna', lic: 4, docs: { id: 'missing', extract: 'missing', photo: 'missing' } }, 23, 0, 0, 'no_response_14d'],
   ];
   for (const [b, regAgo, regDays, decH, reason] of rejected) {
     const reg = ago(regAgo * DAY);

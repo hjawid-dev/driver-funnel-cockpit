@@ -32,7 +32,7 @@ export function applyDecision(a: Applicant, input: DecisionInput, now: number, b
   let message: string;
   if (input.type === 'rejected') {
     const label = REJECT_REASONS.find((r) => r.value === input.reason)!.label;
-    text = `Rejected: ${label}${decision.note ? ` (${decision.note})` : ''}`;
+    text = `Rejected: ${label}${decision.note ? ` (${decision.note})` : ''}${decision.secondReviewer ? `, confirmed by ${decision.secondReviewer}` : ''}`;
     message = `Rejected: ${a.name}. Reason: ${label}.`;
   } else {
     text = `${DECISION_LABEL[input.type]}${decision.secondReviewer ? `, confirmed by ${decision.secondReviewer}` : ''}`;
@@ -44,6 +44,11 @@ export function applyDecision(a: Applicant, input: DecisionInput, now: number, b
 
 export function setPhotoApproved(a: Applicant, approved: boolean, now: number): Applicant {
   return withLog({ ...a, photoApproved: approved }, now, approved ? `Photo approved by ${REVIEWER}` : 'Photo approval removed');
+}
+
+/** Only the fact that the extract was shown is recorded, never what it said. */
+export function setExtractShown(a: Applicant, shown: boolean, now: number): Applicant {
+  return withLog({ ...a, extractShown: shown }, now, shown ? `Extract shown in call, seen by ${REVIEWER} (nothing stored)` : 'Extract tick removed');
 }
 
 /** Sends the applicant back to Missing documents with photo = missing. */

@@ -149,8 +149,8 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
 }
 
 const SHORT_REASON: Record<RejectReason, string> = {
-  background_failed: 'Background',
-  licence_too_new: 'Licence',
+  requirements_not_met: 'Requirements',
+  no_valid_licence: 'Licence',
   id_unverified: 'ID',
   no_response_14d: 'No response',
   other: 'Other',

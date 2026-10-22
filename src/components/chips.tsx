@@ -31,14 +31,19 @@ export function FlagChip({ chip }: { chip: Chip }) {
 export const DOC_LABEL: Record<DocKey, string> = {
   licence: 'Driving licence',
   id: 'ID (personnummer)',
-  background: 'Background check',
+  extract: 'Criminal-record extract',
   photo: 'Profile photo',
 };
 
-export function docStatusText(key: DocKey, s: DocStatus): string {
+export function docStatusText(key: DocKey, s: DocStatus, extractShown = false): string {
   if (key === 'id' && s === 'verified') return 'Verified (BankID)';
-  if (key === 'background' && s === 'pending') return 'Ordered from Polisen';
-  return { verified: 'Verified', uploaded: 'Uploaded', missing: 'Missing', pending: 'Pending', failed: 'Failed', remark: 'Has remark' }[s];
+  if (key === 'id' && s === 'uploaded') return 'Scan only, not BankID';
+  if (key === 'extract') {
+    if (extractShown) return 'Shown, nothing stored';
+    return s === 'ready' ? 'Ready to show in call' : s === 'pending' ? 'Ordered from Polisen' : 'Not ordered';
+  }
+  if (key === 'licence' && s === 'failed') return 'Not valid';
+  return { verified: 'Verified', uploaded: 'Uploaded', missing: 'Missing', pending: 'Pending', ready: 'Ready', failed: 'Failed', remark: 'Has remark' }[s];
 }
 
 const DOC_STYLE: Record<DocStatus, string> = {
@@ -46,21 +51,23 @@ const DOC_STYLE: Record<DocStatus, string> = {
   uploaded: 'bg-lavender text-navy',
   missing: 'bg-bad-bg text-bad',
   pending: 'bg-warn-bg text-warn',
+  ready: 'bg-lavender text-navy',
   failed: 'bg-bad-bg text-bad',
   remark: 'bg-warn-bg text-warn',
 };
 
-export function DocStatusPill({ docKey, status }: { docKey: DocKey; status: DocStatus }) {
-  return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${DOC_STYLE[status]}`}>{docStatusText(docKey, status)}</span>;
+export function DocStatusPill({ docKey, status, extractShown = false }: { docKey: DocKey; status: DocStatus; extractShown?: boolean }) {
+  const style = docKey === 'extract' && extractShown ? 'bg-ok-bg text-ok' : DOC_STYLE[status];
+  return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${style}`}>{docStatusText(docKey, status, extractShown)}</span>;
 }
 
-const SHORT_DOC: Record<DocKey, string> = { licence: 'Licence', id: 'ID', background: 'Background', photo: 'Photo' };
+const SHORT_DOC: Record<DocKey, string> = { licence: 'Licence', id: 'ID', extract: 'Extract', photo: 'Photo' };
 
 /** Four small chips: ✓ submitted · ⏳ pending · ✗ missing. */
 export function DocChecklist({ docs }: { docs: Record<DocKey, DocStatus> }) {
   return (
     <ul className="flex flex-wrap gap-1" aria-label="Documents">
-      {(['licence', 'id', 'background', 'photo'] as DocKey[]).map((k) => {
+      {(['licence', 'id', 'extract', 'photo'] as DocKey[]).map((k) => {
         const s = docs[k];
         const state = s === 'missing' ? 'missing' : s === 'pending' ? 'pending' : 'done';
         const style = { done: 'bg-ok-bg text-ok', pending: 'bg-warn-bg text-warn', missing: 'bg-bad-bg text-bad' }[state];

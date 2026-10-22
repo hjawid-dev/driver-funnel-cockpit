@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { Camera, CircleAlert, CircleCheck, CircleX, Info, Scale, Square, SquareCheck } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { Camera, CircleAlert, CircleCheck, CircleX, Info, Scale, ShieldCheck, Square, SquareCheck } from 'lucide-react';
 import type { Applicant, RejectReason } from '../lib/types';
 import { REJECT_REASONS } from '../lib/types';
-import { DECISION_LABEL, evaluate, type CheckResult } from '../lib/criteria';
-import { applyDecision, requestNewPhoto, setPhotoApproved, type ActionResult } from '../lib/actions';
+import { DECISION_LABEL, evaluate, NEEDS_SECOND_REVIEWER, noteLooksSensitive, type CheckResult } from '../lib/criteria';
+import { applyDecision, requestNewPhoto, setExtractShown, setPhotoApproved, type ActionResult } from '../lib/actions';
 import { DrawerSection } from './ui';
 
 export const BACKUP_REVIEWER = 'Sofia (backup)';
@@ -30,9 +30,12 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const photoSubmitted = a.docs.photo !== 'missing' && a.docs.photo !== 'pending';
-  const secondOk = !ev.needsSecondReviewer || (secondConfirmed && secondName.trim().length > 0);
-  const canAccept = ev.acceptBlockedBy.length === 0 && secondOk;
-  const canReject = !!reason && (reason !== 'other' || note.trim().length > 0);
+  const extractReady = a.docs.extract === 'ready';
+  const needsSecond = !!reason && NEEDS_SECOND_REVIEWER.includes(reason);
+  const secondOk = !needsSecond || (secondConfirmed && secondName.trim().length > 0);
+  const sensitive = noteLooksSensitive(note);
+  const canAccept = ev.acceptBlockedBy.length === 0;
+  const canReject = !!reason && (reason !== 'other' || note.trim().length > 0) && secondOk && !sensitive;
 
   const run = (r: ActionResult) => {
     if (!r.ok) return setError(r.error);
@@ -40,8 +43,9 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
     onResult(r, true);
   };
 
-  const accept = () => run(applyDecision(a, { type: ev.acceptType, ...(ev.needsSecondReviewer ? { secondReviewer: secondName } : {}) }, now));
-  const reject = () => reason && run(applyDecision(a, { type: 'rejected', reason, note }, now));
+  const accept = () => run(applyDecision(a, { type: ev.acceptType }, now));
+  const reject = () =>
+    reason && run(applyDecision(a, { type: 'rejected', reason, note, ...(needsSecond ? { secondReviewer: secondName } : {}) }, now));
 
   return (
     <>
@@ -55,17 +59,15 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
                 <div className="min-w-0 flex-1">
                   <div className="font-medium">{m.label}</div>
                   <div className={`text-xs ${m.result === 'fail' ? 'text-bad' : 'text-muted'}`}>{m.detail}</div>
+                  {m.key === 'extract' && extractReady && (
+                    <Tick checked={!!a.extractShown} onChange={(v) => onUpdate(setExtractShown(a, v, now))}>
+                      Extract shown in call (nothing stored)
+                    </Tick>
+                  )}
                   {m.key === 'photo' && photoSubmitted && (
-                    <label className="mt-1.5 inline-flex cursor-pointer items-center gap-2 rounded-md bg-card px-2 py-1 text-xs font-semibold">
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={!!a.photoApproved}
-                        onChange={(e) => onUpdate(setPhotoApproved(a, e.target.checked, now))}
-                      />
-                      {a.photoApproved ? <SquareCheck size={16} className="text-indigo" aria-hidden /> : <Square size={16} className="text-muted" aria-hidden />}
-                      <span className="peer-focus-visible:underline">Photo meets standard</span>
-                    </label>
+                    <Tick checked={!!a.photoApproved} onChange={(v) => onUpdate(setPhotoApproved(a, v, now))}>
+                      Photo meets the standard
+                    </Tick>
                   )}
                 </div>
               </li>
@@ -86,8 +88,12 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
             </ul>
           )}
         </div>
-        <p className="mt-2 flex items-center gap-1.5 text-xs text-muted">
-          <Info size={13} aria-hidden /> Thresholds are a starting proposal, to be set with the team.
+        <p className="mt-2 flex items-start gap-1.5 text-xs text-muted">
+          <Info size={13} className="mt-0.5 shrink-0" aria-hidden />
+          <span>
+            Thresholds are a starting proposal, to be set with the team. The extract is only viewed: no copy, no notes about its
+            content.
+          </span>
         </p>
       </DrawerSection>
 
@@ -95,23 +101,6 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
         <div className="space-y-4">
           {/* Accept */}
           <div className="rounded-lg border border-lavender p-3">
-            {ev.needsSecondReviewer && (
-              <div className="mb-3 rounded-md bg-warn-bg p-2.5 text-sm">
-                <p className="font-semibold text-warn">Minor violation: owner + backup decide together</p>
-                <label className="mt-2 flex items-center gap-2">
-                  <input type="checkbox" checked={secondConfirmed} onChange={(e) => setSecondConfirmed(e.target.checked)} className="h-4 w-4 accent-indigo" />
-                  Second reviewer confirmed
-                </label>
-                <label className="mt-2 flex items-center gap-2 text-xs">
-                  <span className="text-muted">Backup reviewer</span>
-                  <input
-                    value={secondName}
-                    onChange={(e) => setSecondName(e.target.value)}
-                    className="min-w-0 flex-1 rounded-md border border-lavender bg-white px-2 py-1 text-sm"
-                  />
-                </label>
-              </div>
-            )}
             <button
               type="button"
               disabled={!canAccept}
@@ -127,7 +116,6 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
                 {ev.acceptBlockedBy.map((b) => (
                   <li key={b}>Locked: {b}</li>
                 ))}
-                {!secondOk && <li>Locked: second reviewer must confirm</li>}
               </ul>
             )}
           </div>
@@ -163,14 +151,40 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
                 </option>
               ))}
             </select>
+
+            {needsSecond && (
+              <div className="rounded-md bg-warn-bg p-2.5 text-sm">
+                <p className="font-semibold text-warn">Suitability rejections are decided by owner + backup together</p>
+                <label className="mt-2 flex items-center gap-2">
+                  <input type="checkbox" checked={secondConfirmed} onChange={(e) => setSecondConfirmed(e.target.checked)} className="h-4 w-4 accent-indigo" />
+                  Second reviewer confirmed
+                </label>
+                <label className="mt-2 flex items-center gap-2 text-xs">
+                  <span className="text-muted">Backup reviewer</span>
+                  <input
+                    value={secondName}
+                    onChange={(e) => setSecondName(e.target.value)}
+                    className="min-w-0 flex-1 rounded-md border border-lavender bg-white px-2 py-1 text-sm"
+                  />
+                </label>
+              </div>
+            )}
+
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
-              placeholder={reason === 'other' ? 'Note (required for Other)' : 'Note (optional)'}
+              placeholder={reason === 'other' ? 'Note (required for Other). Never write anything from the extract.' : 'Note (optional). Never write anything from the extract.'}
               aria-label="Note"
-              className="w-full rounded-md border border-lavender px-2 py-1.5 text-sm"
+              aria-invalid={sensitive}
+              className={`w-full rounded-md border px-2 py-1.5 text-sm ${sensitive ? 'border-bad' : 'border-lavender'}`}
             />
+            {sensitive && (
+              <p role="alert" className="flex items-start gap-1.5 text-xs text-bad">
+                <ShieldCheck size={14} className="mt-0.5 shrink-0" aria-hidden />
+                This looks like offence details. Criminal-record data may not be stored: remove it and use the reason code.
+              </p>
+            )}
             <button
               type="button"
               disabled={!canReject}
@@ -179,6 +193,7 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
             >
               Reject
             </button>
+            <p className="text-xs text-muted">The applicant can ask for the reason and a review; reply within two weeks.</p>
           </div>
 
           {error && (
@@ -189,6 +204,16 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
         </div>
       </DrawerSection>
     </>
+  );
+}
+
+function Tick({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: ReactNode }) {
+  return (
+    <label className="mt-1.5 inline-flex cursor-pointer items-center gap-2 rounded-md bg-card px-2 py-1 text-xs font-semibold">
+      <input type="checkbox" className="sr-only peer" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      {checked ? <SquareCheck size={16} className="text-indigo" aria-hidden /> : <Square size={16} className="text-muted" aria-hidden />}
+      <span className="peer-focus-visible:underline">{children}</span>
+    </label>
   );
 }
 

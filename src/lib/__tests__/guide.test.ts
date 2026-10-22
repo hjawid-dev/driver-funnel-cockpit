@@ -15,7 +15,7 @@ describe('guideSteps', () => {
   });
   it('marks steps done when the visitor makes the decisions', () => {
     const elin = seed.find((a) => a.name === 'Elin Johansson')!;
-    const r = applyDecision({ ...elin, photoApproved: true }, { type: 'accepted' }, NOW);
+    const r = applyDecision({ ...elin, photoApproved: true, extractShown: true }, { type: 'accepted' }, NOW);
     const stale = seed.find((a) => a.id === guideSteps(seed, NOW)[2].targetId)!;
     const c = closeNoResponse(stale, NOW);
     if (!r.ok || !c.ok) throw new Error('setup');
@@ -35,7 +35,7 @@ describe('kpiDelta', () => {
   });
   it('a faster decision lowers time to decision, which is good', () => {
     const elin = seed.find((a) => a.name === 'Elin Johansson')!;
-    const r = applyDecision({ ...elin, photoApproved: true }, { type: 'accepted' }, NOW);
+    const r = applyDecision({ ...elin, photoApproved: true, extractShown: true }, { type: 'accepted' }, NOW);
     if (!r.ok) throw new Error('setup');
     const after = computeKpis(seed.map((a) => (a.id === elin.id ? r.applicant : a)), NOW);
     const ttd = after.find((k) => k.key === 'timeToDecision')!;

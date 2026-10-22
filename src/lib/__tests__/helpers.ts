@@ -8,19 +8,17 @@ export function mk(over: Partial<Applicant> = {}): Applicant {
     id: 'DRV-0001',
     name: 'Test Person',
     area: 'Solna',
-    age: 30,
     licenceYears: 5,
-    violations: 'none',
     availability: 'full',
     registeredAt: NOW - 3 * DAY,
-    docs: { licence: 'verified', id: 'verified', background: 'verified', photo: 'uploaded' },
+    docs: { licence: 'verified', id: 'verified', extract: 'ready', photo: 'uploaded' },
     nudges: [],
     log: [],
     ...over,
   };
 }
 
-/** Under review with a complete file, photo approved: a clean accept. */
+/** Under review with a complete file, photo approved and extract shown: a clean accept. */
 export function inReview(over: Partial<Applicant> = {}): Applicant {
-  return mk({ docsCompleteAt: NOW - 3 * 3_600_000, photoApproved: true, ...over });
+  return mk({ docsCompleteAt: NOW - 3 * 3_600_000, photoApproved: true, extractShown: true, ...over });
 }

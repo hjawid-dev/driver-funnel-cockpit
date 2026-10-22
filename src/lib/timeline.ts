@@ -14,7 +14,7 @@ export interface TimelineEvent {
   tone?: 'ok' | 'bad' | 'neutral';
 }
 
-const DOC_NAME = { licence: 'Driving licence', id: 'ID (BankID)', background: 'Background check', photo: 'Profile photo' } as const;
+const DOC_NAME = { licence: 'Driving licence', id: 'ID (BankID)', extract: 'Extract ready to show', photo: 'Profile photo' } as const;
 
 /** Every stage transition with its timestamp: the data the funnel metrics are built from. */
 export function buildTimeline(a: Applicant, now: number): TimelineEvent[] {
@@ -22,7 +22,7 @@ export function buildTimeline(a: Applicant, now: number): TimelineEvent[] {
 
   for (const k of DOC_KEYS) {
     const t = a.docTimes?.[k];
-    if (t) ev.push({ at: t, kind: 'doc', label: `${DOC_NAME[k]} received` });
+    if (t) ev.push({ at: t, kind: 'doc', label: k === 'extract' ? DOC_NAME[k] : `${DOC_NAME[k]} received`, ...(k === 'extract' ? { detail: 'Nothing uploaded' } : {}) });
   }
 
   const n = nudgeState(a, now);

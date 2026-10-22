@@ -7,7 +7,7 @@ import { DOC_LABEL, DocStatusPill } from './chips';
 import { DrawerSection } from './ui';
 
 /** What a document becomes when it arrives (demo). */
-const RECEIVED_AS: Record<DocKey, DocStatus> = { licence: 'uploaded', id: 'verified', background: 'verified', photo: 'uploaded' };
+const RECEIVED_AS: Record<DocKey, DocStatus> = { licence: 'uploaded', id: 'verified', extract: 'ready', photo: 'uploaded' };
 
 interface Props {
   a: Applicant;
@@ -26,7 +26,11 @@ export function MissingPanel({ a, now, onResult }: Props) {
     onResult({
       ok: true,
       applicant: next,
-      message: complete ? `File complete: ${a.name}. Auto-queued for review.` : `${DOC_LABEL[k]} received: ${a.name}.`,
+      message: complete
+        ? `File complete: ${a.name}. Auto-queued for review.`
+        : k === 'extract'
+          ? `${a.name} has the extract ready to show in a call.`
+          : `${DOC_LABEL[k]} received: ${a.name}.`,
     });
   };
 
@@ -45,7 +49,7 @@ export function MissingPanel({ a, now, onResult }: Props) {
                   title="Demo only: simulate the document arriving"
                   className="inline-flex items-center gap-1 rounded-md border border-dashed border-lavender px-2 py-0.5 text-xs text-muted hover:border-indigo hover:text-indigo"
                 >
-                  <FlaskConical size={12} aria-hidden /> Mark received
+                  <FlaskConical size={12} aria-hidden /> {k === 'extract' ? 'Mark ready to show' : 'Mark received'}
                 </button>
               </span>
             </li>

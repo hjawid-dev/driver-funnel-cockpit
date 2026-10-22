@@ -9,7 +9,7 @@ import { mk, NOW } from './helpers';
 describe('buildTimeline', () => {
   it('orders every transition in time and marks upcoming items', () => {
     const reg = NOW - 30 * HOUR;
-    const a = mk({ registeredAt: reg, docTimes: { id: reg + HOUR }, docs: { licence: 'missing', id: 'verified', background: 'pending', photo: 'missing' } });
+    const a = mk({ registeredAt: reg, docTimes: { id: reg + HOUR }, docs: { licence: 'missing', id: 'verified', extract: 'pending', photo: 'missing' } });
     const t = buildTimeline(a, NOW);
     expect(t.map((e) => e.label)).toEqual(['Registered', 'ID (BankID) received', 'Auto-nudge 1', 'Auto-nudge 2', 'Auto-nudge 3']);
     expect(t.at(-1)!.upcoming).toBe(true);
@@ -20,8 +20,8 @@ describe('buildTimeline', () => {
     const t = buildTimeline(late, NOW);
     expect(t.map((e) => e.kind)).toEqual(expect.arrayContaining(['registered', 'complete', 'decision', 'call', 'gig']));
     expect(t.find((e) => e.kind === 'gig')!.detail).toBe('Late');
-    const rejected = seed.find((a) => a.decision?.reason === 'licence_too_new')!;
-    expect(buildTimeline(rejected, NOW).find((e) => e.kind === 'decision')!.detail).toContain('Licence < 1 year');
+    const rejected = seed.find((a) => a.decision?.reason === 'no_valid_licence')!;
+    expect(buildTimeline(rejected, NOW).find((e) => e.kind === 'decision')!.detail).toContain('No valid B licence');
   });
 });
 

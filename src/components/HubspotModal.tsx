@@ -1,24 +1,24 @@
 import { useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
+import { ShieldCheck, X } from 'lucide-react';
 
 const ROWS: { cockpit: string; hubspot: string; required: string; workflow: string }[] = [
   {
     cockpit: 'Missing documents',
     hubspot: 'Registered',
-    required: 'Knock-out answers (licence years, age, Stockholm availability) · status per document: licence, ID, background, photo',
-    workflow: 'Nudges at +2 h, +24 h, +72 h via driver chat · task "no response 14 days" → close with reason code',
+    required: 'Pre-qualifying answers (licence years, minimum age set by insurance, availability) · status for licence, ID, photo · extract ordered: yes/no',
+    workflow: 'Nudges at +2 h, +24 h, +72 h via driver chat · a requirement not met is shown to the applicant and a human closes the file · task "no response 14 days"',
   },
   {
     cockpit: '(automatic)',
     hubspot: 'Documents submitted',
-    required: 'All four document statuses set · docs_complete_at',
+    required: 'Licence, ID and photo in place, extract ready to show · docs_complete_at',
     workflow: 'Auto-move to Under review · reviewer task in the next review slot (09:00 / 14:00)',
   },
   {
     cockpit: 'Review queue',
     hubspot: 'Under review',
-    required: 'decision · reject_reason (Other needs a note) · second_reviewer if minor violation · decided_at',
-    workflow: 'SLA alert to owner + backup at 24 h and 48 h after docs complete',
+    required: 'extract_shown (yes/no only) · decision · generic reject_reason · second_reviewer for suitability rejections · decided_at',
+    workflow: 'Extract call booked automatically · SLA alert to owner + backup at 24 h and 48 h after docs complete',
   },
   {
     cockpit: 'Awaiting first gig',
@@ -35,8 +35,8 @@ const ROWS: { cockpit: string; hubspot: string; required: string; workflow: stri
   {
     cockpit: 'Rejected',
     hubspot: 'Closed (rejected)',
-    required: 'reject_reason (required) · decided_at · decided_by',
-    workflow: 'Top reject reasons in the weekly report: tells us if pre-qualifying works',
+    required: 'reject_reason (required, generic) · decided_at · decided_by · delete_after',
+    workflow: 'Top reject reasons in the weekly report · personal data deleted 2 years after the decision',
   },
 ];
 
@@ -114,6 +114,42 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
               </li>
             ))}
           </ul>
+
+          <div className="mt-4 rounded-xl border border-lavender p-4 text-sm">
+            <h3 className="flex items-center gap-1.5 font-semibold">
+              <ShieldCheck size={16} className="text-ok" aria-hidden /> Privacy and fairness, built in
+            </h3>
+            <ul className="mt-2 grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
+              <li>
+                <strong>No criminal-record data stored.</strong> The applicant orders their own extract and shows it in a short call. Only
+                "extract shown: yes" is recorded (GDPR art. 10).
+              </li>
+              <li>
+                <strong>No traffic-offence data.</strong> Licence validity is checked with Transportstyrelsen; offences are never recorded.
+              </li>
+              <li>
+                <strong>Humans decide.</strong> The system blocks what the written rules don't allow, but a person makes every decision.
+                Suitability rejections need a second reviewer.
+              </li>
+              <li>
+                <strong>Reasons can be explained.</strong> Generic reason codes, a right to an explanation and a review, answered within two
+                weeks.
+              </li>
+              <li>
+                <strong>Retention.</strong> Incomplete applications deleted after 6 months, rejected after 2 years.
+              </li>
+              <li>
+                <strong>Fair criteria.</strong> Minimum age and licence years are tied to insurance and safety; the photo standard is the
+                same for everyone; limited availability never rejects.
+              </li>
+              <li>
+                <strong>Applicants are told first.</strong> Criteria, reminders, retention and their rights, before they apply.
+              </li>
+              <li>
+                <strong>HubSpot setup.</strong> EU data centre, data processing agreement, no extracts or offence data in any field.
+              </li>
+            </ul>
+          </div>
 
           <div className="mt-4 rounded-xl bg-navy p-4 text-sm text-white">
             <strong className="text-green">The rule:</strong> every exit from a stage writes a timestamp, and every rejection writes a reason code. That

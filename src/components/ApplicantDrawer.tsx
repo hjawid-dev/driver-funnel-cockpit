@@ -6,6 +6,7 @@ import { deriveStage, STAGE_LABEL } from '../lib/stage';
 import { slaStatus } from '../lib/sla';
 import { fmtYears } from '../lib/criteria';
 import { ago, formatDateTime } from '../lib/time';
+import { retention } from '../lib/retention';
 import type { ActionResult } from '../lib/actions';
 import { DOC_LABEL, DocStatusPill, SlaChip } from './chips';
 import { ReviewPanel } from './ReviewPanel';
@@ -81,13 +82,12 @@ export function ApplicantDrawer({ applicant: a, now, onClose, onUpdate, onResult
 
 function Facts({ a, now }: { a: Applicant; now: number }) {
   const rows: [string, ReactNode][] = [
-    ['Age', a.age],
     ['Area', a.area],
-    ['Licence held', fmtYears(a.licenceYears)],
-    ['Violations', a.violations === 'none' ? 'None' : `Minor${a.violationNote ? `: ${a.violationNote}` : ''}`],
+    ['Licence held', `${fmtYears(a.licenceYears)} (valid B, checked with Transportstyrelsen)`],
     ['Availability', a.availability === 'full' ? 'Full' : `Limited${a.availabilityNote ? `: ${a.availabilityNote}` : ''}`],
     ['Registered', <When ts={a.registeredAt} now={now} />],
     ['File complete', a.docsCompleteAt ? <When ts={a.docsCompleteAt} now={now} /> : <span className="text-muted">Not yet</span>],
+    ['Data retention', <RetentionText a={a} />],
   ];
   return (
     <DrawerSection title="Applicant">
@@ -100,6 +100,16 @@ function Facts({ a, now }: { a: Applicant; now: number }) {
         ))}
       </dl>
     </DrawerSection>
+  );
+}
+
+function RetentionText({ a }: { a: Applicant }) {
+  const r = retention(a);
+  return (
+    <span>
+      {r.label}
+      {r.deleteAt && <span className="text-muted font-normal"> · {formatDateTime(r.deleteAt).split(',')[0]}</span>}
+    </span>
   );
 }
 
@@ -119,7 +129,7 @@ function Documents({ a }: { a: Applicant }) {
           <li key={k} className="px-3 py-2 text-sm">
             <div className="flex items-center justify-between gap-2">
               <span>{DOC_LABEL[k]}</span>
-              <DocStatusPill docKey={k} status={a.docs[k]} />
+              <DocStatusPill docKey={k} status={a.docs[k]} extractShown={k === 'extract' && !!a.extractShown} />
             </div>
             {a.docNote?.[k] && <p className="mt-0.5 text-xs text-warn">{a.docNote[k]}</p>}
           </li>

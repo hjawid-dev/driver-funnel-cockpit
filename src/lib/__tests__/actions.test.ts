@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyDecision, bookFirstGig, closeNoResponse, completeFirstGig, logNudge, logWelcomeCall, receiveDocument, requestNewPhoto, setPhotoApproved } from '../actions';
+import { applyDecision, bookFirstGig, closeNoResponse, completeFirstGig, logNudge, logWelcomeCall, receiveDocument, requestNewPhoto, setExtractShown, setPhotoApproved } from '../actions';
 import { deriveStage } from '../stage';
 import { DAY } from '../time';
 import { inReview, mk, NOW } from './helpers';
@@ -24,9 +24,13 @@ describe('applyDecision', () => {
     expect(r.ok).toBe(false);
     expect(before.decision).toBeUndefined();
   });
-  it('stores the second reviewer', () => {
-    const r = applyDecision(inReview({ violations: 'minor' }), { type: 'accepted', secondReviewer: 'Backup' }, NOW);
+  it('stores the second reviewer on a suitability rejection', () => {
+    const r = applyDecision(inReview(), { type: 'rejected', reason: 'requirements_not_met', secondReviewer: 'Backup' }, NOW);
     expect(r.ok && r.applicant.decision?.secondReviewer).toBe('Backup');
+    expect(r.ok && r.applicant.log.at(-1)!.text).toMatch(/confirmed by Backup/);
+  });
+  it('refuses a note with offence details', () => {
+    expect(applyDecision(inReview(), { type: 'rejected', reason: 'other', note: 'Dömd för stöld 2023' }, NOW).ok).toBe(false);
   });
 });
 
@@ -43,8 +47,8 @@ describe('requestNewPhoto', () => {
 
 describe('receiveDocument', () => {
   it('auto-queues the file for review when the last document arrives', () => {
-    const a = mk({ docs: { licence: 'verified', id: 'verified', background: 'pending', photo: 'uploaded' } });
-    const next = receiveDocument(a, 'background', 'verified', NOW);
+    const a = mk({ docs: { licence: 'verified', id: 'verified', extract: 'pending', photo: 'uploaded' } });
+    const next = receiveDocument(a, 'extract', 'ready', NOW);
     expect(next.docsCompleteAt).toBe(NOW);
     expect(deriveStage(next)).toBe('review');
   });
@@ -85,5 +89,10 @@ describe('activation actions', () => {
   });
   it('photo approval is logged', () => {
     expect(setPhotoApproved(inReview({ photoApproved: undefined }), true, NOW).photoApproved).toBe(true);
+  });
+  it('the extract tick records only that it was shown', () => {
+    const a = setExtractShown(inReview({ extractShown: undefined }), true, NOW);
+    expect(a.extractShown).toBe(true);
+    expect(a.log.at(-1)!.text).toMatch(/nothing stored/);
   });
 });

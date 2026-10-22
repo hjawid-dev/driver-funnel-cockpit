@@ -18,7 +18,7 @@ export function MissingDocs({ apps, now, onOpen, onResult }: Props) {
     .sort((a, b) => a.registeredAt - b.registeredAt)
     .map((a) => ({ a, nudge: nudgeState(a, now), stale: isNoResponse(a, now) }));
   const stale = rows.filter((r) => r.stale).length;
-  const bgPending = rows.filter((r) => r.a.docs.background === 'pending').length;
+  const bgPending = rows.filter((r) => r.a.docs.extract === 'pending').length;
 
   if (!rows.length) {
     return (
@@ -58,8 +58,7 @@ export function MissingDocs({ apps, now, onOpen, onResult }: Props) {
   return (
     <div className="pt-4">
       <p className="mb-3 text-sm text-muted">
-        Oldest first. Auto-nudges at 2 h, 24 h and 72 h after registration. Background check pending for {bgPending}: the slowest document,
-        so it is asked for first.
+        Oldest first. Auto-nudges at 2 h, 24 h and 72 h after registration. Extract ordered and on its way for {bgPending}: the slowest item, so it is asked for first. Applicants show it in a call; no copy is kept.
         {stale > 0 && <strong className="font-semibold text-bad"> {stale} with no response for 14 days.</strong>}
       </p>
 
@@ -92,7 +91,7 @@ export function MissingDocs({ apps, now, onOpen, onResult }: Props) {
                 </td>
                 <td className="px-4 py-3">
                   <DocChecklist docs={a.docs} />
-                  {a.docs.background === 'pending' && <div className="mt-1 text-xs text-muted">Ordered from Polisen by applicant</div>}
+                  {a.docs.extract === 'pending' && <div className="mt-1 text-xs text-muted">Ordered from Polisen by applicant</div>}
                 </td>
                 <td className="px-4 py-3 text-xs">
                   <div className="font-semibold">
