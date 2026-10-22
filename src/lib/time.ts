@@ -33,3 +33,11 @@ export function formatDateTime(ts: number): string {
   const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   return `${date}, ${time}`;
 }
+
+/** Local wall-clock time `days` calendar days from `now` (safe across daylight-saving changes). */
+export function atLocal(now: number, days: number, hour: number, minute = 0): number {
+  const d = new Date(now);
+  d.setDate(d.getDate() + days);
+  d.setHours(hour, minute, 0, 0);
+  return d.getTime();
+}

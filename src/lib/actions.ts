@@ -1,7 +1,7 @@
 import type { Applicant, DocKey } from './types';
 import { DECISION_LABEL, validateDecision, type DecisionInput } from './criteria';
 import { REJECT_REASONS, REVIEWER } from './types';
-import { allDocsSubmitted, deriveStage } from './stage';
+import { allDocsSubmitted, deriveStage, isSubmitted } from './stage';
 
 /**
  * Every action is a pure function: old applicant in, new applicant out.
@@ -76,8 +76,17 @@ export function logNudge(a: Applicant, now: number): ActionResult {
 
 /** A document arrives. When the file becomes complete it is auto-queued for review. */
 export function receiveDocument(a: Applicant, key: DocKey, status: Applicant['docs'][DocKey], now: number): Applicant {
-  let next: Applicant = { ...a, docs: { ...a.docs, [key]: status }, docTimes: { ...a.docTimes, [key]: now } };
-  next = withLog(next, now, `Document received: ${key}`);
+  const submitted = isSubmitted(status);
+  let next: Applicant = { ...a, docs: { ...a.docs, [key]: status }, ...(submitted ? { docTimes: { ...a.docTimes, [key]: now } } : {}) };
+  const text =
+    key === 'extract'
+      ? status === 'pending'
+        ? 'Applicant ordered extract from Polisen'
+        : 'Extract ready to show (nothing uploaded)'
+      : key === 'id' && status === 'verified'
+        ? 'ID verified with BankID'
+        : `Document received: ${key}`;
+  next = withLog(next, now, text);
   if (!next.docsCompleteAt && allDocsSubmitted(next)) {
     next = withLog({ ...next, docsCompleteAt: now }, now, 'File complete, queued for review');
   }

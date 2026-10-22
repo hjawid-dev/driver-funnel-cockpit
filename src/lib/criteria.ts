@@ -159,6 +159,8 @@ export function validateDecision(a: Applicant, input: DecisionInput, now: number
       if (stage !== 'registered' || !isNoResponse(a, now)) return 'Only incomplete files older than 14 days can be closed as no response.';
       return null;
     }
+    // A pre-qualifying requirement that isn't met is closed by a person, not automatically.
+    if (stage === 'registered' && a.prequalIssue) return null;
     if (stage !== 'review') return 'Only applicants under review can be decided.';
     if (NEEDS_SECOND_REVIEWER.includes(input.reason) && !input.secondReviewer?.trim()) {
       return 'A suitability rejection needs a second reviewer to confirm.';

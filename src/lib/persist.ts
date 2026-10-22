@@ -1,10 +1,10 @@
-import type { Applicant } from './types';
+import type { Applicant, Gig } from './types';
 import { DOC_KEYS, REJECT_REASONS } from './types';
 import { HOUR } from './time';
 
 export const STORAGE_KEY = 'driver-funnel-cockpit-v1';
 /** Bump when the data model changes. Saves from another version are discarded, not migrated. */
-export const DATA_VERSION = 2;
+export const DATA_VERSION = 3;
 /** If the saved demo is older than this, move every timestamp forward so clocks still look live. */
 export const REBASE_AFTER_MS = 12 * HOUR;
 
@@ -12,6 +12,17 @@ export interface Saved {
   version: number;
   savedAt: number;
   apps: Applicant[];
+  gigs: Gig[];
+}
+
+export interface DemoData {
+  apps: Applicant[];
+  gigs: Gig[];
+}
+
+function isGig(g: unknown): g is Gig {
+  const x = g as Gig;
+  return !!x && typeof x.id === 'string' && typeof x.at === 'number' && typeof x.area === 'string';
 }
 
 const REASONS = new Set(REJECT_REASONS.map((r) => r.value));
@@ -39,6 +50,7 @@ export function shiftApplicant(a: Applicant, delta: number): Applicant {
     ...(a.docsCompleteAt !== undefined ? { docsCompleteAt: s(a.docsCompleteAt) } : {}),
     ...(a.decision ? { decision: { ...a.decision, at: a.decision.at + delta } } : {}),
     ...(a.welcomeCallAt !== undefined ? { welcomeCallAt: s(a.welcomeCallAt) } : {}),
+    ...(a.callAt !== undefined ? { callAt: s(a.callAt) } : {}),
     ...(a.firstGig
       ? {
           firstGig: {
@@ -52,20 +64,21 @@ export function shiftApplicant(a: Applicant, delta: number): Applicant {
   };
 }
 
-/** Parse saved state; returns null when missing or malformed. Old saves are moved forward in time. */
-export function restore(raw: string | null, now: number): Applicant[] | null {
+/** Parse saved state; returns null when missing, malformed or from another version. Old saves are moved forward in time. */
+export function restore(raw: string | null, now: number): DemoData | null {
   if (!raw) return null;
   try {
     const saved = JSON.parse(raw) as Saved;
     if (saved?.version !== DATA_VERSION || !Array.isArray(saved.apps) || typeof saved.savedAt !== 'number') return null;
-    if (!saved.apps.every(isCurrentShape)) return null;
+    if (!saved.apps.every(isCurrentShape) || !Array.isArray(saved.gigs) || !saved.gigs.every(isGig)) return null;
     const gap = now - saved.savedAt;
-    return gap > REBASE_AFTER_MS ? saved.apps.map((a) => shiftApplicant(a, gap)) : saved.apps;
+    if (gap <= REBASE_AFTER_MS) return { apps: saved.apps, gigs: saved.gigs };
+    return { apps: saved.apps.map((a) => shiftApplicant(a, gap)), gigs: saved.gigs.map((g) => ({ ...g, at: g.at + gap })) };
   } catch {
     return null;
   }
 }
 
-export function serialize(apps: Applicant[], now: number): string {
-  return JSON.stringify({ version: DATA_VERSION, savedAt: now, apps } satisfies Saved);
+export function serialize(data: DemoData, now: number): string {
+  return JSON.stringify({ version: DATA_VERSION, savedAt: now, apps: data.apps, gigs: data.gigs } satisfies Saved);
 }

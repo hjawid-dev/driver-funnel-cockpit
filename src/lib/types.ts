@@ -32,6 +32,7 @@ export interface Decision {
 }
 
 export interface FirstGig {
+  gigId?: string; // the open job the driver picked from their offers
   bookedFor?: number;
   doneAt?: number;
   onTime?: boolean;
@@ -52,6 +53,12 @@ export interface Applicant {
   photoApproved?: boolean; // reviewer tick
   /** Reviewer tick: the extract was shown in a call. Nothing from its content is ever recorded. */
   extractShown?: boolean;
+  /** Applied through the driver view (not demo seed data). */
+  source?: 'self';
+  /** A pre-qualifying requirement is not met. Nobody is rejected automatically: a person closes the file. */
+  prequalIssue?: 'licence' | 'age';
+  /** The extract call the applicant booked in a review slot. The decision is made in this call. */
+  callAt?: number;
   /**
    * Manual nudges only ("Send nudge now"). The scheduled 2/24/72 h nudges are
    * a HubSpot workflow in production, so here they are derived from registeredAt.
@@ -73,3 +80,16 @@ export const REJECT_REASONS: { value: RejectReason; label: string }[] = [
 ];
 
 export const REVIEWER = 'Hjalmar';
+
+/** An open car-relocation job that can be offered as a first gig. */
+export interface Gig {
+  id: string; // "JOB-301"
+  from: string; // pickup, e.g. "Dealership, Solna"
+  to: string;
+  area: string; // pickup area, for matching
+  km: number;
+  minutes: number;
+  pay: number; // SEK
+  at: number; // start time
+  car: 'standard' | 'premium';
+}

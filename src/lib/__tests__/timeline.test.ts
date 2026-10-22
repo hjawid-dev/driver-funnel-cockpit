@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildTimeline } from '../timeline';
 import { restore, serialize, shiftApplicant } from '../persist';
 import { generateSeed } from '../seed';
+import { generateGigs } from '../gigs';
 import { slaStatus } from '../sla';
 import { DAY, HOUR } from '../time';
 import { mk, NOW } from './helpers';
@@ -27,12 +28,16 @@ describe('buildTimeline', () => {
 
 describe('persist', () => {
   const seed = generateSeed(NOW);
+  const gigs = generateGigs(NOW);
+  const data = { apps: seed, gigs };
   it('round-trips without change when saved recently', () => {
-    expect(restore(serialize(seed, NOW), NOW + HOUR)).toEqual(seed);
+    expect(restore(serialize(data, NOW), NOW + HOUR)).toEqual(data);
   });
-  it('moves old saves forward so SLA clocks look the same', () => {
+  it('moves old saves forward so SLA clocks and jobs look the same', () => {
     const later = NOW + 5 * DAY;
-    const restored = restore(serialize(seed, NOW), later)!;
+    const out = restore(serialize(data, NOW), later)!;
+    const restored = out.apps;
+    expect(out.gigs[0].at).toBe(gigs[0].at + 5 * DAY);
     const elin = (xs: typeof seed) => xs.find((a) => a.name === 'Elin Johansson')!;
     expect(slaStatus(elin(restored).docsCompleteAt!, later).label).toBe(slaStatus(elin(seed).docsCompleteAt!, NOW).label);
     expect(restored[0].log[0].at).toBe(seed[0].log[0].at + 5 * DAY);
@@ -46,7 +51,9 @@ describe('persist', () => {
     expect(restore(JSON.stringify({ savedAt: NOW, apps: old }), NOW)).toBeNull();
     // Same version number but an unknown reason code from an older model.
     const badReason = seed.map((x) => (x.decision?.type === 'rejected' ? { ...x, decision: { ...x.decision, reason: 'background_failed' } } : x));
-    expect(restore(JSON.stringify({ version: 2, savedAt: NOW, apps: badReason }), NOW)).toBeNull();
+    expect(restore(JSON.stringify({ version: 3, savedAt: NOW, apps: badReason, gigs }), NOW)).toBeNull();
+    // Version 2 (no jobs) is discarded too.
+    expect(restore(JSON.stringify({ version: 2, savedAt: NOW, apps: seed }), NOW)).toBeNull();
   });
   it('ignores missing or broken data', () => {
     expect(restore(null, NOW)).toBeNull();

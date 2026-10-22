@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { CalendarClock, Compass, Network, RotateCcw } from 'lucide-react';
-import { useApplicants, useNow, type TabKey } from './state';
+import { useClock, useDemoData, type TabKey } from './state';
 import { computeFunnel, computeKpis, type FunnelKey } from './lib/kpis';
 import { deriveStage } from './lib/stage';
 import { nextReviewSlot } from './lib/sla';
@@ -48,8 +48,9 @@ const TILE_TO_TAB: Record<FunnelKey, TabKey> = {
 };
 
 export default function App() {
-  const now = useNow();
-  const { apps, update, reset } = useApplicants();
+  const clock = useClock();
+  const now = clock.now;
+  const { apps, update, reset } = useDemoData();
   const [tab, setTab] = useState<TabKey>('review');
   const [openId, setOpenId] = useState<string | null>(null);
   const [stageFilter, setStageFilter] = useState<StageFilter>('all');
