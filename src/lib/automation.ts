@@ -1,7 +1,7 @@
 import type { Applicant } from './types';
 import { REJECT_REASONS } from './types';
 import { NUDGE_OFFSETS, NO_RESPONSE_MS, nudgeMessage, reminderSilenced } from './nudges';
-import { DAY, HOUR, formatDateTime } from './time';
+import { DAY, HOUR, atLocal, formatDateTime } from './time';
 import type { ChatThread } from './chat/types';
 import { CHAT_SLA_MS } from './chat/threads';
 
@@ -24,7 +24,8 @@ export type AutoKind =
   | 'dormant'
   | 'gig_reminder'
   | 'activated'
-  | 'chat_sla';
+  | 'chat_sla'
+  | 'weekly_report';
 
 export interface AutoEvent {
   at: number;
@@ -138,6 +139,19 @@ export function chatEvents(threads: ChatThread[], from: number, to: number): Aut
     }));
 }
 
+/** The weekly report goes out every Monday at 08:00 (Slack or HubSpot in production). */
+export function reportEvents(from: number, to: number): AutoEvent[] {
+  const out: AutoEvent[] = [];
+  for (let d = 0; ; d++) {
+    const t = atLocal(from, d, 8);
+    if (t > to) break;
+    if (t > from && new Date(t).getDay() === 1) {
+      out.push({ at: t, applicantId: 'report', name: 'Weekly report', audience: 'ops', kind: 'weekly_report', title: 'Weekly report posted to #driver-ops' });
+    }
+  }
+  return out;
+}
+
 /** The driver's inbox: everything sent to them, newest first. */
 export function driverInbox(a: Applicant, now: number): AutoEvent[] {
   return automationEvents([a], a.registeredAt - 1, now)
@@ -153,6 +167,7 @@ export function summarize(events: AutoEvent[]): string {
     [n(['nudge']), 'nudge'],
     [n(['sla_24', 'sla_overdue']), 'SLA alert'],
     [n(['chat_sla']), 'chat alert'],
+    [n(['weekly_report']), 'weekly report'],
     [n(['call_reminder']), 'call reminder'],
     [n(['welcome_task', 'book_task', 'call_task', 'close_task']), 'task'],
     [events.filter((e) => e.audience === 'driver' && e.kind === 'decision').length, 'decision message'],

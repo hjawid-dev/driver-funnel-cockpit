@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
 /**
- * Runs api/chat.ts on the dev server, so /api/chat works locally like on Vercel.
+ * Runs the functions in api/ on the dev server, so /api/chat and /api/report work locally like on Vercel.
  * The API key comes from .env.local (never committed).
  */
 function devApi(): Plugin {
@@ -12,14 +12,16 @@ function devApi(): Plugin {
     name: 'dev-api',
     apply: 'serve',
     configureServer(server) {
-      server.middlewares.use('/api/chat', async (req, res) => {
+      server.middlewares.use(async (req, res, next) => {
+        const name = req.url?.match(/^\/api\/(chat|report)(?:\?|$)/)?.[1];
+        if (!name) return next();
         try {
-          const mod = (await server.ssrLoadModule('/api/chat.ts')) as { default: { fetch: (r: Request) => Promise<Response> } };
+          const mod = (await server.ssrLoadModule(`/api/${name}.ts`)) as { default: { fetch: (r: Request) => Promise<Response> } };
           const chunks: Buffer[] = [];
           for await (const c of req) chunks.push(c as Buffer);
           const headers = new Headers();
           for (const [k, v] of Object.entries(req.headers)) if (typeof v === 'string') headers.set(k, v);
-          const request = new Request(`http://${req.headers.host}/api/chat`, {
+          const request = new Request(`http://${req.headers.host}/api/${name}`, {
             method: req.method,
             headers,
             ...(req.method === 'POST' ? { body: Buffer.concat(chunks) } : {}),

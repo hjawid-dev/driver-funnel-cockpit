@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { CalendarClock, Compass, Network, RotateCcw } from 'lucide-react';
+import { CalendarClock, Compass, FileText, Network, RotateCcw } from 'lucide-react';
 import { useClock, useDemoData, type TabKey } from './state';
 import { computeFunnel, computeKpis, type FunnelKey } from './lib/kpis';
 import { deriveStage } from './lib/stage';
@@ -20,7 +20,8 @@ import { guideSteps } from './lib/guide';
 import type { ActionResult } from './lib/actions';
 import { DemoBar } from './components/DemoBar';
 import { DriverPhone } from './components/driver/DriverPhone';
-import { automationEvents, chatEvents, summarize, type AutoEvent } from './lib/automation';
+import { automationEvents, chatEvents, reportEvents, summarize, type AutoEvent } from './lib/automation';
+import { ReportModal } from './components/ReportModal';
 import type { Applicant } from './lib/types';
 import type { ChatThread } from './lib/chat/types';
 import { HANDOVER_LABEL } from './lib/chat/types';
@@ -70,6 +71,8 @@ export default function App() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [stageFilter, setStageFilter] = useState<StageFilter>('all');
   const [showHubspot, setShowHubspot] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const closeReport = useCallback(() => setShowReport(false), []);
   const closeHubspot = useCallback(() => setShowHubspot(false), []);
   const toast = useToast();
   // KPI values when the page was opened (or the demo reset): the ▲▼ chips compare against this.
@@ -144,7 +147,7 @@ export default function App() {
 
   const onAdvance = (ms: number) => {
     const w = clock.advance(ms);
-    const events = [...automationEvents(apps, w.from, w.to), ...chatEvents(threads, w.from, w.to)].sort((x, y) => x.at - y.at);
+    const events = [...automationEvents(apps, w.from, w.to), ...chatEvents(threads, w.from, w.to), ...reportEvents(w.from, w.to)].sort((x, y) => x.at - y.at);
     setLastRun({ ...w, events });
     toast.notify(`Time moved forward. Automation: ${summarize(events)}.`);
   };
@@ -174,6 +177,16 @@ export default function App() {
           <span className="font-semibold tracking-tight whitespace-nowrap">Driver Ops</span>
           <span className="text-xs font-medium rounded-full bg-white/10 px-2 py-0.5 whitespace-nowrap">Demo data</span>
           <div className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setShowReport(true)}
+              title="Weekly report"
+              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white"
+            >
+              <FileText size={15} aria-hidden />
+              <span className="hidden sm:inline">Weekly report</span>
+              <span className="sr-only sm:hidden">Weekly report</span>
+            </button>
             <button
               type="button"
               onClick={() => setShowHubspot(true)}
@@ -274,6 +287,7 @@ export default function App() {
 
       {open && <ApplicantDrawer applicant={open} now={now} onClose={close} onUpdate={update} onResult={onResult} onViewAsDriver={openAsDriver} />}
       {showHubspot && <HubspotModal onClose={closeHubspot} />}
+      {showReport && <ReportModal apps={apps} threads={threads} now={now} onClose={closeReport} />}
       <Toast message={toast.message} onDismiss={toast.dismiss} />
 
       <footer className="text-xs text-muted text-center px-4 py-6 border-t border-lavender">
