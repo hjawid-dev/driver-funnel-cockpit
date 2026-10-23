@@ -3,7 +3,7 @@ import { REJECT_REASONS } from './types';
 import { NUDGE_OFFSETS, NO_RESPONSE_MS, nudgeMessage, reminderSilenced } from './nudges';
 import { DAY, HOUR, atLocal, formatDateTime } from './time';
 import type { ChatThread } from './chat/types';
-import { CHAT_SLA_MS } from './chat/threads';
+import { slaFor } from './chat/threads';
 
 /**
  * The automation layer: what runs by itself (HubSpot workflows and the driver chat in
@@ -123,11 +123,11 @@ export function automationEvents(apps: Applicant[], from: number, to: number): A
   return out.sort((x, y) => x.at - y.at);
 }
 
-/** A driver question handed to a person and still unanswered after 15 minutes alerts ops. */
+/** A question handed to a person and still unanswered alerts ops: after 15 minutes, or 5 when something is wrong on a drive. */
 export function chatEvents(threads: ChatThread[], from: number, to: number): AutoEvent[] {
   return threads
     .filter((t) => t.status === 'waiting' && t.waitingSince !== undefined)
-    .map((t) => ({ at: t.waitingSince! + CHAT_SLA_MS, t }))
+    .map((t) => ({ at: t.waitingSince! + slaFor(t), t }))
     .filter(({ at }) => at > from && at <= to)
     .map(({ at, t }) => ({
       at,
@@ -135,7 +135,10 @@ export function chatEvents(threads: ChatThread[], from: number, to: number): Aut
       name: t.name,
       audience: 'ops' as const,
       kind: 'chat_sla' as const,
-      title: `Chat alert: ${t.name} has waited 15 min for a person`,
+      title:
+        t.reason === 'urgent'
+          ? `Urgent: ${t.name} has a problem on a drive and has waited 5 min. Call the driver now.`
+          : `Chat alert: ${t.name} has waited 15 min for a person`,
     }));
 }
 

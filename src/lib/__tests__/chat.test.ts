@@ -25,7 +25,7 @@ import {
 import { chatEvents } from '../automation';
 import { generateSeed } from '../seed';
 import { generateGigs } from '../gigs';
-import { MIN } from '../time';
+import { DAY, MIN } from '../time';
 import { mk, NOW } from './helpers';
 
 const KNOWN = new Set(['pay', 'payouts']);
@@ -204,8 +204,22 @@ describe('threads', () => {
     const s = chatStats(threads, NOW);
     expect(s.rate!).toBeGreaterThan(75);
     expect(s.rate!).toBeLessThan(95);
-    expect(waitingThreads(threads).length).toBe(2);
+    expect(waitingThreads(threads).length).toBe(3);
+    // Urgent problems on a drive come first in the queue.
+    expect(waitingThreads(threads)[0]).toMatchObject({ name: 'Julia Lindgren', reason: 'urgent' });
     expect(contentGaps(threads).length).toBeGreaterThanOrEqual(2);
+  });
+  it('alerts after 5 minutes, and puts it first, when something is wrong on a drive', () => {
+    const normal = askForPerson(emptyThread(a), NOW - MIN);
+    const urgent = addAiAnswer(addDriverMessage(emptyThread(mk({ id: 'DRV-2002', name: 'Julia Lindgren' })), 'keys missing!', NOW), 'A person is coming.', [], 'urgent', NOW);
+    expect(waitingThreads([normal, urgent])[0]).toBe(urgent);
+    const ev = chatEvents([normal, urgent], NOW, NOW + 10 * MIN);
+    expect(ev).toEqual([expect.objectContaining({ at: NOW + 5 * MIN, title: expect.stringMatching(/^Urgent: Julia Lindgren/) })]);
+  });
+  it('tells the assistant when the driver is on a drive right now', () => {
+    const onDrive = mk({ decision: { type: 'accepted', at: NOW - DAY, by: 'Hjalmar' }, firstGig: { bookedFor: NOW - 20 * MIN } });
+    expect(driverContext(onDrive, [], NOW).facts).toContain('On a drive right now (their first drive)');
+    expect(driverContext({ ...onDrive, firstGig: { bookedFor: NOW + DAY } }, [], NOW).facts).not.toContain('On a drive right now (their first drive)');
   });
   it('alerts ops when a handed-over question has waited 15 minutes', () => {
     const t = askForPerson(emptyThread(a), NOW);

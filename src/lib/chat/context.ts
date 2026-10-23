@@ -1,6 +1,6 @@
 import type { Applicant, Gig } from '../types';
 import { driverStep } from '../driverFlow';
-import { formatDateTime } from '../time';
+import { HOUR, formatDateTime } from '../time';
 import type { DriverContext } from './types';
 
 /**
@@ -37,6 +37,8 @@ export function driverContext(a: Applicant | null, gigs: Gig[], now: number): Dr
   if (a.decision?.type === 'accepted_simple') facts.push('Accepted for simple drives first (licence held 1–2 years)');
   if (a.availability === 'limited') facts.push(`Availability: ${a.availabilityNote ?? 'limited'}`);
   const g = a.firstGig?.gigId ? gigs.find((x) => x.id === a.firstGig?.gigId) : undefined;
+  const start = a.firstGig?.bookedFor;
+  if (start && !a.firstGig?.doneAt && now >= start - HOUR && now <= start + (g?.minutes ?? 60) * 60_000 + 2 * HOUR) facts.push('On a drive right now (their first drive)');
   if (g && a.firstGig?.bookedFor) facts.push(`First drive: ${g.from} to ${g.to}, ${formatDateTime(a.firstGig.bookedFor)}, ${g.km} km, ${g.pay} SEK`);
   facts.push(`Area: ${a.area}`);
 

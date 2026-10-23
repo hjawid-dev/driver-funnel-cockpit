@@ -6,6 +6,12 @@ import type { ActionOption } from './selfService';
 
 /** Ops answers a handed-over question within this time (staffed hours). */
 export const CHAT_SLA_MS = 15 * MIN;
+/** Something is wrong on a drive happening now: a person answers within 5 minutes, around the clock. */
+export const CHAT_SLA_URGENT_MS = 5 * MIN;
+
+export function slaFor(t: ChatThread): number {
+  return t.reason === 'urgent' ? CHAT_SLA_URGENT_MS : CHAT_SLA_MS;
+}
 /** Target share of driver questions the assistant answers without a person. */
 export const AI_TARGET = 95;
 
@@ -106,8 +112,11 @@ export function closeGap(t: ChatThread, msgIdToClose: string): ChatThread {
   return { ...t, messages: t.messages.map((m) => (m.id === msgIdToClose ? { ...m, gapClosed: true } : m)) };
 }
 
+/** Waiting for a person: urgent problems on a drive first, then the longest wait. */
 export function waitingThreads(threads: ChatThread[]): ChatThread[] {
-  return threads.filter((t) => t.status === 'waiting').sort((a, b) => (a.waitingSince ?? 0) - (b.waitingSince ?? 0));
+  return threads
+    .filter((t) => t.status === 'waiting')
+    .sort((a, b) => Number(b.reason === 'urgent') - Number(a.reason === 'urgent') || (a.waitingSince ?? 0) - (b.waitingSince ?? 0));
 }
 
 /** The driver question just before a message (what was asked). */
@@ -291,9 +300,12 @@ const HISTORY: { name: string; daysAgo: number; lines: Line[]; waiting?: Handove
     ['driver', 'And the congestion charge?', 2],
     ['ai', 'Congestion charges and bridge tolls are billed to the car owner, so you pay nothing.', 2.2, { sources: ['fuel-tolls'] }],
   ] },
-  { name: 'Julia Lindgren', daysAgo: 0.9, lines: [
+  { name: 'Julia Lindgren', daysAgo: 0.9, waiting: 'urgent', lines: [
     ['driver', 'The customer is not home, what do I do?', 0],
     ['ai', 'Wait 15 minutes and message ops here in the chat. Never leave the keys anywhere the job doesn\'t say.', 0.2, { sources: ['delivery'] }],
+    // Today, a few minutes ago: a problem on a drive happening now.
+    ['driver', "I'm at the pickup in Solna and the keys aren't in the key box. The dealer isn't answering.", 1293],
+    ['ai', "That needs a person right away, so I've passed it to ops now. Stay at the pickup and keep your phone close; they'll reply here within 5 minutes. If anyone is hurt, call 112 first.", 1293.2, { sources: ['running-late'], handover: 'urgent' }],
   ] },
   { name: 'Emma Holmberg', daysAgo: 1.4, lines: [
     ['driver', 'Can I cancel a job I took for Saturday?', 0],

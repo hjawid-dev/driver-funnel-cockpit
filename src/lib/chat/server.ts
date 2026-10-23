@@ -33,10 +33,11 @@ const FALLBACK_TEXT = "I can't answer that here, so I've passed your question to
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
 
-export function createChatHandler(opts: { env: ChatEnv; client?: ModelClient; now?: () => number }) {
+export function createChatHandler(opts: { env: ChatEnv; client?: ModelClient; now?: () => number; /** Only for the eval suite. */ noRateLimit?: boolean }) {
   const now = opts.now ?? Date.now;
-  const perIp = new RateLimiter(LIMITS.perIp, LIMITS.windowMs);
-  const global = new RateLimiter(LIMITS.globalPerHour, 60 * 60_000);
+  const off = opts.noRateLimit === true;
+  const perIp = new RateLimiter(off ? Infinity : LIMITS.perIp, LIMITS.windowMs);
+  const global = new RateLimiter(off ? Infinity : LIMITS.globalPerHour, 60 * 60_000);
   let client = opts.client;
 
   return async function handle(req: Request): Promise<Response> {

@@ -33,6 +33,12 @@ const ROWS: { cockpit: string; hubspot: string; required: string; workflow: stri
     workflow: 'Feeds the weekly KPI report',
   },
   {
+    cockpit: 'Driver questions',
+    hubspot: 'Help desk ticket (chat handover)',
+    required: 'handover_reason (asked / not in articles / account / sensitive / urgent) · urgent = ongoing drive',
+    workflow: 'Routed to driver ops · SLA alert at 15 min, 5 min when urgent · "not in articles" adds a knowledge-base task',
+  },
+  {
     cockpit: 'Rejected',
     hubspot: 'Closed (rejected)',
     required: 'reject_reason (required, generic) · decided_at · decided_by · delete_after',
@@ -124,6 +130,9 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
                 <li>Workflows for reminders, SLA alerts and tasks (the "Move time" button shows them running)</li>
                 <li>Meetings for booking the extract call in the 09:00 and 14:00 slots</li>
                 <li>Funnel and KPI reports from the timestamps</li>
+                <li>The help desk inbox and ticket SLAs for questions the assistant hands over</li>
+                <li>The knowledge base: the 36 help articles the assistant answers from</li>
+                <li>A Monday workflow that posts the weekly report to Slack</li>
               </ul>
             </div>
             <div className="rounded-xl bg-lavender p-4 text-sm">
@@ -138,6 +147,13 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
                 </li>
                 <li>
                   <strong>Decision rules:</strong> only the accept variant the written criteria allow, second reviewer on suitability rejections
+                </li>
+                <li>
+                  <strong>Self-service in the chat:</strong> actions on the driver's own file that the assistant proposes and the driver confirms,
+                  checked against the live state. HubSpot's own AI agent could answer questions; it can't act on our onboarding steps
+                </li>
+                <li>
+                  <strong>A report you can trust:</strong> numbers from the pipeline, text from the AI, and a check that every number matches
                 </li>
               </ul>
             </div>
@@ -175,6 +191,14 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
               </li>
               <li>
                 <strong>HubSpot setup.</strong> EU data centre, data processing agreement, no extracts or offence data in any field.
+              </li>
+              <li>
+                <strong>The AI says it is an AI</strong> (AI Act art. 50), sees first name and status only, never decides, and every action it
+                proposes needs the driver's tap.
+              </li>
+              <li>
+                <strong>Tested, not assumed.</strong> A fixed set of 63 questions in several languages, with traps, is run on every prompt or
+                article change.
               </li>
             </ul>
           </div>

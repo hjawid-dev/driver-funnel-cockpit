@@ -72,6 +72,9 @@ export default function App() {
   const [stageFilter, setStageFilter] = useState<StageFilter>('all');
   const [showHubspot, setShowHubspot] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  // Demo guide progress this session.
+  const [chatTried, setChatTried] = useState(false);
+  const [reportOpened, setReportOpened] = useState(false);
   const closeReport = useCallback(() => setShowReport(false), []);
   const closeHubspot = useCallback(() => setShowHubspot(false), []);
   const toast = useToast();
@@ -112,9 +115,14 @@ export default function App() {
   const onThread = useCallback(
     (t: ChatThread) => {
       const prev = threads.find((x) => x.id === t.id);
+      if (t.messages.length > (prev?.messages.length ?? 0) && t.messages.at(-1)?.from !== 'ops') setChatTried(true);
       upsertThread(t);
       if (t.status === 'waiting' && prev?.status !== 'waiting') {
-        toast.notify(`${t.name} needs a person in the chat${t.reason ? `: ${HANDOVER_LABEL[t.reason].toLowerCase()}` : ''}. See Driver questions.`);
+        toast.notify(
+          t.reason === 'urgent'
+            ? `Urgent: ${t.name} has a problem on a drive. Reply within 5 minutes in Driver questions.`
+            : `${t.name} needs a person in the chat${t.reason ? `: ${HANDOVER_LABEL[t.reason].toLowerCase()}` : ''}. See Driver questions.`,
+        );
       }
     },
     [threads, upsertThread, toast.notify],
@@ -160,7 +168,7 @@ export default function App() {
     return { review: n('review'), missing: n('registered'), awaiting: n('accepted'), chat: waitingThreads(threads).length, all: apps.length };
   }, [apps, threads]);
   const slot = nextReviewSlot(now);
-  const steps = useMemo(() => guideSteps(apps, clock.offset > 0), [apps, clock.offset]);
+  const steps = useMemo(() => guideSteps(apps, { timeMoved: clock.offset > 0, chatTried, reportOpened }), [apps, clock.offset, chatTried, reportOpened]);
 
   const jumpTo = (key: FunnelKey) => {
     setTab(TILE_TO_TAB[key]);
@@ -258,6 +266,8 @@ export default function App() {
             steps={steps}
             onOpen={setOpenId}
             onPhone={() => openAsDriver(apps.find((a) => a.source === 'self')?.id ?? null)}
+            onChat={openDriverChat}
+            onReport={() => setShowReport(true)}
             onAdvance={() => onAdvance(24 * 3_600_000)}
             onHubspot={() => setShowHubspot(true)}
             onHide={() => toggleGuide(true)}
@@ -268,7 +278,7 @@ export default function App() {
         <KpiRow kpis={kpis} baseline={baseline} />
 
         <section id="worklists" className="scroll-mt-4">
-          <Tabs active={tab} counts={counts} onChange={setTab} />
+          <Tabs active={tab} counts={counts} alert={{ chat: threads.some((t) => t.status === 'waiting' && t.reason === 'urgent') }} onChange={setTab} />
           <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
             {tab === 'review' ? (
               <ReviewQueue apps={apps.filter((a) => deriveStage(a) === 'review')} now={now} onOpen={setOpenId} />
@@ -287,7 +297,7 @@ export default function App() {
 
       {open && <ApplicantDrawer applicant={open} now={now} onClose={close} onUpdate={update} onResult={onResult} onViewAsDriver={openAsDriver} />}
       {showHubspot && <HubspotModal onClose={closeHubspot} />}
-      {showReport && <ReportModal apps={apps} threads={threads} now={now} onClose={closeReport} />}
+      {showReport && <ReportModal onOpened={() => setReportOpened(true)} apps={apps} threads={threads} now={now} onClose={closeReport} />}
       <Toast message={toast.message} onDismiss={toast.dismiss} />
 
       <footer className="text-xs text-muted text-center px-4 py-6 border-t border-lavender">

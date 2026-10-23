@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Bot, CircleCheck, FilePlus2, MousePointerClick, Smartphone, UserRound } from 'lucide-react';
 import type { ChatThread } from '../lib/chat/types';
 import { HANDOVER_LABEL } from '../lib/chat/types';
-import { AI_TARGET, CHAT_SLA_MS, backToAi, chatStats, closeGap, contentGaps, opsReply, waitingThreads } from '../lib/chat/threads';
+import { AI_TARGET, CHAT_SLA_MS, backToAi, slaFor, chatStats, closeGap, contentGaps, opsReply, waitingThreads } from '../lib/chat/threads';
 import { HELP_BY_ID } from '../content/help';
 import { REVIEWER } from '../lib/types';
 import { ago, formatDateTime, formatDuration } from '../lib/time';
@@ -36,7 +36,7 @@ export function ChatQueue({ threads, now, onThread, onViewChat }: Props) {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <section>
-          <SectionHeader title={`Waiting for a person · ${waiting.length}`} aside={`Target: reply within ${formatDuration(CHAT_SLA_MS)}`} />
+          <SectionHeader title={`Waiting for a person · ${waiting.length}`} aside={`Target: reply within ${formatDuration(CHAT_SLA_MS)}, 5 min when urgent`} />
           {waiting.length === 0 ? (
             <p className="flex items-center gap-2 rounded-xl bg-card p-4 text-sm text-muted">
               <CircleCheck size={18} className="text-ok" aria-hidden /> Nobody is waiting. The assistant is handling the rest.
@@ -143,14 +143,15 @@ function Stats({ stats }: { stats: ReturnType<typeof chatStats> }) {
 function ThreadRow({ t, now, active, onOpen, compact }: { t: ChatThread; now: number; active: boolean; onOpen: () => void; compact?: boolean }) {
   const lastQ = [...t.messages].reverse().find((m) => m.from === 'driver');
   const waited = t.waitingSince ? now - t.waitingSince : 0;
-  const late = t.status === 'waiting' && waited > CHAT_SLA_MS;
+  const urgent = t.status === 'waiting' && t.reason === 'urgent';
+  const late = t.status === 'waiting' && waited > slaFor(t);
   return (
     <li>
       <button
         type="button"
         onClick={onOpen}
         aria-current={active}
-        className={`w-full rounded-xl border px-3 text-left ${compact ? 'py-2' : 'py-3'} ${active ? 'border-indigo bg-lavender/40' : 'border-lavender hover:border-indigo'} ${late ? 'bg-bad-bg/30' : ''}`}
+        className={`w-full rounded-xl border px-3 text-left ${compact ? 'py-2' : 'py-3'} ${active ? 'border-indigo bg-lavender/40' : urgent ? 'border-bad/60 hover:border-bad' : 'border-lavender hover:border-indigo'} ${late || urgent ? 'bg-bad-bg/30' : ''}`}
       >
         <span className="flex items-baseline justify-between gap-2">
           <span className="truncate text-sm font-semibold">{t.name}</span>
@@ -163,7 +164,11 @@ function ThreadRow({ t, now, active, onOpen, compact }: { t: ChatThread; now: nu
           )}
         </span>
         {lastQ && <span className="mt-0.5 block truncate text-xs text-muted">“{lastQ.text}”</span>}
-        {!compact && t.reason && <span className="mt-1 inline-block rounded-full bg-card px-2 py-0.5 text-[11px] font-semibold text-navy">{HANDOVER_LABEL[t.reason]}</span>}
+        {!compact && t.reason && (
+          <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${urgent ? 'bg-bad text-white' : 'bg-card text-navy'}`}>
+            {urgent ? 'Urgent · problem on a drive now' : HANDOVER_LABEL[t.reason]}
+          </span>
+        )}
       </button>
     </li>
   );

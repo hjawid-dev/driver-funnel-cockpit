@@ -14,6 +14,7 @@ interface Props {
   threads: ChatThread[];
   now: number;
   onClose: () => void;
+  onOpened?: () => void;
 }
 
 const TONE: Record<ChangeItem['tone'], { icon: string; cls: string; label: string }> = {
@@ -29,7 +30,7 @@ const REASON = {
 };
 
 /** The weekly report: numbers from code, text from AI, and a check that the two agree. */
-export function ReportModal({ apps, threads, now, onClose }: Props) {
+export function ReportModal({ apps, threads, now, onClose, onOpened }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const [wf, setWf] = useState<WeeklyFacts>(() => weeklyFacts(apps, threads, now));
   const [reply, setReply] = useState<ReportReply | null>(null);
@@ -47,6 +48,7 @@ export function ReportModal({ apps, threads, now, onClose }: Props) {
 
   useEffect(() => {
     generate(wf);
+    onOpened?.();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

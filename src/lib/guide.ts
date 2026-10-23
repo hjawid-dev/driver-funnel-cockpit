@@ -1,19 +1,26 @@
 import type { Applicant } from './types';
 import { REVIEWER } from './types';
 
-/** The three things the demo guide asks a first-time visitor to try: both sides of the funnel, then automation. */
+/** What the demo guide asks a first-time visitor to try: both sides of the funnel, the assistant, automation and the report. */
 export interface GuideStep {
-  key: 'apply' | 'accept' | 'time';
+  key: 'apply' | 'chat' | 'accept' | 'time' | 'report';
   title: string;
   hint: string;
-  action: 'phone' | 'open' | 'advance';
-  targetId: string | null; // applicant to open, for 'open'
+  action: 'phone' | 'chat' | 'open' | 'advance' | 'report';
+  targetId: string | null; // applicant to open, for 'open' and 'chat'
   done: boolean;
+}
+
+/** What the visitor has tried this session (not stored in the demo data). */
+export interface GuideProgress {
+  timeMoved: boolean;
+  chatTried: boolean;
+  reportOpened: boolean;
 }
 
 const byMe = (a?: Applicant) => a?.decision?.by === REVIEWER;
 
-export function guideSteps(apps: Applicant[], timeMoved: boolean): GuideStep[] {
+export function guideSteps(apps: Applicant[], progress: GuideProgress): GuideStep[] {
   const self = apps.filter((a) => a.source === 'self');
   const elin = apps.find((a) => a.name === 'Elin Johansson');
   const applied = self.length > 0;
@@ -31,6 +38,14 @@ export function guideSteps(apps: Applicant[], timeMoved: boolean): GuideStep[] {
       done: applied && !!firstSelf.callAt,
     },
     {
+      key: 'chat',
+      title: 'Ask the assistant',
+      hint: `Open Messages on ${applied ? `${firstSelf.name.split(' ')[0]}'s` : "Elin's"} phone. Ask anything, or write "Can we take the call on an afternoon?" and tap Confirm.`,
+      action: 'chat',
+      targetId: applied ? firstSelf.id : (elin?.id ?? null),
+      done: progress.chatTried,
+    },
+    {
       key: 'accept',
       title: 'Decide in the cockpit',
       hint: applied
@@ -43,10 +58,18 @@ export function guideSteps(apps: Applicant[], timeMoved: boolean): GuideStep[] {
     {
       key: 'time',
       title: 'Move time forward a day',
-      hint: 'Reminders, SLA alerts, call reminders and tasks run by themselves. Open "Automation" in the demo bar to see what ran.',
+      hint: 'Reminders, SLA alerts, chat alerts and tasks run by themselves. Open "Automation" in the demo bar to see what ran.',
       action: 'advance',
       targetId: null,
-      done: timeMoved,
+      done: progress.timeMoved,
+    },
+    {
+      key: 'report',
+      title: 'Read the weekly report',
+      hint: 'Code counts, the AI writes, and a check verifies every number against the data.',
+      action: 'report',
+      targetId: null,
+      done: progress.reportOpened,
     },
   ];
 }

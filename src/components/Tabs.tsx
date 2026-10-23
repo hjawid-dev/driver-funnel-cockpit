@@ -12,10 +12,12 @@ export const TABS: { key: TabKey; label: string }[] = [
 interface Props {
   active: TabKey;
   counts: Record<TabKey, number>;
+  /** Tabs with something urgent get a red count. */
+  alert?: Partial<Record<TabKey, boolean>>;
   onChange: (key: TabKey) => void;
 }
 
-export function Tabs({ active, counts, onChange }: Props) {
+export function Tabs({ active, counts, alert = {}, onChange }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
 
   // Keep the selected tab visible when the bar scrolls sideways on a phone.
@@ -47,7 +49,8 @@ export function Tabs({ active, counts, onChange }: Props) {
             }`}
           >
             {t.label}
-            <span className={`num rounded-full px-1.5 text-xs ${selected ? 'bg-indigo text-white' : 'bg-card text-muted'}`}>{counts[t.key]}</span>
+            <span className={`num rounded-full px-1.5 text-xs ${alert[t.key] ? 'bg-bad text-white' : selected ? 'bg-indigo text-white' : 'bg-card text-muted'}`}>{counts[t.key]}</span>
+            {alert[t.key] && <span className="sr-only">(urgent)</span>}
             {selected && <span aria-hidden className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-indigo" />}
           </button>
         );

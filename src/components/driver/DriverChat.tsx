@@ -153,7 +153,11 @@ export function DriverChat({ applicant: a, thread, apps, gigs, now, onThread, on
         )}
         {t.status !== 'ai' && (
           <p className="rounded-lg bg-warn-bg px-3 py-2 text-xs text-warn">
-            {t.status === 'waiting' ? 'A person from ops will reply here, usually within 15 minutes.' : 'A person from ops is handling your question.'}
+            {t.status === 'waiting'
+              ? t.reason === 'urgent'
+                ? 'Ops is on it and replies here within 5 minutes. If anyone is hurt, call 112 first.'
+                : 'A person from ops will reply here, usually within 15 minutes.'
+              : 'A person from ops is handling your question.'}
           </p>
         )}
         {notice && <p className="rounded-lg bg-warn-bg px-3 py-2 text-xs text-warn">{notice}</p>}

@@ -5,13 +5,15 @@ interface Props {
   steps: GuideStep[];
   onOpen: (id: string) => void;
   onPhone: () => void;
+  onChat: (id: string | null) => void;
   onAdvance: () => void;
+  onReport: () => void;
   onHubspot: () => void;
   onHide: () => void;
 }
 
 /** First-visit guide: what this is, and three things to try. */
-export function DemoGuide({ steps, onOpen, onPhone, onAdvance, onHubspot, onHide }: Props) {
+export function DemoGuide({ steps, onOpen, onPhone, onChat, onAdvance, onReport, onHubspot, onHide }: Props) {
   const done = steps.filter((s) => s.done).length;
 
   return (
@@ -26,24 +28,26 @@ export function DemoGuide({ steps, onOpen, onPhone, onAdvance, onHubspot, onHide
       </button>
 
       <div className="pr-8">
-        <div className="text-xs font-semibold uppercase tracking-[0.08em] text-indigo">Demo guide · {done}/3 tried</div>
+        <div className="text-xs font-semibold uppercase tracking-[0.08em] text-indigo">Demo guide · {done}/{steps.length} tried</div>
         <h2 id="guide-title" className="mt-1 text-lg font-bold leading-snug">
           Two sides of one funnel: the driver's phone and the ops cockpit.
         </h2>
         <p className="mt-1 max-w-3xl text-sm text-muted">
-          Drivers finish their application on the phone and book their own call. Ops decides in the call, using written rules. Reminders,
-          alerts and tasks run by themselves, and every click writes a timestamp or reason code, so the numbers below come straight out of the
-          work. Try three things:
+          Drivers finish their application on the phone, and an AI assistant answers their questions and books their call when they confirm.
+          Ops decides in the call, using written rules, and gets only the questions the AI can't handle. Every click writes a timestamp or reason
+          code, and a weekly report writes itself from those numbers. Try five things:
         </p>
       </div>
 
-      <ol className="mt-4 grid gap-2 sm:grid-cols-3">
+      <ol className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         {steps.map((s, i) => (
           <li key={s.key}>
             <button
               type="button"
               disabled={s.action === 'open' && !s.targetId}
-              onClick={() => (s.action === 'phone' ? onPhone() : s.action === 'advance' ? onAdvance() : s.targetId && onOpen(s.targetId))}
+              onClick={() =>
+                s.action === 'phone' ? onPhone() : s.action === 'chat' ? onChat(s.targetId) : s.action === 'advance' ? onAdvance() : s.action === 'report' ? onReport() : s.targetId && onOpen(s.targetId)
+              }
               className={`group flex h-full w-full items-start gap-3 rounded-xl border bg-white p-3 text-left transition-colors ${
                 s.done ? 'border-ok/40' : 'border-lavender hover:border-indigo'
               } disabled:cursor-default`}

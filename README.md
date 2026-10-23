@@ -53,7 +53,8 @@ Underneath, **every action writes a timestamp or a reason code**, so the funnel 
   - **Borderline:** licence 1–2 years → simple drives first; limited availability → accept and flag for activation (never a reason to reject).
   - **Reject:** only with a generic reason code. A suitability rejection needs a second reviewer.
 - **Missing documents**, **Awaiting first gig** and **All applicants**, each with a full timeline per applicant.
-- **Driver questions:** the handover queue with a 15-minute reply target, replies that go straight to the driver's phone, and four numbers:
+- **Driver questions:** the handover queue with a 15-minute reply target, replies that go straight to the driver's phone, and four numbers. **Live ops:** a problem on a drive happening now (keys missing, car won't start, damage) goes to the top in red, with a 5-minute target and its own alert.
+  The four numbers:
   - **Answered by AI** (target 95%)
   - questions handed to a person, by reason
   - **Done in the chat:** things drivers did themselves
@@ -64,8 +65,8 @@ Underneath, **every action writes a timestamp or a reason code**, so the funnel 
 - **How this maps to HubSpot:** pipeline stages, the fields required to move on, workflows, and what is configured in HubSpot versus built on top.
 
 **Demo controls**
-- **Move time:** +2 h, +1 day, +3 days. Automation runs on the simulated clock: reminders, SLA alerts, chat alerts after 15 minutes, and the Monday 08:00 report.
-- **Demo guide:** three things to try. `?guide=0` hides it for presenting.
+- **Move time:** +2 h, +1 day, +3 days. Automation runs on the simulated clock: reminders, SLA alerts, chat alerts (after 15 minutes, or 5 when urgent), and the Monday 08:00 report.
+- **Demo guide:** five things to try: apply, ask the assistant, decide, move time, read the weekly report. `?guide=0` hides it for presenting.
 
 ## AI, and where it stops
 
@@ -79,6 +80,7 @@ The AI does the talking and the writing. People make the decisions.
 | What stops mistakes | The server only accepts action ids the app sent, the app checks the option again, and nothing happens without the driver's tap | Every number must belong to the facts the sentence cites, and the tone must match the data. One retry, then a template |
 | Cost | About $0.00015 per answer (help articles cached) | Well under a cent per report |
 
+- **Tested, not assumed:** `npm run eval` runs 63 questions through the real server code against the real model: answers from the articles, handovers, actions, and traps (prompt injection, booking for someone else, "pretend you're human"), in English, Swedish and Arabic. Graded by rules, not by another AI; a run costs about a cent. Latest result in [`evals/last-run.md`](evals/last-run.md): 63 of 63, and every question the articles cover answered without a person.
 - **Always an answer:** without a key, or with `CHAT_ENABLED=off`, the chat falls back to article search and the report to a template, so the demo never breaks.
 - **Guards on both functions:** they only accept calls from the app's own page, cap input length and the number of turns, and limit calls per IP and per hour. The real limit is a spending cap on the API account.
 - **No decision actions exist:** the assistant can't accept, reject or rank applicants, which keeps it outside the AI Act's high-risk category for recruitment.
@@ -129,7 +131,8 @@ Built to follow GDPR, Swedish rules and the EU AI Act from the start. This is a 
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 217 unit tests (Vitest)
+npm test         # 220 unit tests (Vitest)
+npm run eval     # 63 questions to the real assistant (needs a key), writes evals/last-run.md
 npm run build
 ```
 
@@ -143,6 +146,7 @@ The driver's phone and the cockpit share the same browser data, so the demo runs
 
 ```
 api/              Vercel functions: chat.ts, report.ts (thin; logic in src/lib)
+evals/            The assistant's eval suite and its last result
 src/content/      help.ts: the 36 help articles behind the assistant
 src/lib/          Business logic as pure functions, all unit-tested
   stage.ts        Stage derivation
@@ -171,6 +175,5 @@ Stack: Vite, React 18, TypeScript, Tailwind CSS 4, lucide-react, Vitest, the Ant
 1. **Connect to HubSpot and the order system.** Deals through the API and webhooks so the pipeline stays the source of truth; the chat on the help desk; open jobs from the order system for first-gig matching. Real BankID and licence checks.
 2. **Support for the reviewer:** a summary of each file, the next practical step and draft messages, never a recommendation to accept or reject.
 3. **Document checks with image analysis:** photo quality and reading the licence category and date, confirmed by a person, with no face matching.
-4. **Live ops in the chat:** urgent problems on a drive go straight to a person with priority.
-5. **An evaluation set for the assistant** (about 60 questions, several languages, traps), run on every prompt or article change, to keep "answered by AI" moving towards 95%.
-6. **Ops basics for real use:** sign-in, roles, an audit log, a DPIA, data processing agreements, and the applicant privacy notice reviewed by a DPO.
+4. **Grow the eval set from real conversations:** every handed-over question becomes a test case, and every new help article is checked against it before it goes live.
+5. **Ops basics for real use:** sign-in, roles, an audit log, a DPIA, data processing agreements, and the applicant privacy notice reviewed by a DPO.
