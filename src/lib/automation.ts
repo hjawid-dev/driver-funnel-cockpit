@@ -4,6 +4,7 @@ import { NUDGE_OFFSETS, NO_RESPONSE_MS, nudgeMessage, reminderSilenced } from '.
 import { DAY, HOUR, atLocal, formatDateTime } from './time';
 import type { ChatThread } from './chat/types';
 import { slaFor } from './chat/threads';
+import { jobAlert, pickupChecks, REPLY_WAIT_24_MS, REPLY_WAIT_60_MS, type Job } from './liveOps';
 
 /**
  * The automation layer: what runs by itself (HubSpot workflows and the driver chat in
@@ -25,7 +26,10 @@ export type AutoKind =
   | 'gig_reminder'
   | 'activated'
   | 'chat_sla'
-  | 'weekly_report';
+  | 'weekly_report'
+  | 'pickup_check'
+  | 'pickup_task'
+  | 'live_alert';
 
 export interface AutoEvent {
   at: number;
@@ -155,6 +159,33 @@ export function reportEvents(from: number, to: number): AutoEvent[] {
   return out;
 }
 
+/**
+ * Live ops: the pre-pickup messages to the pickup contact, a task when nobody replies, and an
+ * urgent alert when a driver is at the pickup without keys (or hasn't checked in).
+ */
+export function liveOpsEvents(jobs: Job[], from: number, to: number): AutoEvent[] {
+  const out: AutoEvent[] = [];
+  const inWindow = (t: number) => t > from && t <= to;
+  for (const j of jobs) {
+    const base = { applicantId: j.driverId, name: j.driverName, audience: 'ops' as const };
+    // Judge each check as it stood when its reply window ran out.
+    for (const c of pickupChecks(j, to)) {
+      if (c.state === 'scheduled') continue;
+      if (inWindow(c.sentAt)) out.push({ ...base, at: c.sentAt, kind: 'pickup_check', title: `Pre-pickup message (${c.label}) to ${j.contact.role.toLowerCase()} for ${j.id}, ${j.from}` });
+      const deadline = c.sentAt + (c.key === '24h' ? REPLY_WAIT_24_MS : REPLY_WAIT_60_MS);
+      const atDeadline = pickupChecks(j, deadline).find((x) => x.key === c.key)!;
+      if (inWindow(deadline) && atDeadline.state === 'no_reply') {
+        out.push({ ...base, at: deadline, kind: 'pickup_task', title: `Task: no reply to the ${c.label} message for ${j.id}. Call the ${j.backup.role.toLowerCase()}.` });
+      }
+    }
+    const alert = jobAlert(j, to);
+    if (alert && alert.kind !== 'driver_reported' && inWindow(alert.at)) {
+      out.push({ ...base, at: alert.at, kind: 'live_alert', title: `Urgent: ${alert.text} (${j.id}). Call ${j.driverName.split(' ')[0]} now.` });
+    }
+  }
+  return out;
+}
+
 /** The driver's inbox: everything sent to them, newest first. */
 export function driverInbox(a: Applicant, now: number): AutoEvent[] {
   return automationEvents([a], a.registeredAt - 1, now)
@@ -170,9 +201,11 @@ export function summarize(events: AutoEvent[]): string {
     [n(['nudge']), 'nudge'],
     [n(['sla_24', 'sla_overdue']), 'SLA alert'],
     [n(['chat_sla']), 'chat alert'],
+    [n(['live_alert']), 'live ops alert'],
+    [n(['pickup_check']), 'pre-pickup message'],
     [n(['weekly_report']), 'weekly report'],
     [n(['call_reminder']), 'call reminder'],
-    [n(['welcome_task', 'book_task', 'call_task', 'close_task']), 'task'],
+    [n(['welcome_task', 'book_task', 'call_task', 'close_task', 'pickup_task']), 'task'],
     [events.filter((e) => e.audience === 'driver' && e.kind === 'decision').length, 'decision message'],
   ] as const;
   const text = parts.filter(([c]) => c > 0).map(([c, label]) => `${c} ${label}${c === 1 ? '' : 's'}`);

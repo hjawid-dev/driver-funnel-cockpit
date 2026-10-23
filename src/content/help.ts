@@ -328,6 +328,15 @@ Examples: you'll be late, the car or keys aren't where the job says, the car won
 In an emergency or if anyone is hurt, call 112 first.`,
   },
   {
+    id: 'waiting-pickup',
+    title: 'Waiting at the pickup: keys or contact missing',
+    category: 'On a drive',
+    tags: ['waiting', 'väntar', 'vänta', 'keys', 'nycklar', 'no keys', 'key box', 'nyckelbox', 'contact', 'nobody there', 'should I leave', 'ska jag åka', 'waiting time', 'väntetid', 'pickup'],
+    body: `At the pickup, tap "I'm here" in today's job, and "Got the keys" when you have them. If the keys or the contact aren't there after 10 minutes, ops is alerted by itself; you can also tap "Problem at pickup" or write here at any time.
+Stay at the pickup. Your waiting time is paid from the agreed pickup time, whatever happens with the job.
+Ops calls you within 5 minutes. Please don't leave until ops tells you to: ops agrees the next step with the customer, so you never have to cancel or decide that yourself.`,
+  },
+  {
     id: 'passengers',
     title: 'Passengers and personal use',
     category: 'On a drive',

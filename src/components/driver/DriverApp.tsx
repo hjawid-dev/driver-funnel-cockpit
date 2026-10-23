@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { CalendarCheck, Car, Check, ChevronLeft, ChevronRight, ExternalLink, IdCard, Lock, MessageCircle, MessageSquare, ScanFace, ShieldCheck, Sparkles } from 'lucide-react';
 import type { Applicant, Gig } from '../../lib/types';
 import type { ChatThread } from '../../lib/chat/types';
-import { chatTimeline, threadIdFor, unreadCount } from '../../lib/chat/threads';
+import { chatTimeline, emptyThread, reportUrgent, threadIdFor, unreadCount } from '../../lib/chat/threads';
+import { checkIn, currentJob, deliver, depart, driverStatus, gotKeys, incidentClock, jobAlert, reportProblem, OUTCOME_LABEL, type Job } from '../../lib/liveOps';
 import { DriverChat } from './DriverChat';
 import { REJECT_REASONS } from '../../lib/types';
 import { driverStep, progress, STEP_ORDER, createApplicant, bookCall, bookOffer, MIN_AGE, type Application } from '../../lib/driverFlow';
@@ -20,21 +21,24 @@ interface Props {
   apps: Applicant[];
   gigs: Gig[];
   threads: ChatThread[];
+  jobs?: Job[];
   now: number;
   onCreate: (a: Applicant) => void;
   onUpdate: (a: Applicant) => void;
   onThread: (t: ChatThread) => void;
+  onJob?: (j: Job) => void;
   /** Open on the chat (e.g. from the cockpit's chat queue). */
   initialView?: 'steps' | 'chat';
 }
 
 /** The applicant's side of the funnel: one step at a time, on a phone. */
-export function DriverApp({ applicant: a, apps, gigs, threads, now, onCreate, onUpdate, onThread, initialView = 'steps' }: Props) {
+export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, onCreate, onUpdate, onThread, onJob, initialView = 'steps' }: Props) {
   const [view, setView] = useState<'steps' | 'chat'>(initialView);
   const thread = threads.find((t) => t.id === threadIdFor(a?.id ?? null));
   // Reminders, status messages and ops replies all arrive in the chat.
   const unread = view === 'chat' ? 0 : unreadCount(chatTimeline(thread, a ? driverInbox(a, now) : []), thread?.seenAt);
   const headerBtn = 'relative flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold hover:bg-white/10';
+  const job = a ? currentJob(jobs, a.id, now) : null;
 
   return (
     <div className="flex h-full flex-col bg-white text-navy">
@@ -59,14 +63,29 @@ export function DriverApp({ applicant: a, apps, gigs, threads, now, onCreate, on
 
       {view === 'chat' ? (
         <div className="min-h-0 flex-1">
-          <DriverChat applicant={a} thread={thread} apps={apps} gigs={gigs} now={now} onThread={onThread} onUpdate={onUpdate} onSteps={() => setView('steps')} />
+          <DriverChat applicant={a} thread={thread} apps={apps} gigs={gigs} jobs={jobs} now={now} onThread={onThread} onUpdate={onUpdate} onSteps={() => setView('steps')} />
         </div>
       ) : (
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {!a ? (
           <Start onCreate={(input) => onCreate(createApplicant(input, apps, now))} onChat={() => setView('chat')} />
         ) : (
-          <Step a={a} apps={apps} gigs={gigs} now={now} onUpdate={onUpdate} onInbox={() => setView('chat')} />
+          <>
+            {job && onJob && (
+              <JobCard
+                j={job}
+                now={now}
+                onJob={onJob}
+                onProblem={() => {
+                  onJob(reportProblem(job, now));
+                  onThread(reportUrgent(thread ?? emptyThread(a), "Problem at the pickup: the car or the keys aren't ready.", now));
+                  setView('chat');
+                }}
+                onInbox={() => setView('chat')}
+              />
+            )}
+            <Step a={a} apps={apps} gigs={gigs} now={now} onUpdate={onUpdate} onInbox={() => setView('chat')} />
+          </>
         )}
       </div>
       )}
@@ -532,6 +551,80 @@ function OffersStep({ a, apps, gigs, now, onPick }: { a: Applicant; apps: Applic
             </button>
           </div>
         ))
+      )}
+    </div>
+  );
+}
+
+const hm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+/** Today's job on the driver's phone: three taps tell ops where things stand, and a problem goes straight to a person. */
+function JobCard({ j, now, onJob, onProblem, onInbox }: { j: Job; now: number; onJob: (j: Job) => void; onProblem: () => void; onInbox: () => void }) {
+  const status = driverStatus(j, now);
+  const alert = jobAlert(j, now);
+  const outcome = j.incident?.outcome?.type;
+  const stopped = outcome && outcome !== 'keys_found';
+  const waitFrom = hm(Math.max(j.pickupAt, j.arrivedAt ?? j.pickupAt));
+  const problem = (
+    <button type="button" onClick={onProblem} className="w-full rounded-xl border border-bad/50 px-4 py-2.5 text-sm font-semibold text-bad hover:bg-bad-bg">
+      Problem at pickup
+    </button>
+  );
+
+  return (
+    <div className="mb-5 space-y-3">
+      <Title icon={<Car size={16} />} sub={`Pickup ${hm(j.pickupAt)} · deliver by ${hm(j.deadline)}`}>
+        Today's job
+      </Title>
+      <Card tone="soft">
+        <p className="text-sm font-semibold">
+          {j.from} → {j.to}
+        </p>
+        <p className="mt-0.5 text-xs text-muted">
+          {j.km} km · about {j.driveMin} min · {j.reward} SEK
+        </p>
+        <p className="mt-1.5 text-xs">
+          <span className="text-muted">Keys:</span> {j.keyLocation}
+        </p>
+      </Card>
+
+      {stopped ? (
+        <Card tone="ok">
+          <p className="text-sm font-semibold">{OUTCOME_LABEL[outcome!]}.</p>
+          <p className="mt-0.5 text-sm">You don't need to wait any longer. Your waiting time from {waitFrom} is paid.</p>
+        </Card>
+      ) : status === 'scheduled' || status === 'on_the_way' ? (
+        <>
+          <Primary onClick={() => onJob(checkIn(j, now))}>I'm here</Primary>
+          {problem}
+        </>
+      ) : status === 'arrived' ? (
+        <>
+          {(alert || j.problemAt) && (
+            <Card tone="warn">
+              <p className="text-sm font-semibold">Ops is on it. Please stay at the pickup.</p>
+              <p className="mt-0.5 text-sm">Your waiting time is paid from {waitFrom}. Ops calls you within 5 minutes; don't leave until they say so.</p>
+              <button type="button" onClick={onInbox} className="mt-1.5 text-sm font-semibold text-indigo hover:underline">
+                Open messages
+              </button>
+            </Card>
+          )}
+          <Primary onClick={() => onJob(gotKeys(j, now))}>Got the keys</Primary>
+          {!j.problemAt && problem}
+        </>
+      ) : status === 'keys' ? (
+        <>
+          <p className="text-sm text-muted">Leave by {hm(incidentClock(j, now).lastDeparture)} at the latest to make {hm(j.deadline)}.</p>
+          <Primary onClick={() => onJob(depart(j, now))}>On my way to the drop-off</Primary>
+        </>
+      ) : status === 'driving' ? (
+        <Primary onClick={() => onJob(deliver(j, now))}>Delivered</Primary>
+      ) : (
+        <Card tone="ok">
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-ok">
+            <Check size={15} aria-hidden /> Delivered. Thanks!
+          </p>
+        </Card>
       )}
     </div>
   );

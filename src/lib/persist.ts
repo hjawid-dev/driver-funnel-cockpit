@@ -3,10 +3,11 @@ import { DOC_KEYS, REJECT_REASONS } from './types';
 import { HOUR } from './time';
 import type { ChatThread } from './chat/types';
 import { isThread, seedThreads, shiftThread } from './chat/threads';
+import { isJob, seedJobs, shiftJob, type Job } from './liveOps';
 
 export const STORAGE_KEY = 'driver-funnel-cockpit-v1';
-/** Bump when the data model changes. Saves from older versions are discarded, except v3, which only lacks the chat. */
-export const DATA_VERSION = 4;
+/** Bump when the data model changes. Saves from older versions are discarded, except v3 (no chat) and v4 (no live jobs). */
+export const DATA_VERSION = 5;
 /** If the saved demo is older than this, move every timestamp forward so clocks still look live. */
 export const REBASE_AFTER_MS = 12 * HOUR;
 
@@ -16,12 +17,15 @@ export interface Saved {
   apps: Applicant[];
   gigs: Gig[];
   threads?: ChatThread[];
+  jobs?: Job[];
 }
 
 export interface DemoData {
   apps: Applicant[];
   gigs: Gig[];
   threads: ChatThread[];
+  /** Today's drives for active drivers (live ops). */
+  jobs: Job[];
 }
 
 function isGig(g: unknown): g is Gig {
@@ -81,17 +85,21 @@ export function restore(raw: string | null, now: number): DemoData | null {
   if (!raw) return null;
   try {
     const saved = JSON.parse(raw) as Saved;
-    if ((saved?.version !== DATA_VERSION && saved?.version !== 3) || !Array.isArray(saved.apps) || typeof saved.savedAt !== 'number') return null;
+    if (![3, 4, DATA_VERSION].includes(saved?.version) || !Array.isArray(saved.apps) || typeof saved.savedAt !== 'number') return null;
     if (!saved.apps.every(isCurrentShape) || !Array.isArray(saved.gigs) || !saved.gigs.every(isGig)) return null;
     // v3 had no chat: add the demo conversations, dated as of that save.
     const threads = saved.version === 3 ? seedThreads(saved.apps, saved.savedAt) : saved.threads;
     if (!Array.isArray(threads) || !threads.every(isThread)) return null;
+    // v3 and v4 had no live jobs: add today's demo drives, dated as of that save.
+    const jobs = saved.version < 5 ? seedJobs(saved.apps, saved.savedAt) : saved.jobs;
+    if (!Array.isArray(jobs) || !jobs.every(isJob)) return null;
     const gap = now - saved.savedAt;
-    if (gap <= REBASE_AFTER_MS) return { apps: saved.apps, gigs: saved.gigs, threads };
+    if (gap <= REBASE_AFTER_MS) return { apps: saved.apps, gigs: saved.gigs, threads, jobs };
     return {
       apps: saved.apps.map((a) => shiftApplicant(a, gap)),
       gigs: saved.gigs.map((g) => ({ ...g, at: g.at + gap })),
       threads: threads.map((t) => shiftThread(t, gap)),
+      jobs: jobs.map((j) => shiftJob(j, gap)),
     };
   } catch {
     return null;
@@ -99,5 +107,5 @@ export function restore(raw: string | null, now: number): DemoData | null {
 }
 
 export function serialize(data: DemoData, now: number): string {
-  return JSON.stringify({ version: DATA_VERSION, savedAt: now, apps: data.apps, gigs: data.gigs, threads: data.threads } satisfies Saved);
+  return JSON.stringify({ version: DATA_VERSION, savedAt: now, apps: data.apps, gigs: data.gigs, threads: data.threads, jobs: data.jobs } satisfies Saved);
 }

@@ -5,8 +5,9 @@ import { generateGigs } from './lib/gigs';
 import { restore, serialize, STORAGE_KEY, type DemoData } from './lib/persist';
 import { seedThreads } from './lib/chat/threads';
 import type { ChatThread } from './lib/chat/types';
+import { seedJobs, type Job } from './lib/liveOps';
 
-export type TabKey = 'review' | 'missing' | 'awaiting' | 'chat' | 'all';
+export type TabKey = 'live' | 'review' | 'missing' | 'awaiting' | 'chat' | 'all';
 
 const OFFSET_KEY = 'driver-funnel-cockpit-offset';
 
@@ -55,7 +56,7 @@ export function useClock(intervalMs = 30_000) {
 
 function fresh(now: number): DemoData {
   const apps = generateSeed(now);
-  return { apps, gigs: generateGigs(now), threads: seedThreads(apps, now) };
+  return { apps, gigs: generateGigs(now), threads: seedThreads(apps, now), jobs: seedJobs(apps, now) };
 }
 
 function load(): DemoData {
@@ -113,6 +114,10 @@ export function useDemoData() {
     setData((d) => ({ ...d, threads: d.threads.some((x) => x.id === t.id) ? d.threads.map((x) => (x.id === t.id ? t : x)) : [...d.threads, t] }));
   }, []);
 
+  const updateJob = useCallback((next: Job) => {
+    setData((d) => ({ ...d, jobs: d.jobs.map((j) => (j.id === next.id ? next : j)) }));
+  }, []);
+
   /** Fresh demo data; returns the applicants so callers can take a new baseline. */
   const reset = useCallback((): Applicant[] => {
     const next = fresh(Date.now());
@@ -120,5 +125,5 @@ export function useDemoData() {
     return next.apps;
   }, []);
 
-  return { apps: data.apps, gigs: data.gigs as Gig[], threads: data.threads, update, add, upsertThread, reset };
+  return { apps: data.apps, gigs: data.gigs as Gig[], threads: data.threads, jobs: data.jobs, update, add, upsertThread, updateJob, reset };
 }

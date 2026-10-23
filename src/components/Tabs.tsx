@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react';
 import type { TabKey } from '../state';
 
 export const TABS: { key: TabKey; label: string }[] = [
+  { key: 'live', label: 'Live ops' },
   { key: 'review', label: 'Review queue' },
   { key: 'missing', label: 'Missing documents' },
   { key: 'awaiting', label: 'Awaiting first gig' },

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarClock, Compass, FileText, Network } from 'lucide-react';
 import { useClock, useDemoData, type TabKey } from './state';
 import { computeFunnel, computeKpis, type FunnelKey } from './lib/kpis';
@@ -29,6 +29,11 @@ import { waitingThreads } from './lib/chat/threads';
 import { ChatQueue } from './components/ChatQueue';
 import { formatDateTime } from './lib/time';
 import { todayItems } from './lib/today';
+import { liveOpsEvents } from './lib/automation';
+import { currentJob, driverUpdate, openIncidents, reportProblem, type Job } from './lib/liveOps';
+import { backToAi, emptyThread, opsReply, threadIdFor } from './lib/chat/threads';
+import { REVIEWER } from './lib/types';
+import { LiveOps } from './components/LiveOps';
 
 const GUIDE_KEY = 'driver-funnel-cockpit-guide-hidden';
 
@@ -61,14 +66,18 @@ const TILE_TO_TAB: Record<FunnelKey, TabKey> = {
 export default function App() {
   const clock = useClock();
   const now = clock.now;
-  const { apps, gigs, threads, update, add, upsertThread, reset } = useDemoData();
+  const { apps, gigs, threads, jobs, update, add, upsertThread, updateJob, reset } = useDemoData();
   // Bumped when the cockpit opens the phone on the chat; 0 opens it on the steps.
   const [chatRequest, setChatRequest] = useState(() => (window.location.hash.startsWith('#chat') ? 1 : 0));
   // #driver opens the phone; #driver=DRV-1034 opens it as that applicant; #chat=DRV-1034 opens it on the chat (handy for presenting).
   const [phoneOpen, setPhoneOpen] = useState(() => /^#(driver|chat)/.test(window.location.hash));
   const [phoneId, setPhoneId] = useState<string | null>(() => window.location.hash.match(/^#(?:driver|chat)=(.+)$/)?.[1] ?? null);
   const [lastRun, setLastRun] = useState<{ from: number; to: number; events: AutoEvent[] } | null>(null);
-  const [tab, setTab] = useState<TabKey>('review');
+  // #live opens Live ops (handy for presenting Part 1).
+  const [tab, setTab] = useState<TabKey>(() => (window.location.hash === '#live' ? 'live' : 'review'));
+  useEffect(() => {
+    if (window.location.hash === '#live') setTimeout(() => document.getElementById('worklists')?.scrollIntoView({ block: 'start' }), 100);
+  }, []);
   const [openId, setOpenId] = useState<string | null>(null);
   const [stageFilter, setStageFilter] = useState<StageFilter>('all');
   const [showHubspot, setShowHubspot] = useState(false);
@@ -118,15 +127,20 @@ export default function App() {
       const prev = threads.find((x) => x.id === t.id);
       if (t.messages.length > (prev?.messages.length ?? 0) && t.messages.at(-1)?.from !== 'ops') setChatTried(true);
       upsertThread(t);
+      // The assistant handed over a problem on a drive: the driver's job opens as an incident in Live ops.
+      if (t.status === 'waiting' && t.reason === 'urgent' && t.applicantId) {
+        const job = currentJob(jobs, t.applicantId, now);
+        if (job && job.problemAt === undefined && !(job.keysAt !== undefined && job.keysAt <= now)) updateJob(reportProblem(job, now));
+      }
       if (t.status === 'waiting' && prev?.status !== 'waiting') {
         toast.notify(
           t.reason === 'urgent'
-            ? `Urgent: ${t.name} has a problem on a drive. Reply within 5 minutes in Driver questions.`
+            ? `Urgent: ${t.name} has a problem on a drive. Call within 5 minutes: see ${t.applicantId && currentJob(jobs, t.applicantId, now) ? 'Live ops' : 'Driver questions'}.`
             : `${t.name} needs a person in the chat${t.reason ? `: ${HANDOVER_LABEL[t.reason].toLowerCase()}` : ''}. See Driver questions.`,
         );
       }
     },
-    [threads, upsertThread, toast.notify],
+    [threads, jobs, now, upsertThread, updateJob, toast.notify],
   );
 
   const onDriverCreate = useCallback(
@@ -154,9 +168,25 @@ export default function App() {
     [apps, update, toast.notify],
   );
 
+  // The driver's taps on today's job: the cockpit says what changed.
+  const onDriverJob = useCallback(
+    (next: Job) => {
+      const prev = jobs.find((j) => j.id === next.id);
+      updateJob(next);
+      const first = next.driverName.split(' ')[0];
+      if (!prev) return;
+      if (!prev.problemAt && next.problemAt) toast.notify(`Urgent: ${first} reported a problem at the pickup. See Live ops.`);
+      else if (!prev.keysAt && next.keysAt) toast.notify(`${first} has the keys (${next.id}).`);
+      else if (!prev.arrivedAt && next.arrivedAt) toast.notify(`${first} checked in at the pickup (${next.id}).`);
+      else if (!prev.departedAt && next.departedAt) toast.notify(`${first} is on the way to the drop-off (${next.id}).`);
+      else if (!prev.deliveredAt && next.deliveredAt) toast.notify(`${first} delivered the car (${next.id}).`);
+    },
+    [jobs, updateJob, toast.notify],
+  );
+
   const onAdvance = (ms: number) => {
     const w = clock.advance(ms);
-    const events = [...automationEvents(apps, w.from, w.to), ...chatEvents(threads, w.from, w.to), ...reportEvents(w.from, w.to)].sort((x, y) => x.at - y.at);
+    const events = [...automationEvents(apps, w.from, w.to), ...chatEvents(threads, w.from, w.to), ...liveOpsEvents(jobs, w.from, w.to), ...reportEvents(w.from, w.to)].sort((x, y) => x.at - y.at);
     setLastRun({ ...w, events });
     toast.notify(`Time moved forward. Automation: ${summarize(events)}.`);
   };
@@ -166,12 +196,30 @@ export default function App() {
   const counts = useMemo(() => {
     const stages = apps.map(deriveStage);
     const n = (s: string) => stages.filter((x) => x === s).length;
-    return { review: n('review'), missing: n('registered'), awaiting: n('accepted'), chat: waitingThreads(threads).length, all: apps.length };
-  }, [apps, threads]);
+    return { live: openIncidents(jobs, now).length, review: n('review'), missing: n('registered'), awaiting: n('accepted'), chat: waitingThreads(threads).length, all: apps.length };
+  }, [apps, threads, jobs, now]);
   const slot = nextReviewSlot(now);
   const steps = useMemo(() => guideSteps(apps, { timeMoved: clock.offset > 0, chatTried, reportOpened }), [apps, clock.offset, chatTried, reportOpened]);
 
-  const today = useMemo(() => todayItems(apps, threads, now), [apps, threads, now]);
+  const today = useMemo(() => todayItems(apps, threads, now, jobs), [apps, threads, now, jobs]);
+
+  const onJob = useCallback(
+    (j: Job, message: string) => {
+      const prev = jobs.find((x) => x.id === j.id);
+      updateJob(j);
+      toast.notify(message);
+      // The driver hears the decision in the chat, and the chat goes back to the assistant when the incident is closed.
+      const decided = !prev?.incident?.outcome && j.incident?.outcome;
+      const closed = prev?.incident?.closedAt === undefined && j.incident?.closedAt !== undefined;
+      if (!decided && !closed) return;
+      const a = apps.find((x) => x.id === j.driverId) ?? null;
+      let t = threads.find((x) => x.id === threadIdFor(j.driverId)) ?? emptyThread(a);
+      if (decided) t = opsReply(t, driverUpdate(j, j.incident!.outcome!.type, now), REVIEWER, now);
+      if (closed && t.status !== 'ai') t = backToAi(t, now);
+      upsertThread(t);
+    },
+    [jobs, apps, threads, now, updateJob, upsertThread, toast.notify],
+  );
 
   const resetDemo = () => {
     const fresh = reset();
@@ -294,9 +342,11 @@ export default function App() {
         <KpiRow kpis={kpis} baseline={baseline} />
 
         <section id="worklists" className="scroll-mt-4">
-          <Tabs active={tab} counts={counts} alert={{ chat: threads.some((t) => t.status === 'waiting' && t.reason === 'urgent') }} onChange={setTab} />
+          <Tabs active={tab} counts={counts} alert={{ live: counts.live > 0, chat: threads.some((t) => t.status === 'waiting' && t.reason === 'urgent') }} onChange={setTab} />
           <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-            {tab === 'review' ? (
+            {tab === 'live' ? (
+              <LiveOps jobs={jobs} now={now} onJob={onJob} onViewChat={openDriverChat} />
+            ) : tab === 'review' ? (
               <ReviewQueue apps={apps.filter((a) => deriveStage(a) === 'review')} now={now} onOpen={setOpenId} />
             ) : tab === 'missing' ? (
               <MissingDocs apps={apps.filter((a) => deriveStage(a) === 'registered')} now={now} onOpen={setOpenId} onResult={onResult} />
@@ -326,12 +376,14 @@ export default function App() {
         apps={apps}
         gigs={gigs}
         threads={threads}
+        jobs={jobs}
         now={now}
         chatRequest={chatRequest}
         onSelect={setPhoneId}
         onCreate={onDriverCreate}
         onUpdate={onDriverUpdate}
         onThread={onThread}
+        onJob={onDriverJob}
         onClose={() => setPhoneOpen(false)}
       />
     )}

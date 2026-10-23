@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bell, Bot, Check, CircleCheck, Send, UserRound } from 'lucide-react';
 import type { Applicant, Gig } from '../../lib/types';
+import type { Job } from '../../lib/liveOps';
 import type { ChatMsg, ChatThread } from '../../lib/chat/types';
 import { HELP_BY_ID } from '../../content/help';
 import { driverStep, type DriverStep } from '../../lib/driverFlow';
@@ -30,6 +31,7 @@ interface Props {
   thread: ChatThread | undefined;
   apps: Applicant[];
   gigs: Gig[];
+  jobs?: Job[];
   now: number;
   onThread: (t: ChatThread) => void;
   onUpdate: (a: Applicant) => void;
@@ -52,7 +54,7 @@ const SUGGEST: Partial<Record<DriverStep | 'visitor', string[]>> = {
   closed: ['Why was I not accepted?', 'Can I apply again?'],
 };
 
-export function DriverChat({ applicant: a, thread, apps, gigs, now, onThread, onUpdate, onSteps }: Props) {
+export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, onThread, onUpdate, onSteps }: Props) {
   const t = thread ?? emptyThread(a);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -88,7 +90,7 @@ export function DriverChat({ applicant: a, thread, apps, gigs, now, onThread, on
 
     setBusy(true);
     setStreaming('');
-    const context = { ...driverContext(a, gigs, now), options: options.map(({ id, label }) => ({ id, label })) };
+    const context = { ...driverContext(a, gigs, now, jobs), options: options.map(({ id, label }) => ({ id, label })) };
     const res = await askAssistant(toTurns(timeline, q), context, setStreaming);
     setBusy(false);
     setStreaming('');
@@ -155,7 +157,7 @@ export function DriverChat({ applicant: a, thread, apps, gigs, now, onThread, on
           <p className="rounded-lg bg-warn-bg px-3 py-2 text-xs text-warn">
             {t.status === 'waiting'
               ? t.reason === 'urgent'
-                ? 'Ops is on it and replies here within 5 minutes. If anyone is hurt, call 112 first.'
+                ? 'Ops is on it and calls you within 5 minutes. Stay where you are: your waiting time is paid. If anyone is hurt, call 112 first.'
                 : 'A person from ops will reply here, usually within 15 minutes.'
               : 'A person from ops is handling your question.'}
           </p>

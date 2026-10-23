@@ -97,6 +97,18 @@ export function askForPerson(t: ChatThread, now: number): ChatThread {
   return { ...next, status: 'waiting', waitingSince: now, reason: 'asked' };
 }
 
+/**
+ * The driver tapped "Problem at pickup": straight to a person as urgent, no AI in between.
+ * The rule is fixed, so the driver hears it the same way every time.
+ */
+export const URGENT_NOTE = "Ops has been alerted and calls you within 5 minutes. Stay at the pickup: your waiting time is paid. If anyone is hurt, call 112 first.";
+
+export function reportUrgent(t: ChatThread, driverText: string, now: number): ChatThread {
+  const next = add(add(t, { from: 'driver', text: driverText, at: now }), { from: 'note', text: URGENT_NOTE, at: now, handover: 'urgent' });
+  if (t.status === 'waiting' && t.reason === 'urgent') return next; // already with a person: keep the original wait time
+  return { ...next, status: 'waiting', waitingSince: now, reason: 'urgent' };
+}
+
 export function opsReply(t: ChatThread, text: string, by: string, now: number): ChatThread {
   const { waitingSince: _w, ...rest } = add(t, { from: 'ops', text, at: now, by });
   return { ...rest, status: 'ops' };

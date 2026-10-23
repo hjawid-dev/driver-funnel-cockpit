@@ -7,6 +7,7 @@ import { slaStatus } from '../sla';
 import { DAY, HOUR } from '../time';
 import { mk, NOW } from './helpers';
 import { seedThreads } from '../chat/threads';
+import { seedJobs } from '../liveOps';
 
 describe('buildTimeline', () => {
   it('orders every transition in time and marks upcoming items', () => {
@@ -31,7 +32,8 @@ describe('persist', () => {
   const seed = generateSeed(NOW);
   const gigs = generateGigs(NOW);
   const threads = seedThreads(seed, NOW);
-  const data = { apps: seed, gigs, threads };
+  const jobs = seedJobs(seed, NOW);
+  const data = { apps: seed, gigs, threads, jobs };
   it('round-trips without change when saved recently', () => {
     expect(restore(serialize(data, NOW), NOW + HOUR)).toEqual(data);
   });
@@ -46,6 +48,12 @@ describe('persist', () => {
     expect(out.threads[0].messages[0].at).toBe(threads[0].messages[0].at + 5 * DAY);
     const waiting = threads.find((t) => t.status === 'waiting')!;
     expect(out.threads.find((t) => t.id === waiting.id)!.waitingSince).toBe(waiting.waitingSince! + 5 * DAY);
+    expect(out.jobs[0].pickupAt).toBe(jobs[0].pickupAt + 5 * DAY);
+  });
+  it('keeps a v4 save and adds the demo day of live jobs', () => {
+    const out = restore(JSON.stringify({ version: 4, savedAt: NOW, apps: seed, gigs, threads }), NOW + HOUR)!;
+    expect(out.threads).toEqual(threads);
+    expect(out.jobs).toEqual(jobs);
   });
   it('keeps a save from the previous version (v3) and adds the demo conversations', () => {
     const out = restore(JSON.stringify({ version: 3, savedAt: NOW, apps: seed, gigs }), NOW + HOUR)!;

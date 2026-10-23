@@ -2,6 +2,7 @@ import type { Applicant, Gig } from '../types';
 import { driverStep } from '../driverFlow';
 import { HOUR, formatDateTime } from '../time';
 import type { DriverContext } from './types';
+import { currentJob, jobFact, type Job } from '../liveOps';
 
 /**
  * What the assistant gets to know about the driver: first name and where they are in the flow.
@@ -9,7 +10,7 @@ import type { DriverContext } from './types';
  */
 const DOC_LABEL = { id: 'BankID', licence: 'licence photo', photo: 'profile photo', extract: 'criminal-record extract' } as const;
 
-export function driverContext(a: Applicant | null, gigs: Gig[], now: number): DriverContext {
+export function driverContext(a: Applicant | null, gigs: Gig[], now: number, jobs: Job[] = []): DriverContext {
   if (!a) return {};
   const step = driverStep(a);
   const facts: string[] = [];
@@ -40,6 +41,9 @@ export function driverContext(a: Applicant | null, gigs: Gig[], now: number): Dr
   const start = a.firstGig?.bookedFor;
   if (start && !a.firstGig?.doneAt && now >= start - HOUR && now <= start + (g?.minutes ?? 60) * 60_000 + 2 * HOUR) facts.push('On a drive right now (their first drive)');
   if (g && a.firstGig?.bookedFor) facts.push(`First drive: ${g.from} to ${g.to}, ${formatDateTime(a.firstGig.bookedFor)}, ${g.km} km, ${g.pay} SEK`);
+  // A job today: where and when the pickup is and how far along the driver is. No customer, address or price.
+  const job = currentJob(jobs, a.id, now);
+  if (job) facts.push(jobFact(job, now));
   facts.push(`Area: ${a.area}`);
 
   return { firstName: a.name.split(' ')[0], status: status[step], facts };

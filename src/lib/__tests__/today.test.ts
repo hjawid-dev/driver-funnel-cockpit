@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { todayItems } from '../today';
 import type { ChatThread } from '../chat/types';
 import { generateSeed } from '../seed';
+import { seedThreads } from '../chat/threads';
+import { seedJobs } from '../liveOps';
 import { DAY, HOUR } from '../time';
 import { mk, NOW } from './helpers';
 
@@ -32,5 +34,12 @@ describe('todayItems', () => {
   it('the demo data opens with overdue reviews to act on', () => {
     const items = todayItems(generateSeed(NOW), [], NOW);
     expect(items.some((i) => i.key === 'overdue')).toBe(true);
+  });
+
+  it("the demo day: Julia's drive is one urgent item that opens Live ops, and one pickup isn't confirmed", () => {
+    const apps = generateSeed(NOW);
+    const items = todayItems(apps, seedThreads(apps, NOW), NOW, seedJobs(apps, NOW));
+    expect(items.find((i) => i.key === 'urgent')).toMatchObject({ count: 1, tab: 'live' });
+    expect(items.find((i) => i.key === 'pickups')).toMatchObject({ count: 1, label: '1 pickup not confirmed', tab: 'live' });
   });
 });
