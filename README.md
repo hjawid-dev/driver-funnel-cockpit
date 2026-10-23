@@ -33,6 +33,7 @@ Underneath, **every action writes a timestamp or a reason code**, so the funnel 
 |---|---|---|
 | Applicant | Any time, on their phone | Applies, asks the assistant, books the call, picks a first drive |
 | Driver ops owner | Two fixed review slots a day (09:00 and 14:00), and the chat queue | Holds the extract calls and decides, answers handed-over questions within 15 minutes, follows up activation |
+| Live ops (same person on shift) | All day, from the Today row | Calls ahead on pickups nobody confirmed, runs the playbook when a driver is stuck, calls within 5 minutes |
 | Backup reviewer | When a suitability rejection needs a second opinion | Confirms it |
 | Ops lead | Monday morning | Reads the weekly report, writes the missing help articles |
 
@@ -41,13 +42,13 @@ Underneath, **every action writes a timestamp or a reason code**, so the funnel 
 **Driver side**
 - **Driver's phone** (Demo bar → Driver's phone, or `#driver`): pre-qualifying questions that flag but never reject, a privacy notice, BankID, licence, photo with an instant check, extract guide, self-booked call, status, and three first-gig offers after acceptance.
 - **Messages and help:** one conversation with the AI assistant, the automatic reminders and status messages, and replies from ops. `#chat=DRV-1043` opens it directly.
-  - The assistant answers from 36 help articles and the driver's own status, in the driver's language, and shows its sources.
+  - The assistant answers from 37 help articles and the driver's own status, in the driver's language, and shows its sources.
   - It hands over to a person when the driver asks, when the articles don't cover the question, when it needs a person to act, when it is sensitive, or when something is wrong on a drive.
   - One-tap replies under a reminder: *I've ordered my extract*, *Remind me tomorrow*, *Stop reminders*, free call times.
   - The assistant can **propose** one action from the driver's own options: book or move the call, mark the extract, pick a first drive, pause or stop reminders. Nothing happens until the driver taps **Confirm**.
 
 **Ops side**
-- **Today:** one row at the top with what needs a person now: urgent problems on a drive, overdue reviews, questions waiting, first gigs to chase, files to close. Each opens its list.
+- **Today:** one row at the top with what needs a person now: urgent problems on a drive, pickups nobody confirmed, overdue reviews, questions waiting, first gigs to chase, files to close. Each opens its list.
 - **Funnel scoreboard:** how many have reached each HubSpot stage, with the biggest drop-off marked. Click a stage to open its list.
 - **Six metrics**, which hold all the rates: document completion, time to decision, acceptance rate, activation rate (first gig within 14 days), application → active (the north star), and first-gig quality. ▲▼ chips show how your clicks moved them.
   - Time to decision is measured from registration to decision, as the brief does (about 6 days today, target 48 h). The ops part, from complete file to decision, is shown next to it.
@@ -57,7 +58,12 @@ Underneath, **every action writes a timestamp or a reason code**, so the funnel 
   - **Borderline:** licence 1–2 years → simple drives first; limited availability → accept and flag for activation (never a reason to reject).
   - **Reject:** only with a generic reason code. A suitability rejection needs a second reviewer.
 - **Missing documents**, **Awaiting first gig** and **All applicants**. Flags show only what differs from a clean file. Each applicant opens with the decision in view; the timeline and log fold out.
-- **Driver questions:** the handover queue with a 15-minute reply target, replies that go straight to the driver's phone, and four numbers. **Live ops:** a problem on a drive happening now (keys missing, car won't start, damage) goes to the top in red, with a 5-minute target and its own alert.
+- **Live ops** (`#live`): a driver stuck at a pickup, and the check that prevents it.
+  - **Today's pickups** with a pre-pickup check: the pickup contact gets a message 24 hours and 60 minutes before (time, where the keys are, who is on site). No reply gives ops a task to call the backup contact.
+  - **On site** the driver taps *I'm here*, *Got the keys* or *Problem at pickup*. No keys 10 minutes after checking in is an urgent alert by itself, so ops knows before the driver has to call. An urgent handover from the assistant during a job opens the incident too.
+  - **The incident card:** the clock (agreed pickup, waiting time, decide by, last departure, deadline, margin) and a six-step playbook: keep the driver, rule out our own error, escalate in parallel, update the customer (a template, not AI), the customer decides, close the loop. Every step is logged with the time, and an incident can't close without a decision and paid waiting time.
+  - The driver hears the decision in the chat. The assistant tells a stuck driver to stay, that the waiting time is paid and that ops calls within 5 minutes, and never to leave or cancel.
+- **Driver questions:** the handover queue with a 15-minute reply target (5 minutes when urgent), replies that go straight to the driver's phone, and four numbers.
   The four numbers:
   - **Answered by AI** (target 95%)
   - questions handed to a person, by reason
@@ -69,7 +75,7 @@ Underneath, **every action writes a timestamp or a reason code**, so the funnel 
 - **How this maps to HubSpot:** pipeline stages, the fields required to move on, workflows, and what is configured in HubSpot versus built on top.
 
 **Demo controls**
-- **Move time:** +2 h, +1 day, +3 days. Automation runs on the simulated clock: reminders, SLA alerts, chat alerts (after 15 minutes, or 5 when urgent), and the Monday 08:00 report.
+- **Move time:** +2 h, +1 day, +3 days. Automation runs on the simulated clock: reminders, SLA alerts, chat alerts (after 15 minutes, or 5 when urgent), pre-pickup messages and their tasks, the no-keys alert, and the Monday 08:00 report. The other drivers' pickups move along by themselves.
 - **Demo guide:** one row of five things to try: apply, ask the assistant, decide, move time, read the weekly report. Only the next step is spelled out. `?guide=0` hides it for presenting.
 - **Reset demo** in the demo bar starts over with fresh data.
 
@@ -85,7 +91,7 @@ The AI does the talking and the writing. People make the decisions.
 | What stops mistakes | The server only accepts action ids the app sent, the app checks the option again, and nothing happens without the driver's tap | Every number must belong to the facts the sentence cites, and the tone must match the data. One retry, then a template |
 | Cost | About $0.00015 per answer (help articles cached) | Well under a cent per report |
 
-- **Tested, not assumed:** `npm run eval` runs 63 questions through the real server code against the real model: answers from the articles, handovers, actions, and traps (prompt injection, booking for someone else, "pretend you're human"), in English, Swedish and Arabic. Graded by rules, not by another AI; a run costs about a cent. Latest result in [`evals/last-run.md`](evals/last-run.md): 63 of 63, and every question the articles cover answered without a person.
+- **Tested, not assumed:** `npm run eval` runs 67 questions through the real server code against the real model: answers from the articles, handovers, actions, and traps (prompt injection, booking for someone else, "pretend you're human", "cancel the job for me"), a driver stuck at a pickup,, in English, Swedish and Arabic. Graded by rules, not by another AI; a run costs about a cent. Latest result in [`evals/last-run.md`](evals/last-run.md): 67 of 67, and every question the articles cover answered without a person.
 - **Always an answer:** without a key, or with `CHAT_ENABLED=off`, the chat falls back to article search and the report to a template, so the demo never breaks.
 - **Guards on both functions:** they only accept calls from the app's own page, cap input length and the number of turns, and limit calls per IP and per hour. The real limit is a spending cap on the API account.
 - **No decision actions exist:** the assistant can't accept, reject or rank applicants, which keeps it outside the AI Act's high-risk category for recruitment.
@@ -113,7 +119,8 @@ Most of the ops side is HubSpot setup, not code: pipeline stages, required field
 | Self-service | Options per step, proposals, confirmed actions, quick replies | `src/lib/chat/selfService.ts` |
 | Weekly report | Facts, number check, template, Slack text | `src/lib/report/` |
 | Server functions | Guards, model calls | `api/chat.ts`, `api/report.ts` |
-| Automation | Reminders, alerts, tasks, driver messages, Monday report | `src/lib/automation.ts` |
+| Live ops | Pre-pickup check, no-keys alert, incident clock, playbook | `src/lib/liveOps.ts` |
+| Automation | Reminders, alerts, tasks, pre-pickup messages, driver messages, Monday report | `src/lib/automation.ts` |
 | Measure & improve | Six KPIs, funnel scoreboard | `src/lib/kpis.ts` |
 
 The demo data (44 applicants and about 30 chat conversations over about 40 days, generated relative to now) is tuned to a realistic, leaky baseline. Thresholds are a starting proposal, to be set with the team.
@@ -136,8 +143,8 @@ Built to follow GDPR, Swedish rules and the EU AI Act from the start. This is a 
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 226 unit tests (Vitest)
-npm run eval     # 63 questions to the real assistant (needs a key), writes evals/last-run.md
+npm test         # 248 unit tests (Vitest)
+npm run eval     # 67 questions to the real assistant (needs a key), writes evals/last-run.md
 npm run build
 ```
 
@@ -152,7 +159,7 @@ The driver's phone and the cockpit share the same browser data, so the demo runs
 ```
 api/              Vercel functions: chat.ts, report.ts (thin; logic in src/lib)
 evals/            The assistant's eval suite and its last result
-src/content/      help.ts: the 36 help articles behind the assistant
+src/content/      help.ts: the 37 help articles behind the assistant
 src/lib/          Business logic as pure functions, all unit-tested
   stage.ts        Stage derivation
   criteria.ts     Written criteria, borderline rules, decision validation
@@ -167,6 +174,7 @@ src/lib/          Business logic as pure functions, all unit-tested
   report/         Weekly facts, number check, template, report server
   kpis.ts         Six KPIs and the funnel scoreboard
   today.ts        What needs a person today
+  liveOps.ts      Today's pickups, pre-pickup check, alerts, incident clock and playbook
   actions.ts      Every action: new applicant out, with a log entry
   seed.ts         Demo data relative to now
   persist.ts      localStorage save, restore and time shift
