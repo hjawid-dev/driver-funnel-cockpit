@@ -11,16 +11,24 @@ export function Scoreboard({ funnel, onSelect }: Props) {
   const { tiles, edges, rejected } = funnel;
 
   const subline: Record<FunnelKey, string> = {
-    registered: `${tiles[0].now} still missing documents`,
-    docs: 'Complete files are auto-queued',
-    review: `${tiles[2].now} in queue · Rejected: ${rejected}`,
+    registered: `${tiles[0].now} missing documents`,
+    docs: 'auto-queued for review',
+    review: `${tiles[2].now} in queue · ${rejected} rejected`,
     accepted: `${tiles[3].now} awaiting first gig`,
-    active: 'Completed a first gig',
+    active: 'first gig done',
   };
 
   return (
     <section>
-      <SectionHeader title="Funnel scoreboard" aside="Everyone who reached each stage · % = step conversion" />
+      <SectionHeader
+        title="Funnel scoreboard"
+        info={
+          <>
+            <p>Everyone who has reached each stage, the same stages as the HubSpot pipeline. Click a stage to open its list.</p>
+            <p className="text-muted">The rates are in the metrics below. They only count people who have had time to move on, so they don't mix in someone who registered yesterday.</p>
+          </>
+        }
+      />
       <ol className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 lg:gap-5">
         {tiles.map((t, i) => {
           const edge = i > 0 ? edges[i - 1] : null;
@@ -39,7 +47,7 @@ export function Scoreboard({ funnel, onSelect }: Props) {
               <button
                 type="button"
                 onClick={() => onSelect(t.key)}
-                className={`group w-full h-full text-left rounded-xl px-4 py-3 sm:p-4 transition-colors border ${
+                className={`group w-full h-full text-left rounded-xl px-4 py-3 transition-colors border ${
                   biggest ? 'bg-bad-bg/50 border-bad/40 hover:border-bad' : 'bg-card border-transparent hover:border-indigo/40'
                 }`}
               >
@@ -50,29 +58,23 @@ export function Scoreboard({ funnel, onSelect }: Props) {
                     <div className="text-xs text-muted">{subline[t.key]}</div>
                     {biggest && (
                       <div className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-bad">
-                        <TriangleAlert size={12} aria-hidden /> Biggest drop-off: {lost} lost
+                        <TriangleAlert size={12} aria-hidden /> Biggest drop-off
                       </div>
                     )}
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {edge && edge.rate !== null && <RateChip rate={edge.rate} biggest={biggest} auto={!!edge.autoQueued} />}
-                    <span className="num w-10 text-right text-2xl font-semibold">{t.reached}</span>
-                  </div>
+                  <span className="num w-10 shrink-0 text-right text-2xl font-semibold">{t.reached}</span>
                 </div>
 
                 {/* Tablet and up: tile */}
                 <div className="hidden sm:block">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="text-sm font-semibold leading-tight">{t.label}</span>
-                    {edge && edge.rate !== null && <RateChip rate={edge.rate} biggest={biggest} auto={!!edge.autoQueued} />}
-                  </div>
-                  <div className="num mt-3 text-3xl font-semibold tracking-tight">{t.reached}</div>
-                  <div className="mt-1 text-xs text-muted leading-snug">{subline[t.key]}</div>
-                  {biggest && (
-                    <div className="mt-2 flex items-center gap-1 text-xs font-semibold text-bad">
-                      <TriangleAlert size={13} aria-hidden />
-                      Biggest drop-off: {lost} lost
+                  <span className="text-sm font-semibold leading-tight">{t.label}</span>
+                  <div className="num mt-1 text-3xl font-semibold tracking-tight">{t.reached}</div>
+                  {biggest ? (
+                    <div title={`${lost} fewer than the stage before`} className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-bad">
+                      <TriangleAlert size={12} aria-hidden /> Biggest drop-off
                     </div>
+                  ) : (
+                    <div className="mt-0.5 text-xs text-muted leading-snug">{subline[t.key]}</div>
                   )}
                 </div>
               </button>
@@ -81,16 +83,5 @@ export function Scoreboard({ funnel, onSelect }: Props) {
         })}
       </ol>
     </section>
-  );
-}
-
-function RateChip({ rate, biggest, auto }: { rate: number; biggest: boolean; auto: boolean }) {
-  return (
-    <span
-      title={auto ? 'Complete files go straight to review' : `${Math.round(rate)}% of the previous stage`}
-      className={`num shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium ${biggest ? 'bg-bad text-white' : auto ? 'bg-white text-muted' : 'bg-lavender text-navy'}`}
-    >
-      {Math.round(rate)}%{auto ? ' auto' : ''}
-    </span>
   );
 }

@@ -13,7 +13,7 @@ import { ReviewPanel } from './ReviewPanel';
 import { MissingPanel } from './MissingPanel';
 import { ActivationPanel } from './ActivationPanel';
 import { Timeline } from './Timeline';
-import { DrawerSection } from './ui';
+import { CollapsibleSection, DrawerSection } from './ui';
 
 interface Props {
   applicant: Applicant;
@@ -80,7 +80,7 @@ export function ApplicantDrawer({ applicant: a, now, onClose, onUpdate, onResult
           <Facts a={a} now={now} />
           {stage === 'registered' && <MissingPanel a={a} now={now} onResult={onResult} />}
           {stage === 'accepted' && <ActivationPanel key={a.id} a={a} now={now} onResult={onResult} />}
-          <Documents a={a} />
+          {stage !== 'review' && <Documents a={a} />}
           {stage === 'review' && <ReviewPanel key={a.id} a={a} now={now} onUpdate={onUpdate} onResult={onResult} />}
           <Timeline a={a} now={now} />
           <Log a={a} />
@@ -93,16 +93,25 @@ export function ApplicantDrawer({ applicant: a, now, onClose, onUpdate, onResult
 function Facts({ a, now }: { a: Applicant; now: number }) {
   const rows: [string, ReactNode][] = [
     ['Area', a.area],
-    ['Licence held', `${fmtYears(a.licenceYears)} (valid B, checked with Transportstyrelsen)`],
+    ['Licence', `${fmtYears(a.licenceYears)} · valid B`],
     ['Availability', a.availability === 'full' ? 'Full' : `Limited${a.availabilityNote ? `: ${a.availabilityNote}` : ''}`],
     ['Registered', <When ts={a.registeredAt} now={now} />],
     ['File complete', a.docsCompleteAt ? <When ts={a.docsCompleteAt} now={now} /> : <span className="text-muted">Not yet</span>],
     ...(a.callAt ? ([['Extract call', <When ts={a.callAt} now={now} />]] as [string, ReactNode][]) : []),
     ...(a.source === 'self' ? ([['Source', 'Applied in the driver app']] as [string, ReactNode][]) : []),
-    ['Data retention', <RetentionText a={a} />],
   ];
   return (
-    <DrawerSection title="Applicant">
+    <DrawerSection
+      title="Applicant"
+      info={
+        <>
+          <p>The licence is checked with Transportstyrelsen and the ID with BankID.</p>
+          <p className="text-muted">
+            Data retention: <RetentionText a={a} />
+          </p>
+        </>
+      }
+    >
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
         {rows.map(([k, v]) => (
           <div key={k} className="contents">
@@ -154,7 +163,7 @@ function Documents({ a }: { a: Applicant }) {
 function Log({ a }: { a: Applicant }) {
   const entries = [...a.log].reverse();
   return (
-    <DrawerSection title="Decision log">
+    <CollapsibleSection title="Decision log" summary={`${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`}>
       {entries.length === 0 ? (
         <p className="text-sm text-muted">Nothing logged yet.</p>
       ) : (
@@ -167,6 +176,6 @@ function Log({ a }: { a: Applicant }) {
           ))}
         </ol>
       )}
-    </DrawerSection>
+    </CollapsibleSection>
   );
 }

@@ -1,7 +1,7 @@
 import type { Applicant } from '../lib/types';
 import { buildTimeline, type TimelineEvent } from '../lib/timeline';
 import { formatDateTime, formatDuration } from '../lib/time';
-import { DrawerSection } from './ui';
+import { CollapsibleSection } from './ui';
 
 const DOT: Record<NonNullable<TimelineEvent['tone']>, string> = {
   ok: 'bg-ok border-ok',
@@ -13,10 +13,7 @@ export function Timeline({ a, now }: { a: Applicant; now: number }) {
   const events = buildTimeline(a, now);
   const end = a.decision?.at ?? now;
   return (
-    <DrawerSection
-      title="Timeline"
-      aside={<span className="text-xs text-muted">Registered → {a.decision ? 'decision' : 'now'}: {formatDuration(end - a.registeredAt)}</span>}
-    >
+    <CollapsibleSection title="Timeline" summary={`Registered → ${a.decision ? 'decision' : 'now'}: ${formatDuration(end - a.registeredAt)}`}>
       <ol className="relative ml-1.5 border-l border-lavender">
         {events.map((e, i) => (
           <li key={i} className="relative pl-5 pb-3 last:pb-0">
@@ -37,6 +34,6 @@ export function Timeline({ a, now }: { a: Applicant; now: number }) {
           </li>
         ))}
       </ol>
-    </DrawerSection>
+    </CollapsibleSection>
   );
 }

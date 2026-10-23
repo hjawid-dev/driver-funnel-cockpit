@@ -38,6 +38,9 @@ describe('welcomeCallState', () => {
   it('overdue after 24 h', () => {
     expect(welcomeCallState(acc(30), NOW)).toEqual({ state: 'overdue', label: 'Overdue 6 h' });
   });
+  it('missed, not overdue, once the driver is dormant', () => {
+    expect(welcomeCallState(acc(34 * 24), NOW)).toEqual({ state: 'missed', label: 'Missed' });
+  });
   it('done once logged', () => {
     expect(welcomeCallState({ ...acc(30), welcomeCallAt: NOW - HOUR }, NOW).state).toBe('done');
   });

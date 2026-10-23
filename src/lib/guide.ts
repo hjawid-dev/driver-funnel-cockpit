@@ -29,7 +29,7 @@ export function guideSteps(apps: Applicant[], progress: GuideProgress): GuideSte
   return [
     {
       key: 'apply',
-      title: "Apply on the driver's phone",
+      title: 'Apply on the phone',
       hint: applied
         ? `${firstSelf.name} applied. Finish the steps and book the call: the file appears in the review queue.`
         : 'Four questions, BankID, photo check, extract guide, then book your own call. About two minutes.',
@@ -57,7 +57,7 @@ export function guideSteps(apps: Applicant[], progress: GuideProgress): GuideSte
     },
     {
       key: 'time',
-      title: 'Move time forward a day',
+      title: 'Move time a day',
       hint: 'Reminders, SLA alerts, chat alerts and tasks run by themselves. Open "Automation" in the demo bar to see what ran.',
       action: 'advance',
       targetId: null,

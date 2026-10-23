@@ -43,12 +43,21 @@ describe('document completion', () => {
 });
 
 describe('time to decision', () => {
-  it('median hours from complete file to decision, and share within 48 h', () => {
-    const mkD = (h: number) => mk({ docsCompleteAt: NOW - 200 * HOUR, decision: { type: 'accepted', at: NOW - 200 * HOUR + h * HOUR, by: 'x' } });
-    const k = kpi([mkD(10), mkD(40), mkD(100)], 'timeToDecision');
-    expect(k.value).toBe(40);
-    expect(k.sub).toContain('67% within 48 h');
+  it('median hours from registration to decision (as the brief measures it), and share within 48 h', () => {
+    // Registered 24 h before the file was complete; decided h hours after the file was complete.
+    const mkD = (h: number) =>
+      mk({ registeredAt: NOW - 224 * HOUR, docsCompleteAt: NOW - 200 * HOUR, decision: { type: 'accepted', at: NOW - 200 * HOUR + h * HOUR, by: 'x' } });
+    const k = kpi([mkD(10), mkD(20), mkD(100)], 'timeToDecision');
+    expect(k.value).toBe(44); // 24 + 20
+    expect(k.info[0]).toContain('Decided within 48 h: 67%');
     expect(k.status).toBe('on');
+  });
+  it('shows the ops part, complete file → decision, next to it', () => {
+    const mkD = (h: number) =>
+      mk({ registeredAt: NOW - 224 * HOUR, docsCompleteAt: NOW - 200 * HOUR, decision: { type: 'accepted', at: NOW - 200 * HOUR + h * HOUR, by: 'x' } });
+    const k = kpi([mkD(10), mkD(20), mkD(100)], 'timeToDecision');
+    expect(k.sub).toBe('ops part 20 h');
+    expect(k.info[1]).toContain('median 20 h, 67% within 48 h');
   });
 });
 

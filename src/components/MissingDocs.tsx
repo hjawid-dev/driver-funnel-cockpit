@@ -5,6 +5,7 @@ import { isNoResponse, nudgeState } from '../lib/nudges';
 import { closeNoResponse, logNudge, type ActionResult } from '../lib/actions';
 import { ago } from '../lib/time';
 import { DocChecklist } from './chips';
+import { ListIntro } from './ui';
 
 interface Props {
   apps: Applicant[]; // stage = registered
@@ -57,10 +58,17 @@ export function MissingDocs({ apps, now, onOpen, onResult }: Props) {
 
   return (
     <div className="pt-4">
-      <p className="mb-3 text-sm text-muted">
-        Oldest first. Auto-nudges at 2 h, 24 h and 72 h after registration. Extract ordered and on its way for {bgPending}: the slowest item, so it is asked for first. Applicants show it in a call; no copy is kept.
-        {stale > 0 && <strong className="font-semibold text-bad"> {stale} with no response for 14 days.</strong>}
-      </p>
+      <ListIntro
+        info={
+          <>
+            <p>Oldest first. Reminders go out by themselves at 2 h, 24 h and 72 h after registration, in the driver's chat.</p>
+            <p>The extract is the slowest item, so it is asked for first. It is on its way for {bgPending}. Applicants show it in a call; no copy is kept.</p>
+            <p className="text-muted">After 14 days with no response, close the file. Nothing is deleted until the retention date.</p>
+          </>
+        }
+      >
+        Oldest first{stale > 0 && <strong className="font-semibold text-bad"> · {stale} with no response for 14 days</strong>}
+      </ListIntro>
 
       {/* Desktop */}
       <div className="hidden lg:block overflow-hidden rounded-xl border border-lavender">

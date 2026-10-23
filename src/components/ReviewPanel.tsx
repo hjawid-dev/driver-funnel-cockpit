@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Camera, CircleAlert, CircleCheck, CircleX, Info, Scale, ShieldCheck, Square, SquareCheck } from 'lucide-react';
+import { Camera, CircleAlert, CircleCheck, CircleX, Scale, ShieldCheck, Square, SquareCheck } from 'lucide-react';
 import type { Applicant, RejectReason } from '../lib/types';
 import { REJECT_REASONS } from '../lib/types';
 import { DECISION_LABEL, evaluate, NEEDS_SECOND_REVIEWER, noteLooksSensitive, type CheckResult } from '../lib/criteria';
@@ -28,6 +28,8 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
   const [reason, setReason] = useState<RejectReason | ''>(ev.suggestedReject ?? '');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // Reject starts folded away unless the rules already point to a reason.
+  const [showReject, setShowReject] = useState(!!ev.suggestedReject);
 
   const photoSubmitted = a.docs.photo !== 'missing' && a.docs.photo !== 'pending';
   const extractReady = a.docs.extract === 'ready';
@@ -49,7 +51,10 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
 
   return (
     <>
-      <DrawerSection title="Criteria">
+      <DrawerSection
+        title="Criteria"
+        info={<p>Thresholds are a starting proposal, to be set with the team. The extract is only viewed in the call: no copy, no notes about its content.</p>}
+      >
         <div className="rounded-lg border border-lavender">
           <div className="border-b border-lavender px-3 py-2 text-xs font-semibold text-navy">Must-have · all required</div>
           <ul className="divide-y divide-lavender">
@@ -88,16 +93,12 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
             </ul>
           )}
         </div>
-        <p className="mt-2 flex items-start gap-1.5 text-xs text-muted">
-          <Info size={13} className="mt-0.5 shrink-0" aria-hidden />
-          <span>
-            Thresholds are a starting proposal, to be set with the team. The extract is only viewed: no copy, no notes about its
-            content.
-          </span>
-        </p>
       </DrawerSection>
 
-      <DrawerSection title="Decision">
+      <DrawerSection
+        title="Decision"
+        info={<p>A person makes every decision; the rules only block what is not allowed. The applicant can ask for the reason and a review, answered within two weeks.</p>}
+      >
         <div className="space-y-4">
           {/* Accept */}
           <div className="rounded-lg border border-lavender p-3">
@@ -132,6 +133,15 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
           )}
 
           {/* Reject */}
+          {!showReject ? (
+            <button
+              type="button"
+              onClick={() => setShowReject(true)}
+              className="w-full rounded-lg px-4 py-2 text-sm font-semibold text-muted hover:bg-bad-bg hover:text-bad"
+            >
+              Reject…
+            </button>
+          ) : (
           <div className="rounded-lg border border-lavender p-3 space-y-2">
             <label className="block text-xs font-semibold" htmlFor="reject-reason">
               Reject with reason code
@@ -193,8 +203,8 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
             >
               Reject
             </button>
-            <p className="text-xs text-muted">The applicant can ask for the reason and a review; reply within two weeks.</p>
           </div>
+          )}
 
           {error && (
             <p role="alert" className="rounded-md bg-bad-bg px-3 py-2 text-sm text-bad">

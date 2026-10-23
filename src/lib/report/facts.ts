@@ -107,7 +107,7 @@ export function weeklyFacts(apps: Applicant[], threads: ChatThread[], now: numbe
 
     // Now against target
     status('document_completion', 'Document completion (registered 7+ days ago)', '%', kpi.docCompletion ?? null, 85, true),
-    status('time_to_decision', 'Time to decision, median of all decisions', 'h', kpi.timeToDecision ?? null, 48, false),
+    status('time_to_decision', 'Time from registration to decision, median of all decisions', 'h', kpi.timeToDecision ?? null, 48, false),
     status('activation', 'Activation: first drive within 14 days of acceptance', '%', kpi.activation ?? null, 75, true),
     status('application_to_active', 'Application to active driver, last 30 days (north star)', '%', kpi.appToActive ?? null, 35, true),
     status('first_drive_quality', 'First drives on time without incident', '%', kpi.quality ?? null, 95, true),

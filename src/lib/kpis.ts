@@ -10,9 +10,10 @@ export interface Kpi {
   label: string;
   value: number | null; // % or hours
   display: string; // "72%" / "81 h"
-  sub?: string; // secondary line, e.g. "27% within 48 h"
-  target: string; // "Target 85% · today 70%"
+  sub?: string; // short secondary line, e.g. "ops part 31 h"
+  target: string; // "Target 85%"
   caption: string; // cohort rule + n
+  info: string[]; // what the number means and how it is counted, shown behind a "?"
   status: KpiStatus;
   northStar?: boolean;
 }
@@ -42,6 +43,8 @@ export function median(xs: number[]): number | null {
 
 const pct = (num: number, den: number) => (den ? (num / den) * 100 : null);
 const fmtPct = (v: number | null) => (v === null ? '–' : `${Math.round(v)}%`);
+/** Hours up to three days, then days: "31 h", "6.0 days". */
+const fmtHours = (h: number | null) => (h === null ? '–' : h < 72 ? `${Math.round(h)} h` : `${(h / 24).toFixed(1)} days`);
 
 function band(v: number | null, on: number, risk: number, higherIsBetter = true): KpiStatus {
   if (v === null) return 'info';
@@ -55,11 +58,15 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
   const docDone = docCohort.filter(reachedDocs).length;
   const docRate = pct(docDone, docCohort.length);
 
-  // 2. Time to decision: complete file → decision
+  // 2. Time to decision: registration → decision, as the brief measures it (6 days today, target 48 h).
+  //    The ops part, complete file → decision, is shown next to it: that is what the review queue's SLA controls.
   const decided = apps.filter(isReviewDecision);
-  const hours = decided.map((a) => (a.decision!.at - a.docsCompleteAt!) / HOUR);
+  const hours = decided.map((a) => (a.decision!.at - a.registeredAt) / HOUR);
   const med = median(hours);
   const within48 = pct(hours.filter((h) => h <= 48).length, hours.length);
+  const opsHours = decided.map((a) => (a.decision!.at - a.docsCompleteAt!) / HOUR);
+  const opsMed = median(opsHours);
+  const opsWithin48 = pct(opsHours.filter((h) => h <= 48).length, opsHours.length);
   const queue = apps.filter((a) => deriveStage(a) === 'review');
   const oldest = queue.length ? Math.max(...queue.map((a) => now - a.docsCompleteAt!)) / HOUR : null;
 
@@ -90,18 +97,27 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
       label: 'Document completion',
       value: docRate,
       display: fmtPct(docRate),
-      target: 'Target 85% · baseline 70%',
+      target: 'Target 85%',
       caption: `Registered ≥ 7 d ago · ${docDone} of ${docCohort.length}`,
+      info: [
+        'Share of applicants who sent in all documents, counting those who registered at least 7 days ago (they have had time to finish).',
+        `${docDone} of ${docCohort.length} · baseline 70%`,
+      ],
       status: band(docRate, 85, 75),
     },
     {
       key: 'timeToDecision',
       label: 'Time to decision',
       value: med,
-      display: med === null ? '–' : `${Math.round(med)} h`,
-      sub: `median · ${fmtPct(within48)} within 48 h`,
-      target: 'Target < 48 h · baseline ~6 days',
+      display: fmtHours(med),
+      sub: opsMed === null ? undefined : `ops part ${Math.round(opsMed)} h`,
+      target: 'Target < 48 h',
       caption: `${decided.length} decisions${oldest !== null ? ` · oldest in queue ${Math.floor(oldest)} h` : ''}`,
+      info: [
+        `Median time from registration to decision. Decided within 48 h: ${fmtPct(within48)}. Baseline about 6 days.`,
+        `Ops part, from complete file to decision: median ${opsMed === null ? '–' : Math.round(opsMed)} h, ${fmtPct(opsWithin48)} within 48 h. The rest is the applicant getting documents in, which is why the extract is ordered first.`,
+        `${decided.length} decisions${oldest !== null ? ` · oldest in queue ${Math.floor(oldest)} h` : ''}`,
+      ],
       status: band(med, 48, 72, false),
     },
     {
@@ -109,9 +125,13 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
       label: 'Acceptance rate',
       value: accRate,
       display: fmtPct(accRate),
-      sub: reasons.length ? `Top rejects: ${reasons.slice(0, 2).map((r) => `${r.short} ×${r.count}`).join(', ')}` : 'No rejects yet',
-      target: 'Shows if pre-qualifying works',
+      sub: reasons.length ? `top reject: ${reasons[0].short} ×${reasons[0].count}` : 'no rejects yet',
+      target: '',
       caption: `${accepted} of ${decided.length} reviewed files`,
+      info: [
+        'Share of reviewed files that were accepted. It shows whether the questions before applying filter well: a low rate means people apply who were never going to qualify.',
+        `${accepted} of ${decided.length} reviewed files.${reasons.length ? ` Reject reasons: ${reasons.map((r) => `${r.short} ×${r.count}`).join(', ')}.` : ''}`,
+      ],
       status: 'info',
     },
     {
@@ -119,9 +139,13 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
       label: 'Activation rate',
       value: actRate,
       display: fmtPct(actRate),
-      sub: 'first gig within 14 d',
+      sub: 'first gig within 14 days',
       target: 'Target 75%',
       caption: `Accepted ≥ 14 d ago · ${activated} of ${actCohort.length}`,
+      info: [
+        'Share of accepted drivers who completed a first gig within 14 days, counting those accepted at least 14 days ago. After 7 days without a booking, ops follows up.',
+        `${activated} of ${actCohort.length}`,
+      ],
       status: band(actRate, 75, 60),
     },
     {
@@ -130,8 +154,12 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
       value: northStar,
       display: fmtPct(northStar),
       sub: 'North star: same intake, more drivers',
-      target: 'Target ~35% · baseline 21%',
+      target: 'Target 35%',
       caption: `Last 30 d · ${newActive} new active ÷ ${newApps} applications`,
+      info: [
+        'New active drivers (first gig completed) divided by new applications, last 30 days. The same intake should give more drivers.',
+        `${newActive} new active ÷ ${newApps} applications · baseline 21%`,
+      ],
       status: band(northStar, 35, 25),
       northStar: true,
     },
@@ -143,6 +171,7 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
       sub: 'on time, no incident',
       target: 'Guardrail ≥ 95%',
       caption: `${good} of ${done.length} first gigs`,
+      info: ['Share of first gigs on time, with no incident and a satisfied customer. The guardrail: going faster must not lower the bar.', `${good} of ${done.length} first gigs`],
       status: band(quality, 95, 90),
     },
   ];

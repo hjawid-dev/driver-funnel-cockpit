@@ -1,6 +1,7 @@
 import { Star } from 'lucide-react';
 import { kpiDelta, type Kpi, type KpiDelta } from '../lib/kpis';
 import { SectionHeader, StatusChip, STATUS_STYLE } from './ui';
+import { InfoTip } from './InfoTip';
 
 export function KpiRow({ kpis, baseline }: { kpis: Kpi[]; baseline: Kpi[] }) {
   const north = kpis.find((k) => k.northStar)!;
@@ -12,7 +13,8 @@ export function KpiRow({ kpis, baseline }: { kpis: Kpi[]; baseline: Kpi[] }) {
     <section>
       <SectionHeader
         title="Six metrics, reviewed weekly"
-        aside={anyChange ? '▲▼ = change since you opened this page' : 'Live from the data · targets are a starting proposal'}
+        info={<p>Live from the data. Targets are a starting proposal, to be set with the team. After you click something, ▲▼ shows how a number moved since you opened the page.</p>}
+        aside={anyChange ? '▲▼ since you opened the page' : undefined}
       />
       <NorthStar kpi={north} delta={delta(north)} />
       <div className="mt-3 grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3 [&>*:last-child]:col-span-2 lg:[&>*:last-child]:col-span-1">
@@ -46,21 +48,18 @@ function DeltaChip({ delta, dark = false }: { delta: KpiDelta | null; dark?: boo
 
 function KpiCard({ kpi, delta }: { kpi: Kpi; delta: KpiDelta | null }) {
   return (
-    <article className="relative overflow-hidden rounded-xl border border-lavender bg-white p-3 pl-4 sm:p-4 sm:pl-5">
-      <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${STATUS_STYLE[kpi.status].bar}`} />
-      <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
-        <h3 className="text-sm font-semibold leading-tight">{kpi.label}</h3>
-        <StatusChip status={kpi.status} />
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+    <article className="relative rounded-xl border border-lavender bg-white p-3 pl-4 sm:p-4 sm:pl-5">
+      <span aria-hidden className={`absolute -inset-y-px -left-px w-1 rounded-l-xl ${STATUS_STYLE[kpi.status].bar}`} />
+      <h3 className="flex items-center gap-1 text-sm font-semibold leading-tight">
+        {kpi.label}
+        <KpiInfo kpi={kpi} />
+      </h3>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="num text-xl sm:text-2xl font-semibold tracking-tight">{kpi.display}</span>
         <DeltaChip delta={delta} />
+        <StatusChip status={kpi.status} className="ml-auto" />
       </div>
-      {kpi.sub && <div className="text-xs text-muted leading-snug">{kpi.sub}</div>}
-      <div className="mt-2 sm:mt-3 border-t border-lavender pt-2 text-xs">
-        <div className="font-medium">{kpi.target}</div>
-        <div className="text-muted mt-0.5">{kpi.caption}</div>
-      </div>
+      <div className="mt-1 text-xs text-muted leading-snug">{[kpi.target, kpi.sub].filter(Boolean).join(' · ')}</div>
     </article>
   );
 }
@@ -73,13 +72,16 @@ function NorthStar({ kpi, delta }: { kpi: Kpi; delta: KpiDelta | null }) {
   const target = (35 / SCALE) * 100;
 
   return (
-    <article className="rounded-xl bg-navy text-white p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8">
+    <article className="rounded-xl bg-navy text-white p-4 flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8">
       <div className="lg:w-72 shrink-0">
         <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-green">
           <Star size={13} aria-hidden fill="currentColor" />
           North star
         </div>
-        <h3 className="mt-1 text-lg font-semibold">{kpi.label}</h3>
+        <h3 className="mt-1 flex items-center gap-1 text-lg font-semibold">
+          {kpi.label}
+          <KpiInfo kpi={kpi} dark />
+        </h3>
         <p className="text-sm text-white/70">Same intake, more drivers</p>
       </div>
 
@@ -103,10 +105,20 @@ function NorthStar({ kpi, delta }: { kpi: Kpi; delta: KpiDelta | null }) {
           </span>
           <span className="absolute right-0">50%</span>
         </div>
-        <p className="mt-2 text-xs text-white/70">
-          {kpi.caption} · baseline 21%
-        </p>
+        <p className="mt-2 text-xs text-white/70">{kpi.caption}</p>
       </div>
     </article>
+  );
+}
+
+function KpiInfo({ kpi, dark = false }: { kpi: Kpi; dark?: boolean }) {
+  return (
+    <InfoTip label={`About ${kpi.label.toLowerCase()}`} dark={dark}>
+      {kpi.info.map((line, i) => (
+        <p key={i} className={i > 0 ? 'text-muted' : undefined}>
+          {line}
+        </p>
+      ))}
+    </InfoTip>
   );
 }

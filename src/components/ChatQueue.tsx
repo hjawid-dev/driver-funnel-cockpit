@@ -7,6 +7,7 @@ import { HELP_BY_ID } from '../content/help';
 import { REVIEWER } from '../lib/types';
 import { ago, formatDateTime, formatDuration } from '../lib/time';
 import { SectionHeader } from './ui';
+import { InfoTip } from './InfoTip';
 
 interface Props {
   threads: ChatThread[];
@@ -36,7 +37,10 @@ export function ChatQueue({ threads, now, onThread, onViewChat }: Props) {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <section>
-          <SectionHeader title={`Waiting for a person · ${waiting.length}`} aside={`Target: reply within ${formatDuration(CHAT_SLA_MS)}, 5 min when urgent`} />
+          <SectionHeader
+            title={`Waiting for a person · ${waiting.length}`}
+            info={<p>Questions the assistant handed over. Reply within {formatDuration(CHAT_SLA_MS)}, or 5 minutes when something is wrong on a drive happening now. Urgent ones are always on top.</p>}
+          />
           {waiting.length === 0 ? (
             <p className="flex items-center gap-2 rounded-xl bg-card p-4 text-sm text-muted">
               <CircleCheck size={18} className="text-ok" aria-hidden /> Nobody is waiting. The assistant is handling the rest.
@@ -50,7 +54,12 @@ export function ChatQueue({ threads, now, onThread, onViewChat }: Props) {
           )}
           {recent.length > 0 && (
             <>
-              <h3 className="mb-2 mt-5 text-xs font-semibold uppercase tracking-[0.08em] text-muted">Recent conversations (for spot checks)</h3>
+              <h3 className="mb-2 mt-5 flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+                Recent conversations
+                <InfoTip label="About recent conversations">
+                  <p>Conversations the assistant handled on its own. Open a few now and then to check the answers.</p>
+                </InfoTip>
+              </h3>
               <ul className="space-y-1.5">
                 {recent.map((t) => (
                   <ThreadRow key={t.id} t={t} now={now} active={t.id === openId} onOpen={() => setOpenId(t.id)} compact />
@@ -70,7 +79,10 @@ export function ChatQueue({ threads, now, onThread, onViewChat }: Props) {
       </div>
 
       <section>
-        <SectionHeader title={`Help content gaps · ${gaps.length}`} aside="Questions the help articles didn't cover. Write or update an article, then mark it covered." />
+        <SectionHeader
+          title={`Help content gaps · ${gaps.length}`}
+          info={<p>Questions the help articles didn't cover: the articles to write next. Write or update one, then mark it added. This is how answered by AI grows towards 95%.</p>}
+        />
         {gaps.length === 0 ? (
           <p className="rounded-xl bg-card p-4 text-sm text-muted">No open gaps.</p>
         ) : (
@@ -111,30 +123,38 @@ function Stats({ stats }: { stats: ReturnType<typeof chatStats> }) {
       <article className="rounded-xl border border-lavender p-4">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold">
           <Bot size={15} className="text-indigo" aria-hidden /> Answered by AI
+          <InfoTip label="About answered by AI">
+            <p>Share of driver questions the assistant answered without a person, last 7 days: {stats.byAi} of {stats.questions}.</p>
+          </InfoTip>
         </h3>
         <p className={`num mt-1 text-2xl font-semibold ${tone}`}>{rate === null ? '–' : `${rate}%`}</p>
-        <p className="text-xs text-muted">
-          Target {AI_TARGET}% · {stats.byAi} of {stats.questions} questions, last 7 days
-        </p>
+        <p className="text-xs text-muted">Target {AI_TARGET}%</p>
       </article>
       <article className="rounded-xl border border-lavender p-4">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold">
           <UserRound size={15} className="text-indigo" aria-hidden /> Handed to a person
+          <InfoTip label="About handed to a person">
+            <p>Questions the assistant passed to ops, last 7 days, by reason:</p>
+            <p className="text-muted">{reasons.length ? reasons.map(([r, n]) => `${HANDOVER_LABEL[r]} ${n}`).join(' · ') : 'None this week.'}</p>
+          </InfoTip>
         </h3>
         <p className="num mt-1 text-2xl font-semibold">{stats.handedOver}</p>
-        <p className="text-xs text-muted">{reasons.length ? reasons.map(([r, n]) => `${HANDOVER_LABEL[r]} ${n}`).join(' · ') : 'None this week'}</p>
+        <p className="text-xs text-muted">last 7 days</p>
       </article>
       <article className="rounded-xl border border-lavender p-4">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold">
           <MousePointerClick size={15} className="text-indigo" aria-hidden /> Done in the chat
+          <InfoTip label="About done in the chat" align="right">
+            <p>Things drivers did themselves in the chat, last 7 days: calls booked or moved, extracts marked, first drives picked, reminders paused or stopped. The assistant proposes, the driver confirms.</p>
+          </InfoTip>
         </h3>
         <p className="num mt-1 text-2xl font-semibold">{stats.selfService}</p>
-        <p className="text-xs text-muted">Calls booked or moved, extracts marked, first drives picked, reminders. Confirmed by the driver, last 7 days</p>
+        <p className="text-xs text-muted">confirmed by the driver</p>
       </article>
       <article className="rounded-xl border border-lavender p-4">
         <h3 className="text-sm font-semibold">Ops reply time</h3>
         <p className="num mt-1 text-2xl font-semibold">{stats.medianOpsReplyMin === null ? '–' : `${Math.round(stats.medianOpsReplyMin)} min`}</p>
-        <p className="text-xs text-muted">Median, target under 15 min</p>
+        <p className="text-xs text-muted">median · target 15 min</p>
       </article>
     </div>
   );

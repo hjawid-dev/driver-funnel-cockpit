@@ -1,9 +1,10 @@
 import { CircleCheck } from 'lucide-react';
 import type { Applicant } from '../lib/types';
 import { byUrgency, slaStatus } from '../lib/sla';
-import { reviewChips } from '../lib/criteria';
+import { reviewChips, shortTime } from '../lib/criteria';
 import { ago } from '../lib/time';
 import { FlagChip, SlaChip } from './chips';
+import { ListIntro } from './ui';
 
 interface Props {
   apps: Applicant[]; // already filtered to stage = review
@@ -26,10 +27,16 @@ export function ReviewQueue({ apps, now, onOpen }: Props) {
 
   return (
     <div className="pt-4">
-      <p className="mb-3 text-sm text-muted">
-        Complete files, most urgent first. Target: decision within 48 h of a complete file.
-        {overdue > 0 && <strong className="text-bad font-semibold"> {overdue} overdue.</strong>}
-      </p>
+      <ListIntro
+        info={
+          <>
+            <p>Complete files, most urgent first. Target: a decision within 48 h of a complete file, which is the ops part of time to decision.</p>
+            <p className="text-muted">Every file needs the extract shown in the call and the photo checked. Flags show only what differs from a clean file.</p>
+          </>
+        }
+      >
+        Most urgent first{overdue > 0 && <strong className="text-bad font-semibold"> · {overdue} overdue</strong>}
+      </ListIntro>
 
       {/* Desktop table */}
       <div className="hidden lg:block overflow-hidden rounded-xl border border-lavender">
@@ -40,6 +47,7 @@ export function ReviewQueue({ apps, now, onOpen }: Props) {
               <th className="px-4 py-2.5 font-semibold">Area</th>
               <th className="px-4 py-2.5 font-semibold">File complete</th>
               <th className="px-4 py-2.5 font-semibold">SLA</th>
+              <th className="px-4 py-2.5 font-semibold">Extract call</th>
               <th className="px-4 py-2.5 font-semibold">Flags</th>
             </tr>
           </thead>
@@ -61,9 +69,10 @@ export function ReviewQueue({ apps, now, onOpen }: Props) {
                 <td className="px-4 py-3">
                   <SlaChip bucket={sla.bucket} label={sla.label} />
                 </td>
+                <td className="px-4 py-3 text-xs">{a.callAt ? <span className="font-medium">{shortTime(a.callAt)}</span> : <span className="text-muted">Not booked</span>}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-1">
-                    {chips.length ? chips.map((c) => <FlagChip key={c.label} chip={c} />) : <span className="text-xs text-muted">None</span>}
+                    {chips.length ? chips.map((c) => <FlagChip key={c.label} chip={c} />) : <span className="text-xs text-muted">–</span>}
                   </div>
                 </td>
               </tr>
@@ -86,6 +95,7 @@ export function ReviewQueue({ apps, now, onOpen }: Props) {
                   <div className="font-semibold">{a.name}</div>
                   <div className="text-xs text-muted">
                     {a.area} · complete {ago(a.docsCompleteAt!, now)}
+                    {a.callAt && <> · call {shortTime(a.callAt)}</>}
                   </div>
                 </div>
                 <SlaChip bucket={sla.bucket} label={sla.label} />

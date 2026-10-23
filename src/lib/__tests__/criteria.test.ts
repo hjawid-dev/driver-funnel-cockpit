@@ -99,9 +99,10 @@ describe('noteLooksSensitive', () => {
 });
 
 describe('reviewChips', () => {
-  it('shows borderline, extract-call and photo chips', () => {
+  it('shows only what differs from a clean file, not the checks every file needs', () => {
     const labels = reviewChips(inReview({ licenceYears: 1.5, photoApproved: undefined, extractShown: undefined })).map((c) => c.label);
-    expect(labels).toEqual(['Licence 1.5 yrs', 'Extract call', 'Photo unchecked']);
+    expect(labels).toEqual(['Licence 1.5 yrs']);
+    expect(reviewChips(inReview({ photoApproved: undefined, extractShown: undefined }))).toEqual([]);
   });
   it('shows a photo remark as "Photo unclear"', () => {
     const a = inReview({ photoApproved: undefined, docs: { licence: 'verified', id: 'verified', extract: 'ready', photo: 'remark' } });

@@ -32,10 +32,16 @@ export function activationFlags(a: Applicant): ActivationFlags {
 }
 
 /** Welcome call within 24 h of acceptance. */
-export type WelcomeCall = { state: 'done'; at: number } | { state: 'due'; label: string } | { state: 'overdue'; label: string };
+export type WelcomeCall =
+  | { state: 'done'; at: number }
+  | { state: 'due'; label: string }
+  | { state: 'overdue'; label: string }
+  | { state: 'missed'; label: string };
 
 export function welcomeCallState(a: Applicant, now: number): WelcomeCall {
   if (a.welcomeCallAt) return { state: 'done', at: a.welcomeCallAt };
+  // Dormant: the welcome call is no longer the next step; the monthly re-engagement batch is.
+  if (activationBucket(a.decision!.at, now) === 'dormant') return { state: 'missed', label: 'Missed' };
   const due = a.decision!.at + 24 * HOUR;
   return due > now ? { state: 'due', label: `Due in ${formatDuration(due - now)}` } : { state: 'overdue', label: `Overdue ${formatDuration(now - due)}` };
 }
@@ -52,7 +58,7 @@ export function byActivationPriority(now: number) {
 }
 
 export const ACTIVATION_RULE: Record<ActivationBucket, string> = {
-  on_track: 'Accepted under 7 days ago. Target: first gig within 7 days.',
+  on_track: 'Accepted under 7 days ago. Target: first gig within 14 days.',
   book: '7–14 days since acceptance. Book a curated first gig now.',
   call: 'No gig in 14 days. Call the driver: still interested, what is in the way?',
   dormant: 'Over 30 days without a first gig. Marked dormant; re-engage in a monthly batch.',

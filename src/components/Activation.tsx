@@ -3,6 +3,7 @@ import type { Applicant } from '../lib/types';
 import { ACTIVATION_LABEL, activationBucket, activationFlags, byActivationPriority, welcomeCallState, type ActivationBucket } from '../lib/activation';
 import { ago } from '../lib/time';
 import { FlagChip } from './chips';
+import { ListIntro } from './ui';
 
 interface Props {
   apps: Applicant[]; // stage = accepted
@@ -54,7 +55,7 @@ export function Activation({ apps, now, onOpen }: Props) {
     call.state === 'done' ? (
       <span className="text-ok font-medium">Done {shortDate(call.at)}</span>
     ) : (
-      <span className={call.state === 'overdue' ? 'text-bad font-semibold' : 'text-warn font-semibold'}>{call.label}</span>
+      <span className={call.state === 'overdue' ? 'text-bad font-semibold' : call.state === 'missed' ? 'text-muted' : 'text-warn font-semibold'}>{call.label}</span>
     );
 
   const GigCell = ({ a }: { a: Applicant }) =>
@@ -66,10 +67,16 @@ export function Activation({ apps, now, onOpen }: Props) {
 
   return (
     <div className="pt-4">
-      <p className="mb-3 text-sm text-muted">
-        Accepted drivers without a first gig. Welcome call within 24 h, first gig within 7 days, no gig in 14 days → call, 30 days → dormant.
-        {urgent > 0 && <strong className="font-semibold text-navy"> {urgent} need action.</strong>}
-      </p>
+      <ListIntro
+        info={
+          <>
+            <p>Accepted drivers without a first gig. Target: a first gig within 14 days.</p>
+            <p className="text-muted">Welcome call within 24 h of acceptance. No gig booked after 7 days → book one with them. No gig in 14 days → call. After 30 days → dormant, re-engaged in a monthly batch.</p>
+          </>
+        }
+      >
+        Who to call first{urgent > 0 && <strong className="font-semibold text-navy"> · {urgent} need action</strong>}
+      </ListIntro>
 
       <div className="hidden lg:block overflow-hidden rounded-xl border border-lavender">
         <table className="w-full text-sm">
@@ -105,7 +112,7 @@ export function Activation({ apps, now, onOpen }: Props) {
                   <GigCell a={a} />
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-1">{chips.length ? chips.map((c) => <FlagChip key={c.label} chip={c} />) : <span className="text-xs text-muted">None</span>}</div>
+                  <div className="flex flex-wrap gap-1">{chips.length ? chips.map((c) => <FlagChip key={c.label} chip={c} />) : <span className="text-xs text-muted">–</span>}</div>
                 </td>
               </tr>
             ))}

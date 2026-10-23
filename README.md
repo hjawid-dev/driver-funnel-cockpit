@@ -47,12 +47,16 @@ Underneath, **every action writes a timestamp or a reason code**, so the funnel 
   - The assistant can **propose** one action from the driver's own options: book or move the call, mark the extract, pick a first drive, pause or stop reminders. Nothing happens until the driver taps **Confirm**.
 
 **Ops side**
-- **Funnel scoreboard and six metrics:** document completion, time to decision, acceptance rate, activation rate, application → active (the north star), and first-gig quality. ▲▼ chips show how your clicks moved them.
+- **Today:** one row at the top with what needs a person now: urgent problems on a drive, overdue reviews, questions waiting, first gigs to chase, files to close. Each opens its list.
+- **Funnel scoreboard:** how many have reached each HubSpot stage, with the biggest drop-off marked. Click a stage to open its list.
+- **Six metrics**, which hold all the rates: document completion, time to decision, acceptance rate, activation rate (first gig within 14 days), application → active (the north star), and first-gig quality. ▲▼ chips show how your clicks moved them.
+  - Time to decision is measured from registration to decision, as the brief does (about 6 days today, target 48 h). The ops part, from complete file to decision, is shown next to it.
+- **Explanations on demand:** the cockpit keeps one short line per item, and a **?** next to a heading or number opens what it means and how it is counted.
 - **Review queue:** sorted by SLA (48 h from a complete file), with the written criteria in three tiers, and only the decisions the rules allow.
   - **Must-have:** valid B licence held ≥ 2 years, ID via BankID, criminal-record extract shown in a short call (viewed, never stored), photo meeting an objective standard.
   - **Borderline:** licence 1–2 years → simple drives first; limited availability → accept and flag for activation (never a reason to reject).
   - **Reject:** only with a generic reason code. A suitability rejection needs a second reviewer.
-- **Missing documents**, **Awaiting first gig** and **All applicants**, each with a full timeline per applicant.
+- **Missing documents**, **Awaiting first gig** and **All applicants**. Flags show only what differs from a clean file. Each applicant opens with the decision in view; the timeline and log fold out.
 - **Driver questions:** the handover queue with a 15-minute reply target, replies that go straight to the driver's phone, and four numbers. **Live ops:** a problem on a drive happening now (keys missing, car won't start, damage) goes to the top in red, with a 5-minute target and its own alert.
   The four numbers:
   - **Answered by AI** (target 95%)
@@ -66,7 +70,8 @@ Underneath, **every action writes a timestamp or a reason code**, so the funnel 
 
 **Demo controls**
 - **Move time:** +2 h, +1 day, +3 days. Automation runs on the simulated clock: reminders, SLA alerts, chat alerts (after 15 minutes, or 5 when urgent), and the Monday 08:00 report.
-- **Demo guide:** five things to try: apply, ask the assistant, decide, move time, read the weekly report. `?guide=0` hides it for presenting.
+- **Demo guide:** one row of five things to try: apply, ask the assistant, decide, move time, read the weekly report. Only the next step is spelled out. `?guide=0` hides it for presenting.
+- **Reset demo** in the demo bar starts over with fresh data.
 
 ## AI, and where it stops
 
@@ -131,7 +136,7 @@ Built to follow GDPR, Swedish rules and the EU AI Act from the start. This is a 
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 220 unit tests (Vitest)
+npm test         # 226 unit tests (Vitest)
 npm run eval     # 63 questions to the real assistant (needs a key), writes evals/last-run.md
 npm run build
 ```
@@ -161,6 +166,7 @@ src/lib/          Business logic as pure functions, all unit-tested
   chat/           Prompt, guards, streaming server, threads, self-service, offline search
   report/         Weekly facts, number check, template, report server
   kpis.ts         Six KPIs and the funnel scoreboard
+  today.ts        What needs a person today
   actions.ts      Every action: new applicant out, with a log entry
   seed.ts         Demo data relative to now
   persist.ts      localStorage save, restore and time shift

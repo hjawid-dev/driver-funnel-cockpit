@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { CalendarClock, Compass, FileText, Network, RotateCcw } from 'lucide-react';
+import { CalendarClock, Compass, FileText, Network } from 'lucide-react';
 import { useClock, useDemoData, type TabKey } from './state';
 import { computeFunnel, computeKpis, type FunnelKey } from './lib/kpis';
 import { deriveStage } from './lib/stage';
@@ -28,6 +28,7 @@ import { HANDOVER_LABEL } from './lib/chat/types';
 import { waitingThreads } from './lib/chat/threads';
 import { ChatQueue } from './components/ChatQueue';
 import { formatDateTime } from './lib/time';
+import { todayItems } from './lib/today';
 
 const GUIDE_KEY = 'driver-funnel-cockpit-guide-hidden';
 
@@ -170,6 +171,25 @@ export default function App() {
   const slot = nextReviewSlot(now);
   const steps = useMemo(() => guideSteps(apps, { timeMoved: clock.offset > 0, chatTried, reportOpened }), [apps, clock.offset, chatTried, reportOpened]);
 
+  const today = useMemo(() => todayItems(apps, threads, now), [apps, threads, now]);
+
+  const resetDemo = () => {
+    const fresh = reset();
+    clock.resetTime();
+    setLastRun(null);
+    setPhoneId(null);
+    setBaseline(computeKpis(fresh, Date.now()));
+    setOpenId(null);
+    setStageFilter('all');
+    toast.notify('Demo reset with fresh data.');
+  };
+
+  const openTab = (t: TabKey) => {
+    setTab(t);
+    if (t === 'all') setStageFilter('all');
+    setTimeout(() => document.getElementById('worklists')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
+
   const jumpTo = (key: FunnelKey) => {
     setTab(TILE_TO_TAB[key]);
     if (key === 'active') setStageFilter('active');
@@ -205,24 +225,6 @@ export default function App() {
               <span className="hidden sm:inline">How this maps to HubSpot</span>
               <span className="sr-only sm:hidden">How this maps to HubSpot</span>
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                const fresh = reset();
-                clock.resetTime();
-                setLastRun(null);
-                setPhoneId(null);
-                setBaseline(computeKpis(fresh, Date.now()));
-                setOpenId(null);
-                setStageFilter('all');
-                toast.notify('Demo reset with fresh data.');
-              }}
-              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white"
-            >
-              <RotateCcw size={15} aria-hidden />
-              <span className="hidden sm:inline">Reset demo</span>
-              <span className="sr-only sm:hidden">Reset demo</span>
-            </button>
           </div>
         </div>
       </header>
@@ -232,16 +234,16 @@ export default function App() {
         phoneOpen={phoneOpen}
         onTogglePhone={() => setPhoneOpen((v) => !v)}
         onAdvance={onAdvance}
+        onReset={resetDemo}
         lastRun={lastRun}
       />
 
-      <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-6 space-y-8">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+      <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-5 space-y-6">
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Driver Funnel Cockpit</h1>
             <p className="text-sm text-muted mt-0.5">Application to active driver, Stockholm</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
           {guideHidden && (
             <button
               type="button"
@@ -251,15 +253,29 @@ export default function App() {
               <Compass size={15} aria-hidden /> Demo guide
             </button>
           )}
-          <div className="flex items-center gap-2 rounded-lg bg-card px-3 py-2 text-sm">
-            <CalendarClock size={16} className="text-indigo" aria-hidden />
-            <span>
-              Next review slot <strong className="num font-semibold">{slot.time}</strong> {slot.day}
-              <span className="text-muted"> · in {formatDuration(slot.at - now)}</span>
-            </span>
-          </div>
-          </div>
         </div>
+
+        <section aria-label="Today" className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="mr-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted">Today</span>
+          {today.map((i) => (
+            <button
+              key={i.key}
+              type="button"
+              onClick={() => openTab(i.tab)}
+              className={`rounded-full border px-3 py-1 font-semibold transition-colors ${
+                i.urgent ? 'border-bad/40 bg-bad-bg text-bad hover:border-bad' : 'border-lavender bg-white text-navy hover:border-indigo hover:text-indigo'
+              }`}
+            >
+              {i.label}
+            </button>
+          ))}
+          {today.length === 0 && <span className="text-muted">Nothing waiting.</span>}
+          <span className="flex items-center gap-1.5 rounded-full bg-card px-3 py-1">
+            <CalendarClock size={15} className="text-indigo" aria-hidden />
+            Next review <strong className="num font-semibold">{slot.time}</strong> {slot.day}
+            <span className="text-muted">· in {formatDuration(slot.at - now)}</span>
+          </span>
+        </section>
 
         {!guideHidden && (
           <DemoGuide

@@ -82,12 +82,12 @@ export function ActivationPanel({ a, now, onResult }: Props) {
             >
               <PhoneCall size={15} aria-hidden /> Log welcome call
             </button>
-            <span className={`text-xs font-semibold ${call.state === 'overdue' ? 'text-bad' : 'text-warn'}`}>{call.label}</span>
+            <span className={`text-xs font-semibold ${call.state === 'overdue' ? 'text-bad' : call.state === 'missed' ? 'text-muted' : 'text-warn'}`}>{call.label}</span>
           </div>
         )}
       </DrawerSection>
 
-      <DrawerSection title="2 · Book first gig" aside={<span className="text-xs text-muted">target within 7 days</span>}>
+      <DrawerSection title="2 · Book first gig" aside={<span className="text-xs text-muted">book within 7 days</span>}>
         {a.firstGig?.bookedFor && (
           <p className="mb-2 text-sm font-medium">
             Booked for <span className="num">{formatDateTime(a.firstGig.bookedFor)}</span>

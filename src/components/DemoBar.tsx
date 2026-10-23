@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, FastForward, History, Smartphone } from 'lucide-react';
+import { ChevronDown, FastForward, History, RotateCcw, Smartphone } from 'lucide-react';
 import type { AutoEvent } from '../lib/automation';
 import { summarize } from '../lib/automation';
 import { formatDateTime, formatDuration } from '../lib/time';
@@ -10,6 +10,7 @@ interface Props {
   phoneOpen: boolean;
   onTogglePhone: () => void;
   onAdvance: (ms: number) => void;
+  onReset: () => void;
   lastRun: { from: number; to: number; events: AutoEvent[] } | null;
 }
 
@@ -21,7 +22,7 @@ const STEPS: [string, number][] = [
 ];
 
 /** Demo controls: open the driver's phone and move time forward to watch automation run. */
-export function DemoBar({ now, offset, phoneOpen, onTogglePhone, onAdvance, lastRun }: Props) {
+export function DemoBar({ now, offset, phoneOpen, onTogglePhone, onAdvance, onReset, lastRun }: Props) {
   const [showLog, setShowLog] = useState(false);
   const ops = lastRun?.events.filter((e) => e.audience === 'ops') ?? [];
 
@@ -55,17 +56,22 @@ export function DemoBar({ now, offset, phoneOpen, onTogglePhone, onAdvance, last
           <span className="num">{formatDateTime(now)}</span>
           {offset > 0 && <span className="ml-1 rounded-full bg-warn-bg px-1.5 py-0.5 font-semibold text-warn">simulated +{formatDuration(offset)}</span>}
         </span>
-        {lastRun && (
-          <button
-            type="button"
-            onClick={() => setShowLog((v) => !v)}
-            aria-expanded={showLog}
-            className="ml-auto flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-navy hover:bg-white"
-          >
-            <History size={14} aria-hidden /> Automation: {summarize(lastRun.events)}
-            <ChevronDown size={14} className={showLog ? 'rotate-180' : ''} aria-hidden />
+        <div className="ml-auto flex flex-wrap items-center gap-1">
+          {lastRun && (
+            <button
+              type="button"
+              onClick={() => setShowLog((v) => !v)}
+              aria-expanded={showLog}
+              className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-navy hover:bg-white"
+            >
+              <History size={14} aria-hidden /> Automation: {summarize(lastRun.events)}
+              <ChevronDown size={14} className={showLog ? 'rotate-180' : ''} aria-hidden />
+            </button>
+          )}
+          <button type="button" onClick={onReset} className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-muted hover:bg-white hover:text-navy">
+            <RotateCcw size={14} aria-hidden /> Reset demo
           </button>
-        )}
+        </div>
       </div>
       {lastRun && showLog && (
         <div className="mx-auto max-w-7xl px-4 pb-3">

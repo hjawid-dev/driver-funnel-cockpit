@@ -64,7 +64,10 @@ export function MissingPanel({ a, now, onResult }: Props) {
           </div>
         </DrawerSection>
       )}
-      <DrawerSection title="What's missing">
+      <DrawerSection
+        title="What's missing"
+        info={<p>"Mark received" is a demo shortcut for a document arriving. When the last one arrives, the file goes to the review queue by itself.</p>}
+      >
         <ul className="divide-y divide-lavender rounded-lg border border-lavender">
           {outstanding.map((k) => (
             <li key={k} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
@@ -83,7 +86,6 @@ export function MissingPanel({ a, now, onResult }: Props) {
             </li>
           ))}
         </ul>
-        <p className="mt-1.5 text-xs text-muted">"Mark received" is a demo shortcut. When the last document arrives the file is auto-queued for review.</p>
       </DrawerSection>
 
       <DrawerSection title="Nudges" aside={<span className="text-xs text-muted">{nudge.label}</span>}>
@@ -135,9 +137,7 @@ export function MissingPanel({ a, now, onResult }: Props) {
             </button>
           )}
         </div>
-        <p className="mt-1.5 text-xs text-muted">
-          {stale ? 'Registered over 14 days ago with documents still missing. Closing logs reason code "No response after 14 days".' : 'Logged only. No SMS or email is sent in this demo.'}
-        </p>
+        {stale && <p className="mt-1.5 text-xs text-muted">Over 14 days with documents missing. Closing logs the reason code "No response after 14 days".</p>}
       </DrawerSection>
     </>
   );

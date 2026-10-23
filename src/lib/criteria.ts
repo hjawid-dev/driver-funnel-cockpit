@@ -197,16 +197,13 @@ export function reviewChips(a: Applicant): Chip[] {
     if (m.key === 'id') chips.push({ label: 'ID not verified', tone: 'bad' });
     if (m.key === 'photo') chips.push({ label: 'Photo missing', tone: 'bad' });
   }
-  const extract = ev.mustHaves.find((m) => m.key === 'extract')!;
-  if (extract.result === 'manual') chips.push({ label: a.callAt ? `Call ${shortTime(a.callAt)}` : 'Extract call', tone: 'info' });
-  const photo = ev.mustHaves.find((m) => m.key === 'photo')!;
-  if (photo.result === 'manual') {
-    chips.push(a.docs.photo === 'remark' ? { label: 'Photo unclear', tone: 'warn' } : { label: 'Photo unchecked', tone: 'info' });
-  }
+  // Only what differs from a clean file. Every file still needs the extract shown in the call and the photo checked,
+  // so those would be on every row and say nothing; the call time has its own column.
+  if (a.docs.photo === 'remark' && !a.photoApproved) chips.push({ label: 'Photo unclear', tone: 'warn' });
   return chips;
 }
 
-function shortTime(ts: number): string {
+export function shortTime(ts: number): string {
   const d = new Date(ts);
   return `${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
 }
