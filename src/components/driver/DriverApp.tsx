@@ -252,6 +252,10 @@ function PrivacyNotice() {
           <strong>Your criminal-record extract is only shown in a call.</strong> We never keep a copy or write down what it says.
         </li>
         <li>A person makes every decision. You can ask why and ask for a review; we reply within two weeks.</li>
+        <li>
+          Our chat assistant is an AI (provided by Anthropic, in the US). It sees your first name and where you are in the application, never your ID number, and a
+          person is always one tap away. Please don't write sensitive details in the chat.
+        </li>
         <li>We send up to three reminders in the chat while your application is open. Tap "Stop reminders" or write "stop" to end them.</li>
         <li>Incomplete applications are deleted after 6 months, rejected ones after 2 years.</li>
       </ul>

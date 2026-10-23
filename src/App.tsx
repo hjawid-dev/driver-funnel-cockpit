@@ -62,10 +62,10 @@ export default function App() {
   const now = clock.now;
   const { apps, gigs, threads, update, add, upsertThread, reset } = useDemoData();
   // Bumped when the cockpit opens the phone on the chat; 0 opens it on the steps.
-  const [chatRequest, setChatRequest] = useState(0);
-  const [phoneOpen, setPhoneOpen] = useState(() => window.location.hash.startsWith('#driver'));
-  // #driver opens the phone; #driver=DRV-1034 opens it as that applicant (handy for presenting).
-  const [phoneId, setPhoneId] = useState<string | null>(() => window.location.hash.match(/^#driver=(.+)$/)?.[1] ?? null);
+  const [chatRequest, setChatRequest] = useState(() => (window.location.hash.startsWith('#chat') ? 1 : 0));
+  // #driver opens the phone; #driver=DRV-1034 opens it as that applicant; #chat=DRV-1034 opens it on the chat (handy for presenting).
+  const [phoneOpen, setPhoneOpen] = useState(() => /^#(driver|chat)/.test(window.location.hash));
+  const [phoneId, setPhoneId] = useState<string | null>(() => window.location.hash.match(/^#(?:driver|chat)=(.+)$/)?.[1] ?? null);
   const [lastRun, setLastRun] = useState<{ from: number; to: number; events: AutoEvent[] } | null>(null);
   const [tab, setTab] = useState<TabKey>('review');
   const [openId, setOpenId] = useState<string | null>(null);

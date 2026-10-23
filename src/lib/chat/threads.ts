@@ -205,7 +205,7 @@ const HISTORY: { name: string; daysAgo: number; lines: Line[]; waiting?: Handove
     ['driver', 'Do I need my own company to drive with you?', 0],
     ['ai', "No, you don't. Pay goes through our payroll partner, which deducts tax, and you get a payslip each time. If you already have a company with F-tax, you can invoice instead.", 0.2, { sources: ['payouts'] }],
   ] },
-  { name: 'Wilma Eriksson', daysAgo: 0.2, lines: [
+  { name: 'Wilma Eriksson', daysAgo: 0.04, lines: [
     ['driver', 'hur lång tid tar det att få utdraget?', 0],
     ['ai', 'Det brukar ta några dagar, ibland upp till två veckor. Säg till här när du har beställt det, så påminner vi dig att boka samtalet när det har kommit.', 0.2, { sources: ['extract-order', 'extract-delay'] }],
     ['driver', 'jag har beställt det nu', 1],
