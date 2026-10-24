@@ -1,4 +1,4 @@
-import { assisting, driverIncidentState, driverStatus, driverTimeline, OUTCOME_LABEL, type DriverIncidentState, type Job } from '../../lib/liveOps';
+import { assisting, driverIncidentState, driverStatus, driverTimeline, OUTCOME_LABEL, pendingText, type DriverIncidentState, type Job } from '../../lib/liveOps';
 
 const hm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
@@ -20,7 +20,10 @@ export function PickupStatus({ j, now, onInbox }: { j: Job; now: number; onInbox
   const waitFrom = hm(Math.max(j.pickupAt, j.arrivedAt ?? j.pickupAt));
   const outcome = j.incident?.outcome?.type;
   const headline: Record<DriverIncidentState, string> = {
-    assistant: `We're contacting the customer. If it isn't solved by ${hm(assisting(j, now)?.until ?? now)}, a person from ops calls you.`,
+    // Only say the customer was contacted once the text has actually gone out.
+    assistant: `${
+      (j.texts ?? []).some((t) => t.at <= now) ? 'We texted the pickup contact.' : pendingText(j, now) ? 'Check the message below and tap Send to reach the pickup contact.' : "Tell us what's wrong below."
+    } If it isn't solved by ${hm(assisting(j, now)?.until ?? now)}, a person from ops calls you.`,
     waiting_call: 'A person from ops calls you within 5 minutes.',
     ops_working: 'Ops has called you and is working on it with the customer.',
     decided: outcome === 'keys_found' ? 'Keys found. You can head off.' : `${OUTCOME_LABEL[outcome ?? 'cancelled']}. You can leave the pickup.`,

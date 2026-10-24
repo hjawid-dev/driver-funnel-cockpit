@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { CalendarCheck, Car, Check, ChevronLeft, ChevronRight, ExternalLink, IdCard, Lock, MessageCircle, MessageSquare, ScanFace, ShieldCheck, Sparkles } from 'lucide-react';
 import type { Applicant, Gig } from '../../lib/types';
 import type { ChatThread } from '../../lib/chat/types';
-import { chatTimeline, emptyThread, reportPickup, threadIdFor, unreadCount } from '../../lib/chat/threads';
-import { assisting, checkIn, currentJob, deliver, depart, driverStatus, escalate, gotKeys, incidentClock, reportProblem, type Job } from '../../lib/liveOps';
+import { chatTimeline, threadIdFor, unreadCount } from '../../lib/chat/threads';
+import { assisting, checkIn, currentJob, deliver, depart, driverStatus, escalate, gotKeys, incidentClock, pendingText, reportReason, sendPickupTexts, type Job } from '../../lib/liveOps';
+import { ReasonPicker, TextPreview } from './PickupProblem';
 import { DriverChat } from './DriverChat';
 import { PickupStatus } from './PickupStatus';
 import { REJECT_REASONS } from '../../lib/types';
@@ -31,12 +32,14 @@ interface Props {
   onJumpTo?: (ts: number) => void;
   /** Demo only: open this applicant's decision in the cockpit. */
   onDecide?: (id: string) => void;
+  /** Ops' switch for automated texts to customers: off means a person handles every stuck pickup. */
+  textsEnabled?: boolean;
   /** Open on the chat (e.g. from the cockpit's chat queue). */
   initialView?: 'steps' | 'chat';
 }
 
 /** The applicant's side of the funnel: one step at a time, on a phone. */
-export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, onCreate, onUpdate, onThread, onJob, onJumpTo, onDecide, initialView = 'steps' }: Props) {
+export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, onCreate, onUpdate, onThread, onJob, onJumpTo, onDecide, textsEnabled = true, initialView = 'steps' }: Props) {
   const [view, setView] = useState<'steps' | 'chat'>(initialView);
   // Looking back at a step already done (null = the step the applicant is on).
   const [review, setReview] = useState<ReviewKey | null>(null);
@@ -75,7 +78,7 @@ export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, o
 
       {view === 'chat' ? (
         <div className="min-h-0 flex-1">
-          <DriverChat applicant={a} thread={thread} apps={apps} gigs={gigs} jobs={jobs} now={now} onThread={onThread} onUpdate={onUpdate} onJob={onJob} onSteps={() => setView('steps')} />
+          <DriverChat applicant={a} thread={thread} apps={apps} gigs={gigs} jobs={jobs} now={now} onThread={onThread} onUpdate={onUpdate} onJob={onJob} textsEnabled={textsEnabled} onSteps={() => setView('steps')} />
         </div>
       ) : (
       <div className="flex-1 overflow-y-auto px-4 py-4">
@@ -88,14 +91,7 @@ export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, o
                 j={job}
                 now={now}
                 onJob={onJob}
-                onProblem={() => {
-                  const next = reportProblem(job, now);
-                  onJob(next);
-                  // The assistant has the first minutes; until then a person takes over by itself.
-                  const until = assisting(next, now)?.until ?? now + 5 * 60_000;
-                  onThread(reportPickup(thread ?? emptyThread(a), "Problem at the pickup: the car or the keys aren't ready.", until, now));
-                  setView('chat');
-                }}
+                textsEnabled={textsEnabled}
                 onInbox={() => setView('chat')}
               />
             )}
@@ -614,17 +610,30 @@ function OffersStep({ a, apps, gigs, now, onPick }: { a: Applicant; apps: Applic
 
 const hm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
-/** Today's job on the driver's phone: a few taps tell ops where things stand. A problem goes to the assistant first, then a person. */
-function JobCard({ j, now, onJob, onProblem, onInbox }: { j: Job; now: number; onJob: (j: Job) => void; onProblem: () => void; onInbox: () => void }) {
+/**
+ * Today's job on the driver's phone: a few taps tell ops where things stand. A problem starts with
+ * what is wrong; a text to the customer goes out only when the driver taps Send on the exact message.
+ */
+function JobCard({ j, now, onJob, onInbox, textsEnabled }: { j: Job; now: number; onJob: (j: Job) => void; onInbox: () => void; textsEnabled: boolean }) {
+  const [picking, setPicking] = useState(false);
   const status = driverStatus(j, now);
   const assist = assisting(j, now);
   const outcome = j.incident?.outcome?.type;
   const stopped = outcome && outcome !== 'keys_found';
-  const problem = (
-    <button type="button" onClick={onProblem} className="w-full rounded-xl border border-bad/50 px-4 py-2.5 text-sm font-semibold text-bad hover:bg-bad-bg">
+  const pick = (r: Parameters<typeof reportReason>[1]) => {
+    setPicking(false);
+    onJob(reportReason(j, r, now));
+    if (r === 'other') onInbox();
+  };
+  const problem = picking ? (
+    <ReasonPicker onPick={pick} onCancel={() => setPicking(false)} />
+  ) : (
+    <button type="button" onClick={() => setPicking(true)} className="w-full rounded-xl border border-bad/50 px-4 py-2.5 text-sm font-semibold text-bad hover:bg-bad-bg">
       Problem at pickup
     </button>
   );
+  // The assistant has it but doesn't know what is wrong yet (no keys after 5 minutes, or "something else").
+  const needsReason = !!assist && !(j.texts ?? []).length && !pendingText(j, now) && (!j.problemReason || j.problemReason === 'other');
 
   return (
     <div className="mb-5 space-y-3">
@@ -644,6 +653,7 @@ function JobCard({ j, now, onJob, onProblem, onInbox }: { j: Job; now: number; o
       </Card>
 
       <PickupStatus j={j} now={now} onInbox={onInbox} />
+      <TextPreview j={j} now={now} onSend={() => onJob(sendPickupTexts(j, now, textsEnabled))} />
 
       {stopped ? null : status === 'scheduled' || status === 'due' ? (
         <>
@@ -652,6 +662,7 @@ function JobCard({ j, now, onJob, onProblem, onInbox }: { j: Job; now: number; o
         </>
       ) : status === 'arrived' && assist ? (
         <>
+          {needsReason && <ReasonPicker onPick={pick} />}
           <p className="text-sm font-semibold">Solved?</p>
           <div className="grid grid-cols-2 gap-2">
             <Primary onClick={() => onJob(gotKeys(j, now))}>Got the keys</Primary>

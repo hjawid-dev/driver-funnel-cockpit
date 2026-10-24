@@ -1,3 +1,4 @@
+import type { Job } from '../lib/liveOps';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bot, Copy, FileText, RefreshCw, ShieldCheck, TriangleAlert, X } from 'lucide-react';
 import type { Applicant } from '../lib/types';
@@ -12,6 +13,7 @@ import { formatDateTime } from '../lib/time';
 interface Props {
   apps: Applicant[];
   threads: ChatThread[];
+  jobs?: Job[];
   now: number;
   onClose: () => void;
   onOpened?: () => void;
@@ -30,9 +32,9 @@ const REASON = {
 };
 
 /** The weekly report: numbers from code, text from AI, and a check that the two agree. */
-export function ReportModal({ apps, threads, now, onClose, onOpened }: Props) {
+export function ReportModal({ apps, threads, jobs = [], now, onClose, onOpened }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
-  const [wf, setWf] = useState<WeeklyFacts>(() => weeklyFacts(apps, threads, now));
+  const [wf, setWf] = useState<WeeklyFacts>(() => weeklyFacts(apps, threads, now, jobs));
   const [reply, setReply] = useState<ReportReply | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -188,7 +190,7 @@ export function ReportModal({ apps, threads, now, onClose, onOpened }: Props) {
           <button
             type="button"
             onClick={() => {
-              const next = weeklyFacts(apps, threads, now);
+              const next = weeklyFacts(apps, threads, now, jobs);
               setWf(next);
               generate(next);
             }}

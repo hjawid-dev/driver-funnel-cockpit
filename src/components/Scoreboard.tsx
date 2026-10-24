@@ -15,9 +15,9 @@ interface Props {
 
 function StageLink({ to, onLink, children }: { to: FunnelLink; onLink: Props['onLink']; children: ReactNode }) {
   return (
-    <button type="button" onClick={() => onLink(to)} className="inline-flex items-center gap-0.5 text-left font-semibold text-indigo hover:underline">
+    <button type="button" onClick={() => onLink(to)} className="text-left font-semibold text-indigo hover:underline">
       {children}
-      <ArrowRight size={11} aria-hidden />
+      <ArrowRight size={11} aria-hidden className="ml-0.5 inline align-[-1px]" />
     </button>
   );
 }

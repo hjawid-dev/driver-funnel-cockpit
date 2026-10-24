@@ -1,6 +1,7 @@
 import type { Applicant, Gig } from './types';
 import { REVIEWER } from './types';
 import { HOUR, MIN } from './time';
+import { cleanReply, composeText, isTextReason, prepareTexts, REASON_LABEL, type PickupReason, type SentText } from './sms';
 
 /**
  * Live ops: today's drives, the pre-pickup check, and the incident playbook for a driver stuck
@@ -44,13 +45,32 @@ export interface Job {
   deliveredAt?: number;
   /** The driver reported a problem at the pickup (a tap, or in the chat). The assistant takes it first. */
   problemAt?: number;
+  /** What the driver said is wrong, picked from a short list. */
+  problemReason?: PickupReason;
+  /** The automated texts sent to the pickup contacts (fixed templates, see sms.ts). */
+  texts?: SentText[];
   /** A person was asked for before the assistant's minutes ran out. */
-  escalation?: { at: number; why: 'driver' | 'ops' | 'safety' };
+  escalation?: { at: number; why: 'driver' | 'ops' | 'safety' | 'text_failed' };
   /** The pickup contact answered the assistant's text (in the demo: a button). */
   contactReply?: { at: number; text: string };
   /** A new driver's first drive: ops is on standby, and delivering it makes the driver active. */
   firstDrive?: boolean;
   incident?: Incident;
+}
+
+export type IncidentCause = 'customer_keys' | 'contact_absent' | 'car_not_ready' | 'our_error' | 'other';
+
+export const CAUSE_LABEL: Record<IncidentCause, string> = {
+  customer_keys: 'Customer: keys not where agreed',
+  contact_absent: 'Customer: nobody on site',
+  car_not_ready: 'Customer: car not there or not ready',
+  our_error: 'Our error (address, time, booking)',
+  other: 'Other',
+};
+
+/** The likely cause from what the driver reported; ops confirms or changes it when closing. */
+export function causeFromReason(r: PickupReason | undefined): IncidentCause {
+  return r === 'keys_missing' ? 'customer_keys' : r === 'no_contact' ? 'contact_absent' : r === 'car_missing' ? 'car_not_ready' : 'other';
 }
 
 export type StepKey = 'keep_driver' | 'own_error' | 'escalate' | 'customer' | 'decide' | 'close';
@@ -64,6 +84,8 @@ export interface Incident {
   closedAt?: number;
   /** Solved while the assistant had it: closed by the rules, with no person involved. */
   by?: 'assistant';
+  /** Why it happened, picked when it closes: what the weekly report and prevention learn from. */
+  cause?: IncidentCause;
   log: { at: number; text: string }[];
 }
 
@@ -144,7 +166,7 @@ export function needsConfirmation(j: Job, now: number): boolean {
 
 // ---------- Incidents ----------
 
-export type EscalationWhy = 'time' | 'deadline' | 'driver' | 'ops' | 'safety';
+export type EscalationWhy = 'time' | 'deadline' | 'driver' | 'ops' | 'safety' | 'text_failed';
 
 /** Why a person took over from the assistant, in ops' words. */
 export const ESCALATION_LABEL: Record<EscalationWhy, string> = {
@@ -153,6 +175,7 @@ export const ESCALATION_LABEL: Record<EscalationWhy, string> = {
   driver: 'the driver asked for a call',
   ops: 'ops took over',
   safety: 'the driver reported something a person must handle',
+  text_failed: "the automated text couldn't be sent",
 };
 
 export interface Alert {
@@ -223,12 +246,20 @@ export function assistantLog(j: Job, now: number): { at: number; text: string }[
   const since = assistStart(j, now);
   if (since === null) return [];
   const contact = j.contact.role.toLowerCase();
+  const reported = j.problemAt === since;
   const out = [
-    { at: since, text: j.problemAt === since ? `${first(j)} reported a problem at the pickup. The assistant took it.` : `No keys ${NO_KEYS_ASSIST_MS / MIN} min after check-in. The assistant took it.` },
-    { at: since, text: `Automated text to the ${contact} and the ${j.backup.role.toLowerCase()}: the driver is waiting, where are the keys?` },
+    {
+      at: since,
+      text: reported
+        ? `${first(j)} reported: ${REASON_LABEL[j.problemReason ?? 'other'].toLowerCase()}.`
+        : `No keys ${NO_KEYS_ASSIST_MS / MIN} min after check-in. The assistant asked ${first(j)} what is wrong.`,
+    },
     { at: since, text: `Told ${first(j)}: stay, the waiting time is paid, and a person calls if it isn't solved.` },
   ];
-  if (j.contactReply && j.contactReply.at <= now) out.push({ at: j.contactReply.at, text: `The ${contact} replied: "${j.contactReply.text}" Passed on to ${first(j)}.` });
+  // Only what was actually sent, with the template it used.
+  const sent = (j.texts ?? []).filter((t) => t.at <= now);
+  if (sent.length) out.push({ at: sent[0].at, text: `Automated text (${REASON_LABEL[sent[0].reason].toLowerCase()}) to the ${sent.map((t) => t.role.toLowerCase()).join(' and the ')}.` });
+  if (j.contactReply && j.contactReply.at <= now) out.push({ at: j.contactReply.at, text: `The ${contact} replied: "${j.contactReply.text}" Shown to ${first(j)}.` });
   const e = escalation(j, now);
   if (e) out.push({ at: e.at, text: `Handed to a person: ${ESCALATION_LABEL[e.why]}.` });
   return out;
@@ -275,7 +306,7 @@ export interface PlaybookStep {
 export const PLAYBOOK: PlaybookStep[] = [
   { key: 'keep_driver', title: 'Keep the driver', what: 'Call the driver: stay, I\'m on it, your waiting time is paid. If they leave, the delivery is lost for certain.' },
   { key: 'own_error', title: 'Rule out our own error', what: 'Check address, time, contact and that the confirmations went out. It decides who to call.' },
-  { key: 'escalate', title: 'Escalate in parallel', what: 'The driver asks anyone on site (reception, workshop, key box). Ops calls the contact and the backup.' },
+  { key: 'escalate', title: 'Call the contact, then the backup', what: 'The next rung after a text: a call. The driver asks anyone on site (reception, workshop, key box) meanwhile.' },
   { key: 'customer', title: 'Customer hears it from us', what: 'Send an update before they ask: what happened, what we are doing, when they hear from us next.' },
   { key: 'decide', title: 'Decision point', what: 'No keys by then? The customer picks: later today, a new date or cancel. They decide, we bring the options.' },
   { key: 'close', title: 'Close the loop', what: 'Pay the waiting time regardless, log what happened, waive the fee in the pilot.' },
@@ -311,14 +342,16 @@ export function setOutcome(j: Job, outcome: Outcome, now: number): Job {
 export type CloseResult = { ok: true; job: Job } | { ok: false; error: string };
 
 /** Close only once there is a decision and the driver's waiting time is paid: the driver never carries the cost. */
-export function closeIncident(j: Job, opts: { waitPaid: boolean; feeWaived: boolean }, now: number): CloseResult {
+export function closeIncident(j: Job, opts: { waitPaid: boolean; feeWaived: boolean; cause?: IncidentCause }, now: number): CloseResult {
   if (!j.incident?.outcome) return { ok: false, error: 'Record the decision first.' };
   if (!opts.waitPaid) return { ok: false, error: "Pay the driver's waiting time before closing: it is paid regardless." };
+  if (!opts.cause) return { ok: false, error: 'Pick the cause: it is what prevention learns from.' };
+  const cause = opts.cause;
   const job = withIncident(
     j,
     now,
-    (i) => ({ ...i, waitPaid: true, feeWaived: opts.feeWaived, closedAt: now, steps: { ...i.steps, close: now } }),
-    `Closed: waiting time paid${opts.feeWaived ? ', fee waived (pilot)' : ''} (${REVIEWER})`,
+    (i) => ({ ...i, waitPaid: true, feeWaived: opts.feeWaived, cause, closedAt: now, steps: { ...i.steps, close: now } }),
+    `Closed: waiting time paid${opts.feeWaived ? ', fee waived (pilot)' : ''}, cause: ${CAUSE_LABEL[cause].toLowerCase()} (${REVIEWER})`,
   );
   return { ok: true, job };
 }
@@ -379,7 +412,7 @@ export function gotKeys(j: Job, now: number, how: 'keys' | 'customer' = 'keys'):
   if (assisting(j, now)) {
     const next = { ...checkIn(j, now), keysAt: now };
     const log = [...assistantLog(j, now), { at: now, text: `${what}. Solved by the assistant; waiting time paid by the rule.` }];
-    return { ...next, incident: { steps: {}, log, outcome: { type: 'keys_found', at: now }, waitPaid: true, closedAt: now, by: 'assistant' } };
+    return { ...next, incident: { steps: {}, log, outcome: { type: 'keys_found', at: now }, waitPaid: true, closedAt: now, by: 'assistant', cause: causeFromReason(j.problemReason) } };
   }
   // Ops was already alerted: the incident stays open with the outcome filled in, so ops closes it and the waiting time gets paid.
   const alerted = !!jobAlert(j, now);
@@ -389,7 +422,7 @@ export function gotKeys(j: Job, now: number, how: 'keys' | 'customer' = 'keys'):
 }
 
 /** A person takes over now: the driver asked for a call, ops took over, or something a person must handle. Without check-in. */
-export function escalate(j: Job, why: 'driver' | 'ops' | 'safety', now: number): Job {
+export function escalate(j: Job, why: 'driver' | 'ops' | 'safety' | 'text_failed', now: number): Job {
   if (jobAlert(j, now)?.kind === 'escalated') return j;
   return { ...j, problemAt: j.problemAt ?? now, escalation: { at: now, why } };
 }
@@ -415,8 +448,9 @@ export function driverTimeline(j: Job, now: number): { at: number; text: string 
   const start = assistStart(j, now);
   if (start !== null) {
     push(start, j.problemAt === start ? 'You reported a problem' : 'No keys after 5 minutes');
-    push(start, `The ${j.contact.role.toLowerCase()} and ${j.backup.role.toLowerCase()} were texted`);
   }
+  const sent = j.texts ?? [];
+  if (sent.length) push(sent[0].at, `The ${sent.map((t) => t.role.toLowerCase()).join(' and ')} ${sent.length > 1 ? 'were' : 'was'} texted`);
   push(j.contactReply?.at, `The ${j.contact.role.toLowerCase()} replied`);
   const e = escalation(j, now);
   if (e) push(e.at, 'A person from ops took over');
@@ -429,7 +463,32 @@ export function driverTimeline(j: Job, now: number): { at: number; text: string 
 
 /** The pickup contact answered the assistant's text. */
 export function contactReplies(j: Job, text: string, now: number): Job {
-  return { ...j, contactReply: { at: now, text } };
+  return { ...j, contactReply: { at: now, text: cleanReply(text) } };
+}
+
+/**
+ * The driver tapped Send on the text they were shown. The texts go out only for a reason that has a
+ * template; if they can't go out (switched off, already sent), a person takes over at once.
+ */
+export function sendPickupTexts(j: Job, now: number, enabled = true): Job {
+  const r = prepareTexts(j, j.problemReason ?? 'other', now, enabled);
+  if (!r.ok) return escalate(j, 'text_failed', now);
+  return { ...j, texts: [...(j.texts ?? []), ...r.texts] };
+}
+
+/**
+ * The driver picked what is wrong. A reason with a template waits for the driver's Send; damage or
+ * feeling unsafe goes to a person at once (no assistant, no text); "something else" goes to the chat.
+ */
+export function reportReason(j: Job, reason: PickupReason, now: number): Job {
+  const next = reportProblem(j, now, reason);
+  return reason === 'damage' || reason === 'unsafe' ? escalate(next, 'safety', now) : next;
+}
+
+/** The text the driver would send, to show before they tap Send. */
+export function pendingText(j: Job, now: number): string | null {
+  if (!isTextReason(j.problemReason) || (j.texts ?? []).length || !assisting(j, now)) return null;
+  return composeText(j, j.problemReason);
 }
 
 export function depart(j: Job, now: number): Job {
@@ -440,8 +499,13 @@ export function deliver(j: Job, now: number): Job {
   return { ...takeOver(j, now), deliveredAt: now };
 }
 
-export function reportProblem(j: Job, now: number): Job {
-  return { ...checkIn(j, now), problemAt: j.problemAt ?? now };
+/**
+ * The driver reported a problem at the pickup. A reason picked from the list replaces "something else",
+ * never the other way round. Nothing is sent to the customer here: a text needs the driver's Send.
+ */
+export function reportProblem(j: Job, now: number, reason: PickupReason = 'other'): Job {
+  const keep = j.problemReason && j.problemReason !== 'other' ? j.problemReason : reason;
+  return { ...checkIn(j, now), problemAt: j.problemAt ?? now, problemReason: keep };
 }
 
 /** The job this driver has today, if any: from an hour before pickup until it is delivered or closed. */
@@ -464,7 +528,12 @@ export function jobFact(j: Job, now: number): string {
   const where = s === 'arrived' ? 'at the pickup, no keys yet' : DRIVER_STATUS_LABEL[s].toLowerCase();
   // Kept under the 160 characters a fact may have.
   const a = assisting(j, now);
-  const handling = a ? `; you are texting the contact, a person calls at ${hm(a.until)} if not solved` : jobAlert(j, now)?.kind === 'escalated' ? '; a person is on it, calls within 5 min' : '';
+  const texted = (j.texts ?? []).some((t) => t.at <= now);
+  const handling = a
+    ? `; ${texted ? 'contact texted' : 'nothing sent to the customer yet'}, a person calls at ${hm(a.until)} if not solved`
+    : jobAlert(j, now)?.kind === 'escalated'
+      ? '; a person is on it, calls within 5 min'
+      : '';
   return `On a job now: pickup in ${j.area} at ${hm(j.pickupAt)}, status: ${where}${handling}`;
 }
 
@@ -550,6 +619,12 @@ export function seedJobs(apps: Applicant[], now: number): Job[] {
     set('departedAt', s.depart);
     set('deliveredAt', s.deliver);
     set('problemAt', s.problem);
+    // Julia picked "keys missing" and tapped Send: the texts went out from the booking's template.
+    if (s.problem !== undefined) {
+      job.problemReason = 'keys_missing';
+      const r = prepareTexts(job, 'keys_missing', job.problemAt!, true);
+      if (r.ok) job.texts = r.texts;
+    }
     out.push(job);
   });
   return out;
@@ -615,6 +690,7 @@ export function shiftJob(j: Job, delta: number): Job {
   for (const k of keys) if (j[k] !== undefined) moved[k] = s(j[k]);
   if (j.escalation) moved.escalation = { ...j.escalation, at: j.escalation.at + delta };
   if (j.contactReply) moved.contactReply = { ...j.contactReply, at: j.contactReply.at + delta };
+  if (j.texts) moved.texts = j.texts.map((t) => ({ ...t, at: t.at + delta }));
   if (j.incident) {
     const i = j.incident;
     moved.incident = {

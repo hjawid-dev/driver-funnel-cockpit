@@ -25,6 +25,7 @@ import { ReportModal } from './components/ReportModal';
 import type { Applicant } from './lib/types';
 import type { ChatThread } from './lib/chat/types';
 import { HANDOVER_LABEL } from './lib/chat/types';
+import { REASON_LABEL } from './lib/sms';
 import { waitingThreads } from './lib/chat/threads';
 import { ChatQueue } from './components/ChatQueue';
 import { formatDateTime } from './lib/time';
@@ -32,7 +33,7 @@ import { todayItems, type TodayItem } from './lib/today';
 import { liveOpsEvents } from './lib/automation';
 import { assisting, currentJob, driverUpdate, escalate, firstDriveResult, jobAlert, openIncidents, reportProblem, syncFirstDrive, type Job } from './lib/liveOps';
 import { completeFirstGig } from './lib/actions';
-import { backToAi, callRequested, emptyThread, keysFoundByDriver, opsReply, relayContactReply, solvedNote, threadIdFor } from './lib/chat/threads';
+import { backToAi, callRequested, emptyThread, keysFoundByDriver, opsReply, pickupReported, relayContactReply, solvedNote, textsSentNote, threadIdFor } from './lib/chat/threads';
 import { REVIEWER } from './lib/types';
 import { LiveOps } from './components/LiveOps';
 
@@ -61,6 +62,8 @@ const PAGE_TABS: Record<Page, TabKey[]> = { funnel: ['review', 'missing', 'await
 const LIVE_TABS: TabKey[] = PAGE_TABS.live;
 
 /** A list narrowed to what was clicked, so the number clicked is the number shown. */
+const TEXTS_KEY = 'driver-funnel-cockpit-texts';
+
 type Focus = { tab: TabKey } & ({ kind: 'today'; key: TodayItem['key'] } | { kind: 'reached'; stage: FunnelKey });
 
 export default function App() {
@@ -78,6 +81,23 @@ export default function App() {
   const [page, setPage] = useState<Page>(() => (window.location.hash === '#live' ? 'live' : 'funnel'));
   const [tab, setTab] = useState<TabKey>(() => (window.location.hash === '#live' ? 'live' : 'review'));
   const [focus, setFocus] = useState<Focus | null>(null);
+  // Ops' switch for automated texts to customers. Kept in this browser; off means a person handles every stuck pickup.
+  const [textsEnabled, setTextsEnabled] = useState(() => {
+    try {
+      return localStorage.getItem(TEXTS_KEY) !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  const switchTexts = (on: boolean) => {
+    setTextsEnabled(on);
+    try {
+      localStorage.setItem(TEXTS_KEY, on ? 'on' : 'off');
+    } catch {
+      /* private mode: the switch still works for this visit */
+    }
+    toast.notify(on ? 'Automated texts to customers are on.' : 'Automated texts are off: every stuck pickup goes straight to a person.');
+  };
   const changeTab = (t: TabKey) => {
     setTab(t);
     setFocus(null);
@@ -212,17 +232,36 @@ export default function App() {
       const first = next.driverName.split(' ')[0];
       if (!prev) return;
       const a = apps.find((x) => x.id === next.driverId) ?? null;
-      const thread = () => threads.find((x) => x.id === threadIdFor(next.driverId)) ?? emptyThread(a);
-      if (!prev.escalation && next.escalation?.why === 'driver') {
-        toast.notify(`Urgent: ${first} asked for a call (${next.id}). See Live ops.`);
-        upsertThread(callRequested(thread(), now));
-      } else if (!prev.problemAt && next.problemAt) {
-        const until = assisting(next, now)?.until;
-        toast.notify(`${first} reported a problem at the pickup. The assistant is on it${until ? `; a person takes over at ${new Date(until).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} if it isn't solved` : ''}. See Live ops.`);
-      } else if (!prev.incident && next.incident?.by === 'assistant') {
-        toast.notify(`${first} has the keys: solved by the assistant (${next.id}).`);
-        upsertThread(solvedNote(thread(), now));
-      } else if (!(prev.keysAt !== undefined && prev.keysAt <= now) && next.keysAt !== undefined && next.keysAt <= now) {
+      // One thread update per tap, built up in order, so nothing a step adds is lost.
+      let t = threads.find((x) => x.id === threadIdFor(next.driverId)) ?? emptyThread(a);
+      const before = t;
+      const hhmm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const roles = [next.contact.role.toLowerCase(), next.backup.role.toLowerCase()];
+      const until = assisting(next, now)?.until ?? null;
+      let note: string | null = null;
+      if (next.problemReason && next.problemReason !== prev.problemReason) {
+        t = pickupReported(t, next.problemReason, roles, until, now);
+        note = `${first} reported a problem at the pickup: ${REASON_LABEL[next.problemReason].toLowerCase()}.${until ? ` The assistant has it; a person takes over at ${hhmm(until)} if it isn't solved.` : ''} See Live ops.`;
+      }
+      if (!(prev.texts ?? []).length && (next.texts ?? []).length) {
+        t = textsSentNote(t, next.texts!.map((x) => x.role.toLowerCase()), next.texts![0].body, now);
+        note = `${first} sent the automated text to the ${roles.join(' and the ')} (${next.id}).`;
+      }
+      if (!prev.escalation && next.escalation) {
+        if (next.escalation.why === 'driver') t = callRequested(t, now);
+        note =
+          next.escalation.why === 'text_failed'
+            ? `Urgent: the automated text couldn't go out, so ${first}'s pickup is with a person now (${next.id}). See Live ops.`
+            : `Urgent: ${first} ${next.escalation.why === 'driver' ? 'asked for a call' : 'needs a person now'} (${next.id}). See Live ops.`;
+      }
+      const solved = !prev.incident && next.incident?.by === 'assistant';
+      if (solved) {
+        t = solvedNote(t, now);
+        note = `${first} has the keys: solved by the assistant (${next.id}).`;
+      }
+      if (t !== before) upsertThread(t);
+      if (note) toast.notify(note);
+      else if (!solved && !(prev.keysAt !== undefined && prev.keysAt <= now) && next.keysAt !== undefined && next.keysAt <= now) {
         toast.notify(`${first} has the keys (${next.id}).`);
         const t = threads.find((x) => x.id === threadIdFor(next.driverId));
         if (t) upsertThread(keysFoundByDriver(t, now));
@@ -479,7 +518,7 @@ export default function App() {
               </p>
             )}
             {tab === 'live' ? (
-              <LiveOps jobs={jobs} now={now} onJob={onJob} onViewChat={openDriverChat} only={focused?.ids} />
+              <LiveOps jobs={jobs} now={now} onJob={onJob} onViewChat={openDriverChat} only={focused?.ids} textsEnabled={textsEnabled} onTexts={switchTexts} />
             ) : tab === 'review' ? (
               <ReviewQueue apps={apps.filter((a) => deriveStage(a) === 'review' && inFocus(a.id))} now={now} onOpen={setOpenId} />
             ) : tab === 'missing' ? (
@@ -497,7 +536,7 @@ export default function App() {
 
       {open && <ApplicantDrawer applicant={open} now={now} onClose={close} onUpdate={update} onResult={onResult} onViewAsDriver={openAsDriver} />}
       {showHubspot && <HubspotModal onClose={closeHubspot} />}
-      {showReport && <ReportModal onOpened={() => setReportOpened(true)} apps={apps} threads={threads} now={now} onClose={closeReport} />}
+      {showReport && <ReportModal onOpened={() => setReportOpened(true)} apps={apps} threads={threads} jobs={jobs} now={now} onClose={closeReport} />}
       <Toast message={toast.message} onDismiss={toast.dismiss} />
 
       <footer className="text-xs text-muted text-center px-4 py-6 border-t border-lavender">
@@ -519,6 +558,7 @@ export default function App() {
         onThread={onThread}
         onJob={onDriverJob}
         onJumpTo={(ts) => ts > now && onAdvance(ts - now)}
+        textsEnabled={textsEnabled}
         onDecide={(id) => {
           showPage('funnel');
           setOpenId(id);

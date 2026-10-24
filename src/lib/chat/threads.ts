@@ -3,6 +3,7 @@ import { DAY, MIN } from '../time';
 import type { ChatMsg, ChatThread, HandoverReason, Proposal } from './types';
 import type { AutoEvent } from '../automation';
 import type { ActionOption } from './selfService';
+import { REASON_LABEL, type PickupReason } from '../sms';
 
 /** Ops answers a handed-over question within this time (staffed hours). */
 export const CHAT_SLA_MS = 15 * MIN;
@@ -101,16 +102,25 @@ export function askForPerson(t: ChatThread, now: number): ChatThread {
 const hm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
 /**
- * The driver tapped "Problem at pickup": the assistant takes the first minutes with a fixed message,
- * so the driver hears it the same way every time. `until` is when a person takes over.
+ * The driver picked what is wrong at the pickup. The reply is fixed per reason, so the driver hears it
+ * the same way every time; `until` is when a person takes over if the assistant has it.
  */
-export function pickupNote(until: number): string {
-  return `Thanks for telling us. I'm texting the customer's contacts now. Stay where you are: your waiting time is paid. If it isn't solved by ${hm(until)}, a person from ops calls you.`;
+export function pickupReported(t: ChatThread, reason: PickupReason, roles: string[], until: number | null, now: number): ChatThread {
+  const by = until ? ` If it isn't solved by ${hm(until)}, a person from ops calls you.` : '';
+  const reply: Record<PickupReason, string> = {
+    keys_missing: `Thanks. Check the message below and tap Send to text the ${roles.join(' and the ')}. Stay where you are: your waiting time is paid.${by}`,
+    no_contact: `Thanks. Check the message below and tap Send to text the ${roles.join(' and the ')}. Stay where you are: your waiting time is paid.${by}`,
+    car_missing: `Thanks. Check the message below and tap Send to text the ${roles.join(' and the ')}. Stay where you are: your waiting time is paid.${by}`,
+    damage: 'A person from ops calls you now. If anyone is hurt, call 112 first. Your waiting time is paid.',
+    unsafe: 'Get somewhere safe first. If you are in danger, call 112. A person from ops calls you now.',
+    other: `Tell me what's happening and I'll help. Your waiting time is paid.${by}`,
+  };
+  return add(add(t, { from: 'driver', text: `Problem at the pickup: ${REASON_LABEL[reason].toLowerCase()}.`, at: now }), { from: 'ai', text: reply[reason], at: now });
 }
 
-export function reportPickup(t: ChatThread, driverText: string, until: number, now: number): ChatThread {
-  // No handover mark: the tap itself started the assistant's minutes on the job.
-  return add(add(t, { from: 'driver', text: driverText, at: now }), { from: 'ai', text: pickupNote(until), at: now });
+/** The automated text went out: the driver sees exactly what was sent, and to whom. */
+export function textsSentNote(t: ChatThread, roles: string[], body: string, now: number): ChatThread {
+  return add(t, { from: 'note', text: `Sent to the ${roles.join(' and the ')}: "${body}"`, at: now });
 }
 
 /** The driver asked for a call ("Call me now"): a person calls within 5 minutes; Live ops has it as urgent. */
@@ -118,9 +128,12 @@ export function callRequested(t: ChatThread, now: number): ChatThread {
   return add(add(t, { from: 'driver', text: 'Please call me.', at: now }), { from: 'note', text: "Okay, I've asked ops to call you.", at: now });
 }
 
-/** The pickup contact answered the assistant's text: the assistant passes it on. */
+/**
+ * The pickup contact answered the text. Shown to the driver as a note, which never goes to the AI:
+ * text from outside is data for people, not instructions for the model.
+ */
 export function relayContactReply(t: ChatThread, contactRole: string, reply: string, now: number): ChatThread {
-  return add(t, { from: 'ai', text: `The ${contactRole.toLowerCase()} replied: "${reply}" Tap "Got the keys" when you have them.`, at: now });
+  return add(t, { from: 'note', text: `The ${contactRole.toLowerCase()} replied: "${reply}" Tap "Got the keys" when you have them.`, at: now });
 }
 
 /** Solved while the assistant had it: nobody else needs to act. */

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bell, Bot, Check, CircleCheck, Send, UserRound } from 'lucide-react';
 import type { Applicant, Gig } from '../../lib/types';
-import { assisting, currentJob, driverIncidentState, driverStatus, escalate, gotKeys, type Job } from '../../lib/liveOps';
+import { assisting, currentJob, driverIncidentState, driverStatus, escalate, gotKeys, pendingText, reportReason, sendPickupTexts, type Job } from '../../lib/liveOps';
+import { REASON_LABEL, TEXT_REASONS } from '../../lib/sms';
+import { TextPreview } from './PickupProblem';
 import { PickupStatus } from './PickupStatus';
 import type { ChatMsg, ChatThread } from '../../lib/chat/types';
 import { HELP_BY_ID } from '../../content/help';
@@ -38,6 +40,8 @@ interface Props {
   onUpdate: (a: Applicant) => void;
   /** The driver's taps on today's job (Got the keys, Call me now), also from the chat. */
   onJob?: (j: Job) => void;
+  /** Ops' switch for automated texts to customers. */
+  textsEnabled?: boolean;
   /** Go to the application steps (e.g. to see the first-drive offers). */
   onSteps: () => void;
 }
@@ -57,7 +61,7 @@ const SUGGEST: Partial<Record<DriverStep | 'visitor', string[]>> = {
   closed: ['Why was I not accepted?', 'Can I apply again?'],
 };
 
-export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, onThread, onUpdate, onJob, onSteps }: Props) {
+export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, onThread, onUpdate, onJob, textsEnabled = true, onSteps }: Props) {
   const t = thread ?? emptyThread(a);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -78,13 +82,21 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
   // A stuck pickup speaks for itself, in one place: the thread's own banner stays out of the way.
   const onPickup = !!job && !!driverIncidentState(job, now) && !['driving', 'delivered'].includes(driverStatus(job, now));
   const until = assist ? new Date(assist.until).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
-  const jobChips = job && assist && onJob && !busy
-    ? [
-        { label: 'Got the keys', run: () => onJob(gotKeys(job, now)) },
-        { label: 'Still waiting', run: () => onThread(addAck(t, 'Still waiting.', `Thanks. I'm still trying the contacts. If it isn't solved by ${until}, a person from ops calls you.`, now)) },
-        { label: 'Call me now', run: () => onJob(escalate(job, 'driver', now)) },
-      ]
-    : [];
+  // While the assistant has the pickup: first what is wrong (the same short list as the job card), then the
+  // answers that close it. The AI never picks the reason and never writes the text: the driver does.
+  const texted = !!job && (job.texts ?? []).length > 0;
+  const pending = !!job && !!pendingText(job, now);
+  const callMe = job && onJob ? { label: 'Call me now', run: () => onJob(escalate(job, 'driver', now)) } : null;
+  const jobChips =
+    !job || !assist || !onJob || busy || pending
+      ? []
+      : !texted && (!job.problemReason || job.problemReason === 'other')
+        ? [...TEXT_REASONS.map((r) => ({ label: REASON_LABEL[r], run: () => onJob(reportReason(job, r, now)) })), callMe!]
+        : [
+            { label: 'Got the keys', run: () => onJob(gotKeys(job, now)) },
+            { label: 'Still waiting', run: () => onThread(addAck(t, 'Still waiting.', `Thanks for waiting. If it isn't solved by ${until}, a person from ops calls you.`, now)) },
+            callMe!,
+          ];
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' });
@@ -170,7 +182,10 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
           </Bubble>
         )}
         {onPickup ? (
-          <PickupStatus j={job!} now={now} />
+          <>
+            <PickupStatus j={job!} now={now} />
+            {onJob && <TextPreview j={job!} now={now} onSend={() => onJob(sendPickupTexts(job!, now, textsEnabled))} />}
+          </>
         ) : t.status !== 'ai' && (
           <p className="rounded-lg bg-warn-bg px-3 py-2 text-xs text-warn">
             {t.status === 'waiting'

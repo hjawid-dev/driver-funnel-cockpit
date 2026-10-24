@@ -334,9 +334,11 @@ In an emergency or if anyone is hurt, call 112 first.`,
     title: 'Waiting at the pickup: keys or contact missing',
     category: 'On a drive',
     tags: ['waiting', 'väntar', 'vänta', 'keys', 'nycklar', 'no keys', 'key box', 'nyckelbox', 'contact', 'nobody there', 'should I leave', 'ska jag åka', 'waiting time', 'väntetid', 'pickup'],
-    body: `At the pickup, tap "I'm here" in today's job, and "Got the keys" when you have them. If the keys or the contact aren't there after 10 minutes, ops is alerted by itself; you can also tap "Problem at pickup" or write here at any time.
+    body: `At the pickup, tap "I'm here" in today's job, and "Got the keys" when you have them. If something is wrong, tap "Problem at pickup" and pick what it is, or write here.
+Keys missing, nobody there, or the car isn't there: you see the exact message the pickup contact would get, and it goes out only when you tap Send. It is a fixed message from the booking; it can't be changed, and nothing you or the assistant write is sent to the customer.
+Damage, an accident or feeling unsafe goes straight to a person. If anyone is hurt or you are in danger, call 112 first.
 Stay at the pickup. Your waiting time is paid from the agreed pickup time, whatever happens with the job.
-Ops calls you within 5 minutes and agrees the next step with the customer, so you never have to cancel or decide anything yourself. Please stay until ops has called.`,
+If it isn't solved within 5 minutes, a person from ops calls you and agrees the next step with the customer, so you never have to cancel or decide anything yourself.`,
   },
   {
     id: 'passengers',

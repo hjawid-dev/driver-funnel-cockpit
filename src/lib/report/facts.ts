@@ -1,3 +1,4 @@
+import type { Job } from '../liveOps';
 import type { Applicant } from '../types';
 import type { ChatThread } from '../chat/types';
 import { computeFunnel, computeKpis, isReviewDecision, median } from '../kpis';
@@ -78,7 +79,9 @@ function weekFlows(apps: Applicant[], to: number) {
   };
 }
 
-export function weeklyFacts(apps: Applicant[], threads: ChatThread[], now: number): WeeklyFacts {
+export function weeklyFacts(apps: Applicant[], threads: ChatThread[], now: number, jobs: Job[] = []): WeeklyFacts {
+  // Stuck pickups closed this week, by who solved them and why: what prevention learns from.
+  const closedWeek = jobs.filter((j) => j.incident?.closedAt !== undefined && j.incident.closedAt > now - WEEK && j.incident.closedAt <= now);
   const cur = weekFlows(apps, now);
   const prev = weekFlows(apps, now - WEEK);
   const chat = chatStats(threads, now);
@@ -118,6 +121,9 @@ export function weeklyFacts(apps: Applicant[], threads: ChatThread[], now: numbe
     { id: 'review_overdue', label: 'Files waiting more than 48 h (overdue)', value: review.filter((a) => now - a.docsCompleteAt! > 48 * HOUR).length, unit: '', good: null },
     { id: 'awaiting_first_drive', label: 'Accepted drivers without a first drive', value: awaiting.length, unit: '', good: null },
     { id: 'awaiting_over_7_days', label: 'Accepted 7+ days ago without a first drive booked', value: awaiting.filter((a) => now - a.decision!.at > 7 * DAY && !a.firstGig?.bookedFor).length, unit: '', good: null },
+    { id: 'pickup_incidents', label: 'Stuck pickups closed this week', value: closedWeek.length, unit: '', good: null },
+    { id: 'pickup_solved_by_assistant', label: 'Stuck pickups solved by the assistant, no person needed', value: closedWeek.filter((j) => j.incident!.by === 'assistant').length, unit: '', good: null },
+    { id: 'pickup_our_error', label: 'Stuck pickups caused by our own error (address, time, booking)', value: closedWeek.filter((j) => j.incident!.cause === 'our_error').length, unit: '', good: null },
     { id: 'open_content_gaps', label: 'Driver questions the help articles do not cover yet', value: contentGaps(threads).length, unit: '', good: null },
     dropIdx >= 0
       ? {

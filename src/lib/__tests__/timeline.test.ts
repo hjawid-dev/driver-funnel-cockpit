@@ -50,7 +50,7 @@ describe('persist', () => {
     expect(out.threads.find((t) => t.id === waiting.id)!.waitingSince).toBe(waiting.waitingSince! + 5 * DAY);
     expect(out.jobs[0].pickupAt).toBe(jobs[0].pickupAt + 5 * DAY);
   });
-  it.each([4, 5])('keeps the applicants of a v%i save and gives it the demo day with the assistant at the pickup', (version) => {
+  it.each([4, 5, 6])('keeps the applicants of a v%i save and gives it the demo day with the assistant at the pickup', (version) => {
     const out = restore(JSON.stringify({ version, savedAt: NOW, apps: seed, gigs, threads, jobs: [] }), NOW + HOUR)!;
     expect(out.apps).toEqual(seed);
     expect(out.jobs).toEqual(jobs);

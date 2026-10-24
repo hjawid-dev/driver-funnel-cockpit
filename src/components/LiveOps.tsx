@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Bot, Car, Check, CircleCheck, Clock, Copy, KeyRound, MapPin, PhoneCall, Smartphone, TriangleAlert } from 'lucide-react';
 import {
   assistantLog,
+  CAUSE_LABEL,
+  causeFromReason,
   assistedJobs,
   assisting,
   closeIncident,
@@ -18,6 +20,7 @@ import {
   needsConfirmation,
   OUTCOME_LABEL,
   openIncidents,
+  pendingText,
   PLAYBOOK,
   pickupChecks,
   setOutcome,
@@ -25,6 +28,7 @@ import {
   type Check as PickupCheck,
   type DriverStatus,
   type Job,
+  type IncidentCause,
   type Outcome,
   type StepKey,
 } from '../lib/liveOps';
@@ -39,12 +43,15 @@ interface Props {
   onViewChat: (driverId: string) => void;
   /** Opened from a Today item: show only the jobs it counts. */
   only?: Set<string>;
+  /** Ops' switch for automated texts to customers. */
+  textsEnabled?: boolean;
+  onTexts?: (on: boolean) => void;
 }
 
 const hm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
 /** Live ops: a driver stuck at a pickup gets the playbook; every other pickup today shows its pre-pickup check. */
-export function LiveOps({ jobs, now, onJob, onViewChat, only }: Props) {
+export function LiveOps({ jobs, now, onJob, onViewChat, only, textsEnabled = true, onTexts }: Props) {
   const shown = (j: Job) => !only || only.has(j.id);
   const incidents = openIncidents(jobs, now).filter(shown);
   const assisted = assistedJobs(jobs, now).filter(shown);
@@ -53,6 +60,16 @@ export function LiveOps({ jobs, now, onJob, onViewChat, only }: Props) {
 
   return (
     <div className="space-y-6 pt-4">
+      {onTexts && (
+        <label className="flex items-center justify-end gap-2 text-xs text-muted">
+          <input type="checkbox" checked={textsEnabled} onChange={(e) => onTexts(e.target.checked)} className="h-4 w-4 accent-indigo" />
+          Automated texts to customers (fixed templates)
+          <InfoTip label="About the automated texts">
+            <p>When a driver is stuck, the driver picks what is wrong and taps Send on a fixed message. It goes only to the contact and backup in the booking, once each.</p>
+            <p className="text-muted">Nothing the driver or the AI writes is sent. Switched off, every stuck pickup goes straight to a person.</p>
+          </InfoTip>
+        </label>
+      )}
       {assisted.map((j) => (
         <AssistCard key={j.id} j={j} now={now} onJob={onJob} onViewChat={onViewChat} />
       ))}
@@ -206,6 +223,8 @@ const DEMO_REPLY = 'The keys are at reception today, ask for the car by its job 
 function AssistCard({ j, now, onJob, onViewChat }: { j: Job; now: number; onJob: Props['onJob']; onViewChat: Props['onViewChat'] }) {
   const a = assisting(j, now)!;
   const left = a.until - now;
+  const first = j.driverName.split(' ')[0];
+  const sent = (j.texts ?? []).find((t) => t.at <= now);
   const contact = j.contact.role.toLowerCase();
   return (
     <article className="rounded-2xl border border-indigo/30 bg-white">
@@ -233,6 +252,15 @@ function AssistCard({ j, now, onJob, onViewChat }: { j: Job; now: number; onJob:
       </header>
       <div className="space-y-3 px-4 py-4 sm:px-5">
         <AssistantSteps j={j} now={now} />
+        {sent ? (
+          <blockquote className="rounded-lg border border-lavender bg-card/50 px-3 py-2 text-xs leading-relaxed">
+            <span className="font-semibold">Sent {hm(sent.at)}:</span> {sent.body}
+          </blockquote>
+        ) : (
+          <p className="text-sm text-muted">
+            {pendingText(j, now) ? `${first} sees the text but hasn't tapped Send. Nothing has gone to the customer.` : `${first} hasn't said what is wrong yet. Nothing has gone to the customer.`}
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -241,7 +269,7 @@ function AssistCard({ j, now, onJob, onViewChat }: { j: Job; now: number; onJob:
           >
             Take over now
           </button>
-          {!j.contactReply && (
+          {sent && !j.contactReply && (
             <button
               type="button"
               onClick={() => onJob(contactReplies(j, DEMO_REPLY, now), `${j.id}: the ${contact} replied, and the assistant passed it on to ${j.driverName.split(' ')[0]}.`)}
@@ -252,7 +280,7 @@ function AssistCard({ j, now, onJob, onViewChat }: { j: Job; now: number; onJob:
           )}
         </div>
         <p className="text-xs text-muted">
-          The assistant only gathers facts and sends fixed messages. Waiting longer, a new time or cancelling is decided by a person, with the customer.
+          The assistant only gathers facts. A text to the customer is a fixed message the driver sees and sends. Waiting longer, a new time or cancelling is decided by a person, with the customer.
         </p>
       </div>
     </article>
@@ -421,6 +449,8 @@ function StepDetail({ step, j, now, onJob, done, first }: { step: StepKey; j: Jo
   const [copied, setCopied] = useState(false);
   const [waitPaid, setWaitPaid] = useState(false);
   const [feeWaived, setFeeWaived] = useState(j.pilot);
+  // The likely cause from what the driver reported; ops confirms or changes it.
+  const [cause, setCause] = useState<IncidentCause>(causeFromReason(j.problemReason));
   const [error, setError] = useState<string | null>(null);
   const mark = (label: string) => onJob(markStep(j, step, now), `${j.id}: ${label}.`);
   const btn = 'inline-flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-1.5 text-sm font-semibold text-white hover:bg-navy disabled:bg-lavender disabled:text-muted';
@@ -459,15 +489,21 @@ function StepDetail({ step, j, now, onJob, done, first }: { step: StepKey; j: Jo
         </>
       );
     }
-    case 'escalate':
+    case 'escalate': {
+      const texted = (j.texts ?? []).filter((t) => t.at <= now);
+      const replied = j.contactReply && j.contactReply.at <= now;
+      const state = (phone: string) => {
+        const t = texted.find((x) => x.phone === phone);
+        return t ? `texted ${hm(t.at)}${replied ? ', replied' : ', no reply'}` : 'not texted';
+      };
       return (
         <>
           <ul className="space-y-1 text-xs">
             <li>
-              <span className="font-semibold">{j.contact.role}</span> <span className="num text-muted">{j.contact.phone}</span> · not answering
+              <span className="font-semibold">{j.contact.role}</span> <span className="num text-muted">{j.contact.phone}</span> · {state(j.contact.phone)} · call first
             </li>
             <li>
-              <span className="font-semibold">{j.backup.role}</span> <span className="num text-muted">{j.backup.phone}</span> · backup
+              <span className="font-semibold">{j.backup.role}</span> <span className="num text-muted">{j.backup.phone}</span> · {state(j.backup.phone)} · then the backup
             </li>
             <li>{first} asks reception, the workshop and checks the key box again.</li>
           </ul>
@@ -476,6 +512,7 @@ function StepDetail({ step, j, now, onJob, done, first }: { step: StepKey; j: Jo
           </button>
         </>
       );
+    }
     case 'customer': {
       const text = customerUpdate(j, now);
       return (
@@ -532,10 +569,21 @@ function StepDetail({ step, j, now, onJob, done, first }: { step: StepKey; j: Jo
             <input type="checkbox" checked={feeWaived} onChange={(e) => setFeeWaived(e.target.checked)} className="h-4 w-4 accent-indigo" />
             Fee waived{j.pilot ? ' (pilot: raise it after the pilot)' : ''}
           </label>
+          <label className="flex flex-wrap items-center gap-2">
+            Cause
+            <select value={cause} onChange={(e) => setCause(e.target.value as IncidentCause)} className="rounded-md border border-lavender bg-white px-2 py-1 text-sm">
+              {(Object.keys(CAUSE_LABEL) as IncidentCause[]).map((c) => (
+                <option key={c} value={c}>
+                  {CAUSE_LABEL[c]}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-muted">feeds the weekly report and prevention</span>
+          </label>
           <button
             type="button"
             onClick={() => {
-              const r = closeIncident(j, { waitPaid, feeWaived }, now);
+              const r = closeIncident(j, { waitPaid, feeWaived, cause }, now);
               if (!r.ok) return setError(r.error);
               setError(null);
               onJob(r.job, `${j.id}: incident closed and logged.`);
