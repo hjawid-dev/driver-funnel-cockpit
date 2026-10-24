@@ -13,10 +13,13 @@ describe('guideSteps', () => {
   const all = { timeMoved: true, chatTried: true, reportOpened: true };
   it('starts with nothing done: apply, ask the assistant, decide, move time, read the report', () => {
     const steps = guideSteps(seed, none);
-    expect(steps.map((s) => s.key)).toEqual(['apply', 'chat', 'accept', 'time', 'report']);
-    expect(steps.map((s) => s.done)).toEqual([false, false, false, false, false]);
+    expect(steps.map((s) => s.key)).toEqual(['apply', 'chat', 'accept', 'live', 'time', 'report']);
+    expect(steps.map((s) => s.done)).toEqual([false, false, false, false, false, false]);
     expect(seed.find((a) => a.id === steps[1].targetId)!.name).toBe('Elin Johansson');
     expect(seed.find((a) => a.id === steps[2].targetId)!.name).toBe('Elin Johansson');
+  });
+  it('ticks off the stuck driver once ops records a decision', () => {
+    expect(guideSteps(seed, { ...none, liveHandled: true }).find((s) => s.key === 'live')!.done).toBe(true);
   });
   it('ticks off the assistant, time and the report from the session', () => {
     expect(guideSteps(seed, all).filter((s) => ['chat', 'time', 'report'].includes(s.key)).every((s) => s.done)).toBe(true);
@@ -30,7 +33,7 @@ describe('guideSteps', () => {
     expect(steps[0].done).toBe(true);
     expect(steps[1].targetId).toBe(nova.id); // the assistant opens on the visitor's own applicant
     expect(steps[2].targetId).toBe(nova.id); // and so does the next decision
-    expect(steps[3].done).toBe(true);
+    expect(steps.find((s) => s.key === 'time')!.done).toBe(true);
     const r = applyDecision({ ...nova, photoApproved: true, extractShown: true }, { type: 'accepted' }, NOW);
     if (!r.ok) throw new Error(r.error);
     expect(guideSteps(withNova.map((a) => (a.id === nova.id ? r.applicant : a)), all)[2].done).toBe(true);

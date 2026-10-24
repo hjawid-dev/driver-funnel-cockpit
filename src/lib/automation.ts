@@ -76,7 +76,7 @@ export function automationEvents(apps: Applicant[], from: number, to: number): A
     // Extract call reminder.
     if (a.callAt) {
       push(a.callAt - HOUR, 'driver', 'call_reminder', 'Your call is in 1 hour', `Have your extract ready. We only look at it and never keep a copy. Call at ${time(a.callAt)}.`);
-      push(a.callAt - HOUR, 'ops', 'call_reminder', `Extract call with ${a.name} at ${time(a.callAt)}`);
+      push(a.callAt - HOUR, 'ops', 'call_reminder', `Onboarding call with ${a.name} at ${time(a.callAt)}`);
     }
 
     // Review SLA alerts to owner + backup.
@@ -109,7 +109,8 @@ export function automationEvents(apps: Applicant[], from: number, to: number): A
     // Accepted
     push(d.at, 'driver', 'decision', 'Welcome aboard!', `Hi ${first(a)}, you're accepted. Pick your first drive below: short, easy jobs with ops on standby.`);
     push(d.at, 'driver', 'offers', 'First-gig offers ready', 'Three easy jobs near you. Pick one and it is booked.');
-    push(d.at, 'ops', 'welcome_task', `Task: welcome call to ${a.name}, due within 24 h`);
+    // The first drive is normally booked in the onboarding call; only if it wasn't does ops call within 24 h.
+    if (!a.firstGig?.bookedFor) push(d.at + HOUR, 'ops', 'welcome_task', `Task: no first drive booked in the call. Welcome call to ${a.name}, due within 24 h`);
 
     const gig = a.firstGig;
     const reminderAt = gig?.bookedFor ? gig.bookedFor - 12 * HOUR : 0;

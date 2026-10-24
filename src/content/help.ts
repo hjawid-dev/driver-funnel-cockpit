@@ -42,7 +42,7 @@ export const HELP: HelpArticle[] = [
 - The right to work in Sweden.
 - A smartphone with mobile data.
 - To speak Swedish or English well enough to talk with customers and ops.
-You also show a criminal-record extract in a short call (we never keep it), because we handle customers' cars and keys.`,
+You also show a criminal-record extract in the onboarding call (we never keep it), because we handle customers' cars and keys.`,
   },
   {
     id: 'how-to-apply',
@@ -55,7 +55,7 @@ You also show a criminal-record extract in a short call (we never keep it), beca
 3. Take a photo of your driving licence, front and back.
 4. Add a profile photo.
 5. Order your criminal-record extract at polisen.se.
-6. When it has arrived, book a 15-minute video call. You show the extract and we decide in the call.
+6. When it has arrived, book your 15-minute onboarding call (video). We go through how jobs work, you show the extract, and we decide in the call.
 The progress bar at the top shows where you are. You can stop and continue later; we keep your progress.`,
   },
   {
@@ -64,7 +64,7 @@ The progress bar at the top shows where you are. You can stop and continue later
     category: 'Applying',
     tags: ['how long', 'hur lång tid', 'when', 'start', 'waiting', 'time'],
     body: `Most of the wait is for the criminal-record extract, which usually arrives within a few days and sometimes takes up to two weeks. Everything else takes about 10 minutes.
-Once the extract has arrived you book a call yourself, often the same or next day. We decide in the call, and at the latest within 48 hours.
+Once the extract has arrived you book your onboarding call yourself, often the same or next day. We decide in the call, and at the latest within 48 hours.
 If you're accepted you can pick your first drive straight away. Many new drivers do their first drive within a week of applying.`,
   },
   {
@@ -137,7 +137,7 @@ The app checks the photo instantly and tells you if something needs fixing. A pe
 1. Go to polisen.se and order an extract of your own data from the criminal record. It is free.
 2. It is sent to you, usually within a few days, sometimes up to two weeks.
 3. In the app, tap "I've ordered it", or just tell the assistant in the chat. We'll remind you.
-4. When it arrives, tap "It has arrived" and book your call.
+4. When it arrives, tap "It has arrived" and book your onboarding call.
 You show the extract in the call. We never keep a copy and never write down what it says.`,
   },
   {
@@ -145,7 +145,7 @@ You show the extract in the call. We never keep a copy and never write down what
     title: 'What happens with my criminal-record extract?',
     category: 'Documents',
     tags: ['extract', 'utdrag', 'privacy', 'stored', 'sparas', 'copy', 'record', 'gdpr'],
-    body: `Nothing is stored. You hold up the extract in the video call and we look at it together. We don't take a copy, a photo or notes about what it says.
+    body: `Nothing is stored. You hold up the extract in the onboarding call and we look at it together. We don't take a copy, a photo or notes about what it says.
 The only thing we record is that the extract was shown.
 Please don't send the extract or details from it in the chat or by email. If you have questions about how an entry affects your application, ask in the call.`,
   },
@@ -171,9 +171,9 @@ If nothing has happened in 14 days, a person on our team looks at your applicati
   // ---------------- The call and decision ----------------
   {
     id: 'call-booking',
-    title: 'Booking your call',
+    title: 'Booking your onboarding call',
     category: 'The call and decision',
-    tags: ['book call', 'boka samtal', 'interview', 'video call', 'time', 'slot'],
+    tags: ['book call', 'boka samtal', 'onboarding call', 'interview', 'intervju', 'video call', 'time', 'slot'],
     body: `When your extract has arrived, the app shows free times. Calls are held in two daily slots, around 09:00 and 14:00 on weekdays. Pick a time and it is booked; you get a reminder 1 hour before.
 The call is 15 minutes, by video. You need your extract, your driving licence and a phone or computer with a camera.`,
   },
@@ -188,14 +188,16 @@ If you miss your call, ask in the chat for a new time. Missing one call doesn't 
   },
   {
     id: 'call-content',
-    title: 'What happens in the call',
+    title: 'What happens in the onboarding call',
     category: 'The call and decision',
-    tags: ['call', 'samtal', 'interview', 'intervju', 'questions', 'prepare', 'förbereda'],
-    body: `The call takes 15 minutes:
-1. You show your criminal-record extract. We only look at it.
-2. We check your licence against the photo you sent.
-3. We go through how jobs, pay and a typical drive work, and answer your questions.
-4. We decide in the call. If we need to check something, you get the decision within 48 hours.
+    tags: ['call', 'samtal', 'onboarding', 'interview', 'intervju', 'questions', 'prepare', 'förbereda', 'agenda'],
+    body: `The onboarding call is a short interview, 15 minutes by video:
+1. How a job works: pickup, photos and handover.
+2. What to do if you get stuck at a pickup: stay, tell ops, your waiting time is paid.
+3. When you can drive.
+4. You show your criminal-record extract and licence. We only look at the extract and keep nothing from it.
+5. Your questions, and our decision. If we need to check something, you get the decision within 48 hours.
+6. If you're accepted, we book your first drive together in the same call.
 No preparation is needed beyond having your extract and licence at hand.`,
   },
   {

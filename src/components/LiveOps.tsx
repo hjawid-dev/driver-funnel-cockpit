@@ -168,15 +168,19 @@ function IncidentCard({ j, now, onJob, onViewChat }: { j: Job; now: number; onJo
   const first = j.driverName.split(' ')[0];
 
   return (
-    <article className="rounded-2xl border border-bad/40 bg-white">
-      <header className="flex flex-wrap items-start gap-3 border-b border-bad/20 bg-bad-bg/40 px-4 py-3 sm:px-5">
+    <article className={`rounded-2xl border bg-white ${j.incident?.outcome ? 'border-lavender' : 'border-bad/40'}`}>
+      <header className={`flex flex-wrap items-start gap-3 border-b px-4 py-3 sm:px-5 ${j.incident?.outcome ? 'border-lavender bg-card/60' : 'border-bad/20 bg-bad-bg/40'}`}>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-md bg-bad px-1.5 py-0.5 text-xs font-semibold text-white">
-              <TriangleAlert size={12} aria-hidden /> Urgent
-            </span>
+            {j.incident?.outcome ? (
+              <span className="rounded-md bg-ok-bg px-1.5 py-0.5 text-xs font-semibold text-ok">To close</span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-md bg-bad px-1.5 py-0.5 text-xs font-semibold text-white">
+                <TriangleAlert size={12} aria-hidden /> Urgent
+              </span>
+            )}
             <h3 className="font-bold">
-              {j.driverName}: {alert.kind === 'not_arrived' ? 'not checked in' : 'stuck at the pickup'}
+              {j.driverName}: {j.incident?.outcome ? OUTCOME_LABEL[j.incident.outcome.type].toLowerCase() : alert.kind === 'not_arrived' ? 'not checked in' : 'stuck at the pickup'}
             </h3>
             {j.pilot && <span className="rounded bg-white px-1.5 py-0.5 text-xs font-semibold text-navy">Pilot customer</span>}
           </div>

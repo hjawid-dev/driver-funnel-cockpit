@@ -41,6 +41,9 @@ describe('welcomeCallState', () => {
   it('missed, not overdue, once the driver is dormant', () => {
     expect(welcomeCallState(acc(34 * 24), NOW)).toEqual({ state: 'missed', label: 'Missed' });
   });
+  it('not needed once the first drive is booked (in the onboarding call)', () => {
+    expect(welcomeCallState({ ...acc(30), firstGig: { bookedFor: NOW + 20 * HOUR } }, NOW).state).toBe('not_needed');
+  });
   it('done once logged', () => {
     expect(welcomeCallState({ ...acc(30), welcomeCallAt: NOW - HOUR }, NOW).state).toBe('done');
   });

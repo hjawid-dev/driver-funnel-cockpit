@@ -76,8 +76,8 @@ export function evaluate(a: Applicant): Evaluation {
     ...(a.docs.extract !== 'ready'
       ? { result: 'fail', detail: a.docs.extract === 'pending' ? 'Ordered, not yet ready to show' : 'Not ordered yet' }
       : a.extractShown
-        ? { result: 'pass', detail: 'Shown in a call. Nothing from it is stored.' }
-        : { result: 'manual', detail: 'Applicant shows it in a short call. Tick when seen; record nothing from it.' }),
+        ? { result: 'pass', detail: 'Shown in the onboarding call. Nothing from it is stored.' }
+        : { result: 'manual', detail: 'Shown in the onboarding call. Tick when seen; record nothing from it.' }),
   };
 
   const photo: MustHave = {
@@ -211,3 +211,16 @@ export function shortTime(ts: number): string {
 export function fmtYears(y: number): string {
   return `${Number.isInteger(y) ? y : y.toFixed(1)} yrs`;
 }
+
+/**
+ * The onboarding call: a short interview where the extract is one part, not the point. The decision
+ * is made in the call, and the first drive is booked in the same call, so no separate welcome call is needed.
+ */
+export const CALL_AGENDA = [
+  'How a job works: pickup, photos, handover',
+  'If you get stuck at a pickup: stay, call ops, waiting time is paid',
+  'When you can drive',
+  'You show your extract; we only look at it',
+  'Your questions, and the decision',
+  'Book your first drive together',
+] as const;

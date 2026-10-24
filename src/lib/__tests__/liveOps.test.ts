@@ -23,6 +23,7 @@ import {
   type Job,
 } from '../liveOps';
 import { liveOpsEvents } from '../automation';
+import { emptyThread, keysFoundByDriver, reportUrgent } from '../chat/threads';
 import { generateSeed } from '../seed';
 import { HOUR, MIN } from '../time';
 import { NOW } from './helpers';
@@ -93,6 +94,12 @@ describe('alerts: the app notices before anyone has to call', () => {
   it('the driver reporting a problem is an alert at once', () => {
     expect(jobAlert(reportProblem(job(), NOW + MIN), NOW + MIN)?.kind).toBe('driver_reported');
   });
+  it('keys found after the alert: the incident stays open for ops to close, with the outcome filled in', () => {
+    const j = gotKeys(checkIn(job(), NOW), NOW + 15 * MIN);
+    expect(j.incident?.outcome?.type).toBe('keys_found');
+    expect(j.incident?.log.at(-1)?.text).toBe('The driver found the keys');
+    expect(jobAlert(j, NOW + 16 * MIN)).not.toBeNull();
+  });
   it('keys before the alert: nothing to do', () => {
     expect(jobAlert(gotKeys(checkIn(job(), NOW), NOW + 5 * MIN), NOW + 20 * MIN)).toBeNull();
   });
@@ -140,6 +147,18 @@ describe('the driver hears the decision in the chat', () => {
     if (!r.ok) throw new Error(r.error);
     expect(closedIncidents([r.job], NOW + HOUR).map((j) => j.id)).toEqual(['JOB-1']);
     expect(closedIncidents([r.job], NOW + 13 * HOUR)).toEqual([]);
+  });
+});
+
+describe('the driver finds the keys while waiting for ops', () => {
+  it('the urgent chat leaves the queue; other threads are untouched', () => {
+    const waiting = reportUrgent(emptyThread(null), 'No keys', NOW);
+    const t = keysFoundByDriver(waiting, NOW + 5 * MIN);
+    expect(t.status).toBe('ai');
+    expect(t.waitingSince).toBeUndefined();
+    expect(t.messages.at(-2)?.text).toBe('I found the keys.');
+    const plain = emptyThread(null);
+    expect(keysFoundByDriver(plain, NOW)).toBe(plain);
   });
 });
 

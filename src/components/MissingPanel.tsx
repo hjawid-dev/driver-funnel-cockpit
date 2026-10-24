@@ -30,7 +30,7 @@ export function MissingPanel({ a, now, onResult }: Props) {
       message: complete
         ? `File complete: ${a.name}. Auto-queued for review.`
         : k === 'extract'
-          ? `${a.name} has the extract ready to show in a call.`
+          ? `${a.name} has the extract ready to show in the onboarding call.`
           : `${DOC_LABEL[k]} received: ${a.name}.`,
     });
   };

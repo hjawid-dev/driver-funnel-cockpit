@@ -73,6 +73,8 @@ export function ActivationPanel({ a, now, onResult }: Props) {
       <DrawerSection title="1 · Welcome call" aside={<span className="text-xs text-muted">within 24 h of acceptance</span>}>
         {call.state === 'done' ? (
           <p className="text-sm text-ok font-medium">Logged {formatDateTime(call.at)}</p>
+        ) : call.state === 'not_needed' ? (
+          <p className="text-sm text-muted">Not needed: the first drive is booked.</p>
         ) : (
           <div className="flex flex-wrap items-center gap-3">
             <button

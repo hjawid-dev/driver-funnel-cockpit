@@ -25,8 +25,8 @@ export function driverContext(a: Applicant | null, gigs: Gig[], now: number, job
     licence: 'Applying: next step is the licence photo',
     photo: 'Applying: next step is the profile photo',
     extract: a.docs.extract === 'pending' ? 'Applying: has ordered the criminal-record extract, waiting for it to arrive' : 'Applying: next step is ordering the criminal-record extract',
-    call: 'Applying: extract has arrived, next step is booking the call',
-    decision: 'Applying: call booked, decision is made in the call',
+    call: 'Applying: extract has arrived, next step is booking the onboarding call',
+    decision: 'Applying: onboarding call booked, decision is made in the call',
     first_gig: 'Accepted as a driver: can pick a first drive in the app',
     booked: 'Accepted as a driver: first drive booked',
     active: 'Active driver',
@@ -34,7 +34,7 @@ export function driverContext(a: Applicant | null, gigs: Gig[], now: number, job
   };
 
   if (['id', 'licence', 'photo', 'extract'].includes(step) && missing.length) facts.push(`Still missing: ${missing.map((k) => DOC_LABEL[k]).join(', ')}`);
-  if (a.callAt && a.callAt > now) facts.push(`Call booked: ${formatDateTime(a.callAt)}`);
+  if (a.callAt && a.callAt > now) facts.push(`Onboarding call booked: ${formatDateTime(a.callAt)}`);
   if (a.decision?.type === 'accepted_simple') facts.push('Accepted for simple drives first (licence held 1–2 years)');
   if (a.availability === 'limited') facts.push(`Availability: ${a.availabilityNote ?? 'limited'}`);
   const g = a.firstGig?.gigId ? gigs.find((x) => x.id === a.firstGig?.gigId) : undefined;

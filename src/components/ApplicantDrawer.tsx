@@ -97,7 +97,7 @@ function Facts({ a, now }: { a: Applicant; now: number }) {
     ['Availability', a.availability === 'full' ? 'Full' : `Limited${a.availabilityNote ? `: ${a.availabilityNote}` : ''}`],
     ['Registered', <When ts={a.registeredAt} now={now} />],
     ['File complete', a.docsCompleteAt ? <When ts={a.docsCompleteAt} now={now} /> : <span className="text-muted">Not yet</span>],
-    ...(a.callAt ? ([['Extract call', <When ts={a.callAt} now={now} />]] as [string, ReactNode][]) : []),
+    ...(a.callAt ? ([['Onboarding call', <When ts={a.callAt} now={now} />]] as [string, ReactNode][]) : []),
     ...(a.source === 'self' ? ([['Source', 'Applied in the driver app']] as [string, ReactNode][]) : []),
   ];
   return (

@@ -295,8 +295,11 @@ export function checkIn(j: Job, now: number): Job {
 }
 
 export function gotKeys(j: Job, now: number): Job {
+  // Ops was already alerted: the incident stays open with the outcome filled in, so ops closes it and the waiting time gets paid.
+  const alerted = !!jobAlert(j, now);
   const next = { ...checkIn(j, now), keysAt: now };
-  return next.incident && !next.incident.outcome ? setOutcome(next, 'keys_found', now) : next;
+  if (next.incident?.outcome || (!next.incident && !alerted)) return next;
+  return withIncident(next, now, (i) => ({ ...i, outcome: { type: 'keys_found', at: now }, steps: { ...i.steps, decide: now } }), 'The driver found the keys');
 }
 
 export function depart(j: Job, now: number): Job {

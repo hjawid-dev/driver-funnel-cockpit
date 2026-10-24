@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { CalendarClock, Compass, FileText, Network } from 'lucide-react';
 import { useClock, useDemoData, type TabKey } from './state';
 import { computeFunnel, computeKpis, type FunnelKey } from './lib/kpis';
@@ -31,7 +31,7 @@ import { formatDateTime } from './lib/time';
 import { todayItems } from './lib/today';
 import { liveOpsEvents } from './lib/automation';
 import { currentJob, driverUpdate, openIncidents, reportProblem, type Job } from './lib/liveOps';
-import { backToAi, emptyThread, opsReply, threadIdFor } from './lib/chat/threads';
+import { backToAi, emptyThread, keysFoundByDriver, opsReply, threadIdFor } from './lib/chat/threads';
 import { REVIEWER } from './lib/types';
 import { LiveOps } from './components/LiveOps';
 
@@ -55,6 +55,10 @@ function writeGuideHidden(hidden: boolean) {
   }
 }
 
+type Page = 'funnel' | 'live';
+const PAGE_TABS: Record<Page, TabKey[]> = { funnel: ['review', 'missing', 'awaiting', 'all'], live: ['live', 'chat'] };
+const LIVE_TABS: TabKey[] = PAGE_TABS.live;
+
 const TILE_TO_TAB: Record<FunnelKey, TabKey> = {
   registered: 'missing',
   docs: 'review',
@@ -73,11 +77,15 @@ export default function App() {
   const [phoneOpen, setPhoneOpen] = useState(() => /^#(driver|chat)/.test(window.location.hash));
   const [phoneId, setPhoneId] = useState<string | null>(() => window.location.hash.match(/^#(?:driver|chat)=(.+)$/)?.[1] ?? null);
   const [lastRun, setLastRun] = useState<{ from: number; to: number; events: AutoEvent[] } | null>(null);
+  // Two pages: the driver funnel (applications to active drivers) and live ops (drives today, driver questions).
   // #live opens Live ops (handy for presenting Part 1).
+  const [page, setPage] = useState<Page>(() => (window.location.hash === '#live' ? 'live' : 'funnel'));
   const [tab, setTab] = useState<TabKey>(() => (window.location.hash === '#live' ? 'live' : 'review'));
-  useEffect(() => {
-    if (window.location.hash === '#live') setTimeout(() => document.getElementById('worklists')?.scrollIntoView({ block: 'start' }), 100);
-  }, []);
+  const showPage = (p: Page) => {
+    setPage(p);
+    setTab(PAGE_TABS[p][0]);
+    window.scrollTo({ top: 0 });
+  };
   const [openId, setOpenId] = useState<string | null>(null);
   const [stageFilter, setStageFilter] = useState<StageFilter>('all');
   const [showHubspot, setShowHubspot] = useState(false);
@@ -158,8 +166,8 @@ export default function App() {
       update(next);
       if (!prev) return;
       if (!prev.docsCompleteAt && next.docsCompleteAt) toast.notify(`${next.name}: file complete, auto-queued for review.`);
-      else if (!prev.callAt && next.callAt) toast.notify(`${next.name} booked the extract call: ${formatDateTime(next.callAt)}.`);
-      else if (prev.callAt && next.callAt && prev.callAt !== next.callAt) toast.notify(`${next.name} moved the extract call to ${formatDateTime(next.callAt)}.`);
+      else if (!prev.callAt && next.callAt) toast.notify(`${next.name} booked the onboarding call: ${formatDateTime(next.callAt)}.`);
+      else if (prev.callAt && next.callAt && prev.callAt !== next.callAt) toast.notify(`${next.name} moved the onboarding call to ${formatDateTime(next.callAt)}.`);
       else if (!prev.reminders?.offAt && next.reminders?.offAt) toast.notify(`${next.name} stopped the reminders in the chat.`);
       else if (next.reminders?.snooze && prev.reminders?.snooze?.until !== next.reminders.snooze.until)
         toast.notify(`${next.name} asked for a reminder ${formatDateTime(next.reminders.snooze.until)}.`);
@@ -176,12 +184,16 @@ export default function App() {
       const first = next.driverName.split(' ')[0];
       if (!prev) return;
       if (!prev.problemAt && next.problemAt) toast.notify(`Urgent: ${first} reported a problem at the pickup. See Live ops.`);
-      else if (!prev.keysAt && next.keysAt) toast.notify(`${first} has the keys (${next.id}).`);
+      else if (!(prev.keysAt !== undefined && prev.keysAt <= now) && next.keysAt !== undefined && next.keysAt <= now) {
+        toast.notify(`${first} has the keys (${next.id}).`);
+        const t = threads.find((x) => x.id === threadIdFor(next.driverId));
+        if (t) upsertThread(keysFoundByDriver(t, now));
+      }
       else if (!prev.arrivedAt && next.arrivedAt) toast.notify(`${first} checked in at the pickup (${next.id}).`);
       else if (!prev.departedAt && next.departedAt) toast.notify(`${first} is on the way to the drop-off (${next.id}).`);
       else if (!prev.deliveredAt && next.deliveredAt) toast.notify(`${first} delivered the car (${next.id}).`);
     },
-    [jobs, updateJob, toast.notify],
+    [jobs, threads, now, updateJob, upsertThread, toast.notify],
   );
 
   const onAdvance = (ms: number) => {
@@ -199,7 +211,8 @@ export default function App() {
     return { live: openIncidents(jobs, now).length, review: n('review'), missing: n('registered'), awaiting: n('accepted'), chat: waitingThreads(threads).length, all: apps.length };
   }, [apps, threads, jobs, now]);
   const slot = nextReviewSlot(now);
-  const steps = useMemo(() => guideSteps(apps, { timeMoved: clock.offset > 0, chatTried, reportOpened }), [apps, clock.offset, chatTried, reportOpened]);
+  const liveHandled = jobs.some((j) => j.incident?.outcome);
+  const steps = useMemo(() => guideSteps(apps, { timeMoved: clock.offset > 0, chatTried, reportOpened, liveHandled }), [apps, clock.offset, chatTried, reportOpened, liveHandled]);
 
   const today = useMemo(() => todayItems(apps, threads, now, jobs), [apps, threads, now, jobs]);
 
@@ -233,10 +246,14 @@ export default function App() {
   };
 
   const openTab = (t: TabKey) => {
+    setPage(LIVE_TABS.includes(t) ? 'live' : 'funnel');
     setTab(t);
     if (t === 'all') setStageFilter('all');
     setTimeout(() => document.getElementById('worklists')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
+
+  const pageToday = today.filter((i) => (page === 'live') === LIVE_TABS.includes(i.tab));
+  const liveAlert = counts.live + threads.filter((t) => t.status === 'waiting' && t.reason === 'urgent' && !jobs.some((j) => j.driverId === t.applicantId && openIncidents([j], now).length)).length;
 
   const jumpTo = (key: FunnelKey) => {
     setTab(TILE_TO_TAB[key]);
@@ -250,8 +267,29 @@ export default function App() {
     <div className="min-w-0 flex-1 flex flex-col">
       <header className="bg-navy text-white">
         <div className="mx-auto max-w-7xl px-4 h-14 flex items-center gap-3">
-          <span className="font-semibold tracking-tight whitespace-nowrap">Driver Ops</span>
-          <span className="text-xs font-medium rounded-full bg-white/10 px-2 py-0.5 whitespace-nowrap">Demo data</span>
+          <span className="hidden sm:inline font-semibold tracking-tight whitespace-nowrap">Driver Ops</span>
+          <span className="hidden md:inline text-xs font-medium rounded-full bg-white/10 px-2 py-0.5 whitespace-nowrap">Demo data</span>
+          <nav aria-label="Pages" className="sm:ml-2 flex rounded-lg bg-white/10 p-0.5 text-sm font-semibold">
+            {(['funnel', 'live'] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => showPage(p)}
+                aria-current={page === p ? 'page' : undefined}
+                className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 ${page === p ? 'bg-white text-navy' : 'text-white/80 hover:text-white'}`}
+              >
+                {p === 'funnel' ? (
+                  <>
+                    <span className="sm:hidden">Funnel</span>
+                    <span className="hidden sm:inline">Driver funnel</span>
+                  </>
+                ) : (
+                  'Live ops'
+                )}
+                {p === 'live' && liveAlert > 0 && <span className="num rounded-full bg-bad px-1.5 text-xs text-white">{liveAlert}</span>}
+              </button>
+            ))}
+          </nav>
           <div className="ml-auto flex items-center gap-1">
             <button
               type="button"
@@ -289,8 +327,8 @@ export default function App() {
       <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-5 space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Driver Funnel Cockpit</h1>
-            <p className="text-sm text-muted mt-0.5">Application to active driver, Stockholm</p>
+            <h1 className="text-2xl font-bold tracking-tight">{page === 'funnel' ? 'Driver funnel' : 'Live ops'}</h1>
+            <p className="text-sm text-muted mt-0.5">{page === 'funnel' ? 'Application to active driver, Stockholm' : "Today's drives and driver questions, Stockholm"}</p>
           </div>
           {guideHidden && (
             <button
@@ -305,7 +343,7 @@ export default function App() {
 
         <section aria-label="Today" className="flex flex-wrap items-center gap-2 text-sm">
           <span className="mr-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted">Today</span>
-          {today.map((i) => (
+          {pageToday.map((i) => (
             <button
               key={i.key}
               type="button"
@@ -317,32 +355,42 @@ export default function App() {
               {i.label}
             </button>
           ))}
-          {today.length === 0 && <span className="text-muted">Nothing waiting.</span>}
-          <span className="flex items-center gap-1.5 rounded-full bg-card px-3 py-1">
-            <CalendarClock size={15} className="text-indigo" aria-hidden />
-            Next review <strong className="num font-semibold">{slot.time}</strong> {slot.day}
-            <span className="text-muted">· in {formatDuration(slot.at - now)}</span>
-          </span>
+          {pageToday.length === 0 && <span className="text-muted">Nothing waiting.</span>}
+          {page === 'funnel' && (
+            <span className="flex items-center gap-1.5 rounded-full bg-card px-3 py-1">
+              <CalendarClock size={15} className="text-indigo" aria-hidden />
+              Next review <strong className="num font-semibold">{slot.time}</strong> {slot.day}
+              <span className="text-muted">· in {formatDuration(slot.at - now)}</span>
+            </span>
+          )}
         </section>
 
         {!guideHidden && (
           <DemoGuide
             steps={steps}
-            onOpen={setOpenId}
+            onOpen={(id) => {
+              showPage('funnel');
+              setOpenId(id);
+            }}
             onPhone={() => openAsDriver(apps.find((a) => a.source === 'self')?.id ?? null)}
             onChat={openDriverChat}
             onReport={() => setShowReport(true)}
+            onLive={() => showPage('live')}
             onAdvance={() => onAdvance(24 * 3_600_000)}
             onHubspot={() => setShowHubspot(true)}
             onHide={() => toggleGuide(true)}
           />
         )}
 
-        <Scoreboard funnel={funnel} onSelect={jumpTo} />
-        <KpiRow kpis={kpis} baseline={baseline} />
+        {page === 'funnel' && (
+          <>
+            <Scoreboard funnel={funnel} onSelect={jumpTo} />
+            <KpiRow kpis={kpis} baseline={baseline} />
+          </>
+        )}
 
         <section id="worklists" className="scroll-mt-4">
-          <Tabs active={tab} counts={counts} alert={{ live: counts.live > 0, chat: threads.some((t) => t.status === 'waiting' && t.reason === 'urgent') }} onChange={setTab} />
+          <Tabs keys={PAGE_TABS[page]} active={tab} counts={counts} alert={{ live: counts.live > 0, chat: threads.some((t) => t.status === 'waiting' && t.reason === 'urgent') }} onChange={setTab} />
           <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
             {tab === 'live' ? (
               <LiveOps jobs={jobs} now={now} onJob={onJob} onViewChat={openDriverChat} />

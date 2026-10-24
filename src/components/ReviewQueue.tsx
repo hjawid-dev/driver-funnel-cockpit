@@ -31,7 +31,7 @@ export function ReviewQueue({ apps, now, onOpen }: Props) {
         info={
           <>
             <p>Complete files, most urgent first. Target: a decision within 48 h of a complete file, which is the ops part of time to decision.</p>
-            <p className="text-muted">Every file needs the extract shown in the call and the photo checked. Flags show only what differs from a clean file.</p>
+            <p className="text-muted">Every file needs the extract shown in the onboarding call and the photo checked. Flags show only what differs from a clean file.</p>
           </>
         }
       >
@@ -47,7 +47,7 @@ export function ReviewQueue({ apps, now, onOpen }: Props) {
               <th className="px-4 py-2.5 font-semibold">Area</th>
               <th className="px-4 py-2.5 font-semibold">File complete</th>
               <th className="px-4 py-2.5 font-semibold">SLA</th>
-              <th className="px-4 py-2.5 font-semibold">Extract call</th>
+              <th className="px-4 py-2.5 font-semibold">Onboarding call</th>
               <th className="px-4 py-2.5 font-semibold">Flags</th>
             </tr>
           </thead>

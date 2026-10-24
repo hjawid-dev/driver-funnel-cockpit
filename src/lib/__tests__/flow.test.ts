@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { distanceScore, firstGigOffers, generateGigs, isEasy, isWeekendOrEvening } from '../gigs';
 import { callSlots } from '../booking';
 import { automationEvents, driverInbox, summarize } from '../automation';
-import { bookCall, bookOffer, createApplicant, driverStep, progress } from '../driverFlow';
+import { availabilityFrom, bookCall, bookOffer, changePrequal, createApplicant, driverStep, progress, remindWhenQualified } from '../driverFlow';
 import { applyDecision, receiveDocument, setExtractShown, setPhotoApproved } from '../actions';
 import { validateDecision } from '../criteria';
 import { deriveStage } from '../stage';
@@ -29,6 +29,23 @@ describe('createApplicant', () => {
     expect(young.decision).toBeUndefined();
     expect(driverStep(young)).toBe('prequal_review');
     expect(apply({ licenceYears: 0.5 }).prequalIssue).toBe('licence');
+  });
+  it('the applicant can change a wrong answer and carry on; the change is logged', () => {
+    const a = changePrequal(apply({ licenceYears: 0.5 }), { licenceYears: 3, meetsMinAge: true }, NOW + MIN);
+    expect(a.prequalIssue).toBeUndefined();
+    expect(driverStep(a)).toBe('id');
+    expect(a.log.at(-1)?.text).toContain('requirements now met');
+    expect(changePrequal(apply({ licenceYears: 0.5 }), { licenceYears: 0.5, meetsMinAge: true }, NOW).prequalIssue).toBe('licence');
+  });
+  it('"remind me when I qualify" is logged once and decides nothing', () => {
+    const a = remindWhenQualified(remindWhenQualified(apply({ licenceYears: 0.5 }), NOW), NOW + MIN);
+    expect(a.remindWhenQualifiedAt).toBe(NOW);
+    expect(a.decision).toBeUndefined();
+  });
+  it('availability: weekday daytime is full; anything else is limited with a note', () => {
+    expect(availabilityFrom(['weekday_day', 'weekend'])).toEqual({ availability: 'full' });
+    expect(availabilityFrom(['weekend', 'weekday_evening'])).toEqual({ availability: 'limited', availabilityNote: 'Weekday evenings and weekends' });
+    expect(availabilityFrom(['weekend'])).toEqual({ availability: 'limited', availabilityNote: 'Weekends' });
   });
   it('a person can close a pre-qualify issue without waiting 14 days', () => {
     const r = applyDecision(apply({ licenceYears: 0.5 }), { type: 'rejected', reason: 'no_valid_licence' }, NOW);

@@ -6,12 +6,12 @@ import { chatTimeline, emptyThread, reportUrgent, threadIdFor, unreadCount } fro
 import { checkIn, currentJob, deliver, depart, driverStatus, gotKeys, incidentClock, jobAlert, reportProblem, OUTCOME_LABEL, type Job } from '../../lib/liveOps';
 import { DriverChat } from './DriverChat';
 import { REJECT_REASONS } from '../../lib/types';
-import { driverStep, progress, STEP_ORDER, createApplicant, bookCall, bookOffer, MIN_AGE, type Application } from '../../lib/driverFlow';
+import { driverStep, progress, STEP_ORDER, createApplicant, bookCall, bookOffer, MIN_AGE, availabilityFrom, changePrequal, remindWhenQualified, SLOT_LABEL, type Application, type Slot } from '../../lib/driverFlow';
 import { receiveDocument } from '../../lib/actions';
 import { callSlots } from '../../lib/booking';
 import { firstGigOffers } from '../../lib/gigs';
 import { driverInbox } from '../../lib/automation';
-import { PHOTO_STANDARD } from '../../lib/criteria';
+import { CALL_AGENDA, PHOTO_STANDARD } from '../../lib/criteria';
 import { formatDateTime } from '../../lib/time';
 
 const AREAS = ['Bromma', 'Haninge', 'Huddinge', 'Järfälla', 'Kungsholmen', 'Lidingö', 'Nacka', 'Sollentuna', 'Solna', 'Sundbyberg', 'Södermalm', 'Täby'];
@@ -153,8 +153,9 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
   const [area, setArea] = useState('Solna');
   const [licence, setLicence] = useState<number | null>(null);
   const [age, setAge] = useState<boolean | null>(null);
-  const [avail, setAvail] = useState<'full' | 'limited' | null>(null);
-  const ok = name.trim().length > 1 && licence !== null && age !== null && avail !== null;
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const ok = name.trim().length > 1 && licence !== null && age !== null && slots.length > 0;
+  const toggle = (s: Slot) => setSlots((xs) => (xs.includes(s) ? xs.filter((x) => x !== s) : [...xs, s]));
 
   if (!started) {
     return (
@@ -168,7 +169,7 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
             <li>1. Verify your ID with BankID</li>
             <li>2. Photo of your licence and a profile photo</li>
             <li>3. Order your criminal-record extract</li>
-            <li>4. Book a 15-minute call. We decide in the call.</li>
+            <li>4. Book a 15-minute onboarding call. We decide in the call.</li>
           </ul>
         </Card>
         <PrivacyNotice />
@@ -234,10 +235,20 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
         </div>
       </fieldset>
       <fieldset>
-        <legend className="text-sm font-semibold">When can you drive?</legend>
-        <div className="mt-1 grid grid-cols-2 gap-1.5">
-          <Choice value={'full' as const} current={avail} set={setAvail}>Weekdays too</Choice>
-          <Choice value={'limited' as const} current={avail} set={setAvail}>Evenings and weekends</Choice>
+        <legend className="text-sm font-semibold">When can you usually drive?</legend>
+        <p className="text-xs text-muted">Pick all that fit. Any answer works: we match jobs to your times.</p>
+        <div className="mt-1 grid grid-cols-3 gap-1.5">
+          {(Object.keys(SLOT_LABEL) as Slot[]).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => toggle(s)}
+              aria-pressed={slots.includes(s)}
+              className={`rounded-lg border px-2 py-2 text-sm font-medium leading-tight ${slots.includes(s) ? 'border-indigo bg-lavender text-navy' : 'border-lavender bg-white text-muted'}`}
+            >
+              {SLOT_LABEL[s]}
+            </button>
+          ))}
         </div>
       </fieldset>
       <Primary
@@ -248,8 +259,7 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
             area,
             licenceYears: licence!,
             meetsMinAge: age!,
-            availability: avail!,
-            ...(avail === 'limited' ? { availabilityNote: 'Evenings and weekends' } : {}),
+            ...availabilityFrom(slots),
           })
         }
       >
@@ -268,7 +278,7 @@ function PrivacyNotice() {
       <ul className="mt-2 space-y-1.5 text-xs text-muted">
         <li>We use your details only to assess your application and, if accepted, to offer you jobs.</li>
         <li>
-          <strong>Your criminal-record extract is only shown in a call.</strong> We never keep a copy or write down what it says.
+          <strong>Your criminal-record extract is only shown in the onboarding call.</strong> We never keep a copy or write down what it says.
         </li>
         <li>A person makes every decision. You can ask why and ask for a review; we reply within two weeks.</li>
         <li>
@@ -290,18 +300,7 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox }: { a: Applicant; apps: A
 
   switch (step) {
     case 'prequal_review':
-      return (
-        <div className="space-y-3">
-          <Title icon={<ShieldCheck size={16} />}>Thanks, {first}</Title>
-          <Card tone="warn">
-            <p className="text-sm">
-              One requirement isn't met:{' '}
-              <strong>{a.prequalIssue === 'licence' ? 'a B licence held for at least 1 year' : `being ${MIN_AGE} or older (insurance requirement)`}</strong>.
-            </p>
-          </Card>
-          <p className="text-sm text-muted">Nothing is decided automatically. A person on our team reads your application and gets back to you within two working days.</p>
-        </div>
-      );
+      return <PrequalStop a={a} now={now} onUpdate={onUpdate} first={first} />;
     case 'id':
       return <BankIdStep onDone={() => onUpdate(receiveDocument(a, 'id', 'verified', now))} first={first} />;
     case 'licence':
@@ -325,8 +324,8 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox }: { a: Applicant; apps: A
           <Card tone="soft">
             <ol className="space-y-1.5 text-sm">
               <li>1. Order your own extract at polisen.se. It usually takes a few days.</li>
-              <li>2. When it arrives, book a 15-minute video call.</li>
-              <li>3. In the call you show it to us. <strong>We never keep a copy or write down what it says.</strong></li>
+              <li>2. When it arrives, book your 15-minute onboarding call (video).</li>
+              <li>3. In the call you also show it to us. <strong>We never keep a copy or write down what it says.</strong></li>
             </ol>
           </Card>
           <a
@@ -343,7 +342,7 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox }: { a: Applicant; apps: A
             <>
               <Card tone="ok">
                 <p className="flex items-center gap-1.5 text-sm font-semibold text-ok">
-                  <Check size={15} aria-hidden /> Ordered. We'll remind you to book the call.
+                  <Check size={15} aria-hidden /> Ordered. We'll remind you to book the onboarding call.
                 </p>
               </Card>
               <Primary onClick={() => onUpdate(receiveDocument(a, 'extract', 'ready', now))}>It has arrived</Primary>
@@ -364,12 +363,14 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox }: { a: Applicant; apps: A
             <p className="mt-1 text-xs text-muted">15 minutes, video. Have your extract ready.</p>
           </Card>
           <Card tone="soft">
-            <p className="text-sm font-semibold">What happens in the call</p>
-            <ul className="mt-1.5 space-y-1 text-sm text-muted">
-              <li>You show the extract; we don't keep it.</li>
-              <li>We go through how jobs work and answer your questions.</li>
-              <li>We decide in the call, at the latest within 48 hours.</li>
-            </ul>
+            <p className="text-sm font-semibold">Your onboarding call, 15 minutes</p>
+            <ol className="mt-1.5 space-y-1 text-sm text-muted">
+              {CALL_AGENDA.map((x, i) => (
+                <li key={x}>
+                  {i + 1}. {x}
+                </li>
+              ))}
+            </ol>
           </Card>
         </div>
       );
@@ -501,8 +502,8 @@ function CallStep({ a, apps, now, onBook }: { a: Applicant; apps: Applicant[]; n
   }
   return (
     <div className="space-y-3">
-      <Title icon={<CalendarCheck size={16} />} sub="15 minutes on video. You show the extract and we decide in the call.">
-        Book your call
+      <Title icon={<CalendarCheck size={16} />} sub="15 minutes on video: how jobs work, a few questions, and you show your extract. We decide in the call.">
+        Book your onboarding call
       </Title>
       {[...byDay.entries()].map(([day, ts]) => (
         <div key={day}>
@@ -625,6 +626,71 @@ function JobCard({ j, now, onJob, onProblem, onInbox }: { j: Job; now: number; o
             <Check size={15} aria-hidden /> Delivered. Thanks!
           </p>
         </Card>
+      )}
+    </div>
+  );
+}
+
+/** One requirement isn't met: the application pauses here, a person decides, and a wrong answer can be changed. */
+function PrequalStop({ a, now, onUpdate, first }: { a: Applicant; now: number; onUpdate: (a: Applicant) => void; first: string }) {
+  const [editing, setEditing] = useState(false);
+  const [licence, setLicence] = useState<number>(a.licenceYears);
+  const [age, setAge] = useState<boolean>(a.prequalIssue !== 'age');
+  const opt = (on: boolean) => `rounded-lg border px-3 py-2 text-sm font-medium ${on ? 'border-indigo bg-lavender text-navy' : 'border-lavender bg-white text-muted'}`;
+
+  if (editing) {
+    return (
+      <div className="space-y-4">
+        <Title icon={<ShieldCheck size={16} />} sub="If you tapped the wrong answer, change it here.">
+          Change your answers
+        </Title>
+        <fieldset>
+          <legend className="text-sm font-semibold">How long have you had a B licence?</legend>
+          <div className="mt-1 grid grid-cols-4 gap-1.5">
+            {([[0.5, '< 1 yr'], [1.5, '1–2 yrs'], [3, '2–5 yrs'], [6, '5+ yrs']] as const).map(([v, l]) => (
+              <button key={l} type="button" aria-pressed={licence === v} onClick={() => setLicence(v)} className={opt(licence === v)}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend className="text-sm font-semibold">Are you {MIN_AGE} or older?</legend>
+          <div className="mt-1 grid grid-cols-2 gap-1.5">
+            <button type="button" aria-pressed={age} onClick={() => setAge(true)} className={opt(age)}>Yes</button>
+            <button type="button" aria-pressed={!age} onClick={() => setAge(false)} className={opt(!age)}>No</button>
+          </div>
+        </fieldset>
+        <Primary onClick={() => onUpdate(changePrequal(a, { licenceYears: licence, meetsMinAge: age }, now))}>Save and continue</Primary>
+        <button type="button" onClick={() => setEditing(false)} className="w-full text-sm font-semibold text-muted hover:text-navy">
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <Title icon={<ShieldCheck size={16} />}>Thanks, {first}</Title>
+      <Card tone="warn">
+        <p className="text-sm">
+          One requirement isn't met:{' '}
+          <strong>{a.prequalIssue === 'licence' ? 'a B licence held for at least 1 year' : `being ${MIN_AGE} or older (insurance requirement)`}</strong>. Your application
+          pauses here, so you don't need to send any documents.
+        </p>
+      </Card>
+      <p className="text-sm text-muted">Nothing is decided automatically. A person on our team reads your application and gets back to you within two working days.</p>
+      <button type="button" onClick={() => setEditing(true)} className="w-full rounded-xl border border-lavender px-4 py-2.5 text-sm font-semibold text-indigo hover:border-indigo">
+        Change my answers
+      </button>
+      {a.remindWhenQualifiedAt ? (
+        <p className="flex items-center justify-center gap-1.5 text-sm font-semibold text-ok">
+          <Check size={15} aria-hidden /> We'll let you know when you qualify.
+        </p>
+      ) : (
+        <button type="button" onClick={() => onUpdate(remindWhenQualified(a, now))} className="w-full text-sm font-semibold text-indigo hover:underline">
+          Remind me when I qualify
+        </button>
       )}
     </div>
   );

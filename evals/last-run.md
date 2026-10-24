@@ -1,6 +1,6 @@
 # Driver assistant eval: last run
 
-2026-10-23 12:30 · model claude-haiku-5-5 · 67 cases · graded by rules, no AI judge
+2026-10-24 10:50 · model claude-haiku-5-5 · 67 cases · graded by rules, no AI judge
 
 **Passed 67 of 67.** Answered without a person on questions the help articles cover: 31 of 31 (100%).
 

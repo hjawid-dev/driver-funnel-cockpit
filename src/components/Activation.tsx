@@ -54,6 +54,8 @@ export function Activation({ apps, now, onOpen }: Props) {
   const CallCell = ({ call }: { call: (typeof rows)[number]['call'] }) =>
     call.state === 'done' ? (
       <span className="text-ok font-medium">Done {shortDate(call.at)}</span>
+    ) : call.state === 'not_needed' ? (
+      <span className="text-muted">Not needed</span>
     ) : (
       <span className={call.state === 'overdue' ? 'text-bad font-semibold' : call.state === 'missed' ? 'text-muted' : 'text-warn font-semibold'}>{call.label}</span>
     );
@@ -71,7 +73,7 @@ export function Activation({ apps, now, onOpen }: Props) {
         info={
           <>
             <p>Accepted drivers without a first gig. Target: a first gig within 14 days.</p>
-            <p className="text-muted">Welcome call within 24 h of acceptance. No gig booked after 7 days → book one with them. No gig in 14 days → call. After 30 days → dormant, re-engaged in a monthly batch.</p>
+            <p className="text-muted">The first drive is booked in the onboarding call. If not: welcome call within 24 h. No gig booked after 7 days → book one with them. No gig in 14 days → call. After 30 days → dormant, re-engaged in a monthly batch.</p>
           </>
         }
       >

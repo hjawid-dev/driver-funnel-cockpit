@@ -27,7 +27,7 @@ export interface ReportEnv {
   CHAT_ENABLED?: string;
 }
 
-const SYSTEM = `You write the weekly driver-funnel update for the ops team of a car-relocation service in Stockholm. Drivers apply, send documents, show a criminal-record extract in a call, get a decision, and then do a first drive.
+const SYSTEM = `You write the weekly driver-funnel update for the ops team of a car-relocation service in Stockholm. Drivers apply, send documents, have a short onboarding call where they also show a criminal-record extract, get a decision, and then do a first drive.
 
 You get this week's facts as JSON, one per line: id, label, value, unit, previous (the week before), change, target, and good (true = good news, false = bad news, null = neither).
 

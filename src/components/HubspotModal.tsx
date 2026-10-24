@@ -18,13 +18,13 @@ const ROWS: { cockpit: string; hubspot: string; required: string; workflow: stri
     cockpit: 'Review queue',
     hubspot: 'Under review',
     required: 'extract_shown (yes/no only) · decision · generic reject_reason · second_reviewer for suitability rejections · decided_at',
-    workflow: 'Extract call booked automatically · SLA alert to owner + backup at 24 h and 48 h after docs complete',
+    workflow: 'Onboarding call booked by the applicant · SLA alert to owner + backup at 24 h and 48 h after docs complete',
   },
   {
     cockpit: 'Awaiting first gig',
     hubspot: 'Accepted',
     required: 'accept_variant (standard / simple drives first / activation flag) · welcome_call_at · first_gig_booked_for',
-    workflow: 'Welcome-call task due 24 h after acceptance · alert at 7 d without booking · call task at 14 d · dormant at 30 d',
+    workflow: 'Welcome-call task only if no first drive was booked in the call · alert at 7 d without booking · call task at 14 d · dormant at 30 d',
   },
   {
     cockpit: 'Active',
@@ -128,7 +128,7 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
               <ul className="mt-2 space-y-1 text-xs">
                 <li>Pipeline stages, required fields and reason-code dropdowns</li>
                 <li>Workflows for reminders, SLA alerts and tasks (the "Move time" button shows them running)</li>
-                <li>Meetings for booking the extract call in the 09:00 and 14:00 slots</li>
+                <li>Meetings for booking the onboarding call in the 09:00 and 14:00 slots</li>
                 <li>Funnel and KPI reports from the timestamps</li>
                 <li>The help desk inbox and ticket SLAs for questions the assistant hands over</li>
                 <li>The knowledge base: the 36 help articles the assistant answers from</li>
@@ -165,7 +165,7 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
             </h3>
             <ul className="mt-2 grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
               <li>
-                <strong>No criminal-record data stored.</strong> The applicant orders their own extract and shows it in a short call. Only
+                <strong>No criminal-record data stored.</strong> The applicant orders their own extract and shows it in the onboarding call. Only
                 "extract shown: yes" is recorded (GDPR art. 10).
               </li>
               <li>

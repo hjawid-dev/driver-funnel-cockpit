@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef } from 'react';
 import type { TabKey } from '../state';
 
 export const TABS: { key: TabKey; label: string }[] = [
-  { key: 'live', label: 'Live ops' },
+  { key: 'live', label: 'Pickups & incidents' },
   { key: 'review', label: 'Review queue' },
   { key: 'missing', label: 'Missing documents' },
   { key: 'awaiting', label: 'Awaiting first gig' },
@@ -11,6 +11,8 @@ export const TABS: { key: TabKey; label: string }[] = [
 ];
 
 interface Props {
+  /** The tabs on this page, in order. */
+  keys: TabKey[];
   active: TabKey;
   counts: Record<TabKey, number>;
   /** Tabs with something urgent get a red count. */
@@ -18,7 +20,7 @@ interface Props {
   onChange: (key: TabKey) => void;
 }
 
-export function Tabs({ active, counts, alert = {}, onChange }: Props) {
+export function Tabs({ keys, active, counts, alert = {}, onChange }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
 
   // Keep the selected tab visible when the bar scrolls sideways on a phone.
@@ -34,7 +36,7 @@ export function Tabs({ active, counts, alert = {}, onChange }: Props) {
 
   return (
     <div ref={listRef} role="tablist" aria-label="Work lists" className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-lavender -mx-4 px-4 sm:mx-0 sm:px-0">
-      {TABS.map((t) => {
+      {TABS.filter((t) => keys.includes(t.key)).sort((a, b) => keys.indexOf(a.key) - keys.indexOf(b.key)).map((t) => {
         const selected = t.key === active;
         return (
           <button

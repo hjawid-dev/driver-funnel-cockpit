@@ -2,9 +2,9 @@ import { useState, type ReactNode } from 'react';
 import { Camera, CircleAlert, CircleCheck, CircleX, Scale, ShieldCheck, Square, SquareCheck } from 'lucide-react';
 import type { Applicant, RejectReason } from '../lib/types';
 import { REJECT_REASONS } from '../lib/types';
-import { DECISION_LABEL, evaluate, NEEDS_SECOND_REVIEWER, noteLooksSensitive, type CheckResult } from '../lib/criteria';
+import { CALL_AGENDA, DECISION_LABEL, evaluate, NEEDS_SECOND_REVIEWER, noteLooksSensitive, type CheckResult } from '../lib/criteria';
 import { applyDecision, requestNewPhoto, setExtractShown, setPhotoApproved, type ActionResult } from '../lib/actions';
-import { DrawerSection } from './ui';
+import { CollapsibleSection, DrawerSection } from './ui';
 
 export const BACKUP_REVIEWER = 'Sofia (backup)';
 
@@ -53,7 +53,7 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
     <>
       <DrawerSection
         title="Criteria"
-        info={<p>Thresholds are a starting proposal, to be set with the team. The extract is only viewed in the call: no copy, no notes about its content.</p>}
+        info={<p>Thresholds are a starting proposal, to be set with the team. The extract is only viewed in the onboarding call: no copy, no notes about its content.</p>}
       >
         <div className="rounded-lg border border-lavender">
           <div className="border-b border-lavender px-3 py-2 text-xs font-semibold text-navy">Must-have · all required</div>
@@ -94,6 +94,17 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
           )}
         </div>
       </DrawerSection>
+
+      <CollapsibleSection title="Onboarding call agenda" summary="15 min · 6 points">
+        <ol className="space-y-1 text-sm">
+          {CALL_AGENDA.map((x, i) => (
+            <li key={x} className="flex gap-2">
+              <span className="num w-4 shrink-0 text-muted">{i + 1}.</span>
+              <span>{x}</span>
+            </li>
+          ))}
+        </ol>
+      </CollapsibleSection>
 
       <DrawerSection
         title="Decision"

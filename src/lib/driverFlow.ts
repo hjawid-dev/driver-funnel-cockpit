@@ -17,7 +17,7 @@ export interface Application {
 /** A new applicant from the driver view. Nobody is rejected here: an unmet requirement is flagged for a person. */
 export function createApplicant(input: Application, apps: Applicant[], now: number): Applicant {
   const maxId = Math.max(2000, ...apps.map((a) => Number(a.id.replace(/\D/g, '')) || 0));
-  const prequalIssue = input.licenceYears < 1 ? 'licence' : !input.meetsMinAge ? 'age' : undefined;
+  const prequalIssue = issueFor(input.licenceYears, input.meetsMinAge);
   const log: Applicant['log'] = [{ at: now, text: 'Registered via the driver app' }];
   if (prequalIssue) log.push({ at: now, text: `Pre-qualifying: ${prequalIssue === 'licence' ? 'licence held under 1 year' : `under ${MIN_AGE}`}. A person reviews and closes.` });
   return {
@@ -34,6 +34,44 @@ export function createApplicant(input: Application, apps: Applicant[], now: numb
     source: 'self',
     ...(prequalIssue ? { prequalIssue } : {}),
   };
+}
+
+/** When the applicant can drive. Weekday daytime counts as full availability; anything else is limited, and never a reason to reject. */
+export type Slot = 'weekday_day' | 'weekday_evening' | 'weekend';
+
+export const SLOT_LABEL: Record<Slot, string> = {
+  weekday_day: 'Weekdays, daytime',
+  weekday_evening: 'Weekday evenings',
+  weekend: 'Weekends',
+};
+
+export function availabilityFrom(slots: Slot[]): Pick<Application, 'availability' | 'availabilityNote'> {
+  if (slots.includes('weekday_day')) return { availability: 'full' };
+  const order: Slot[] = ['weekday_evening', 'weekend'];
+  const note = order.filter((s) => slots.includes(s)).map((s) => SLOT_LABEL[s].toLowerCase()).join(' and ');
+  return { availability: 'limited', availabilityNote: note.charAt(0).toUpperCase() + note.slice(1) };
+}
+
+const issueFor = (licenceYears: number, meetsMinAge: boolean) => (licenceYears < 1 ? 'licence' : !meetsMinAge ? 'age' : undefined);
+
+/**
+ * The applicant changes their answers to the first questions (a wrong tap happens). If the requirement
+ * is now met, they carry on; a person still sees the change in the log. Not possible once a person has decided.
+ */
+export function changePrequal(a: Applicant, answers: { licenceYears: number; meetsMinAge: boolean }, now: number): Applicant {
+  if (a.decision) return a;
+  const issue = issueFor(answers.licenceYears, answers.meetsMinAge);
+  const { prequalIssue: _old, ...rest } = a;
+  const text = issue
+    ? `Pre-qualifying answers changed by applicant: still ${issue === 'licence' ? 'licence held under 1 year' : `under ${MIN_AGE}`}`
+    : 'Pre-qualifying answers changed by applicant: requirements now met';
+  return { ...rest, licenceYears: answers.licenceYears, ...(issue ? { prequalIssue: issue } : {}), log: [...a.log, { at: now, text }] };
+}
+
+/** "Remind me when I qualify": logged only, nothing is decided. */
+export function remindWhenQualified(a: Applicant, now: number): Applicant {
+  if (a.remindWhenQualifiedAt) return a;
+  return { ...a, remindWhenQualifiedAt: now, log: [...a.log, { at: now, text: 'Asked to be reminded when they meet the requirement' }] };
 }
 
 export type DriverStep = 'prequal_review' | 'id' | 'licence' | 'photo' | 'extract' | 'call' | 'decision' | 'first_gig' | 'booked' | 'active' | 'closed';
@@ -72,7 +110,7 @@ export function progress(step: DriverStep): number {
 }
 
 export function bookCall(a: Applicant, at: number, now: number): Applicant {
-  return { ...a, callAt: at, log: [...a.log, { at: now, text: `Extract call booked by applicant for ${formatDateTime(at)}` }] };
+  return { ...a, callAt: at, log: [...a.log, { at: now, text: `Onboarding call booked by applicant for ${formatDateTime(at)}` }] };
 }
 
 export function bookOffer(a: Applicant, gig: Gig, now: number): Applicant {

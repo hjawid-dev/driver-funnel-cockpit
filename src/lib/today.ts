@@ -9,7 +9,7 @@ import { needsConfirmation, openIncidents, type Job } from './liveOps';
 export type TodayTab = 'live' | 'review' | 'missing' | 'awaiting' | 'chat';
 
 export interface TodayItem {
-  key: 'urgent' | 'pickups' | 'questions' | 'overdue' | 'activation' | 'close';
+  key: 'urgent' | 'toclose' | 'pickups' | 'questions' | 'overdue' | 'activation' | 'close';
   tab: TodayTab;
   count: number;
   label: string;
@@ -22,9 +22,12 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 export function todayItems(apps: Applicant[], threads: ChatThread[], now: number, jobs: Job[] = []): TodayItem[] {
   const waiting = threads.filter((t) => t.status === 'waiting');
   const urgentThreads = waiting.filter((t) => t.reason === 'urgent');
-  const incidents = openIncidents(jobs, now);
+  const open = openIncidents(jobs, now);
+  // Decided (e.g. the keys turned up) but not closed: no longer urgent, but ops still closes the loop.
+  const incidents = open.filter((j) => !j.incident?.outcome);
+  const toClose = open.length - incidents.length;
   // One problem, one item: an urgent chat about a drive with an open incident is that incident.
-  const onIncident = new Set(incidents.map((j) => j.driverId));
+  const onIncident = new Set(open.map((j) => j.driverId));
   const urgent = incidents.length + urgentThreads.filter((t) => !t.applicantId || !onIncident.has(t.applicantId)).length;
   const questions = waiting.length - urgentThreads.length;
   const pickups = jobs.filter((j) => !onIncident.has(j.driverId) && needsConfirmation(j, now)).length;
@@ -38,6 +41,7 @@ export function todayItems(apps: Applicant[], threads: ChatThread[], now: number
 
   const items: TodayItem[] = [
     { key: 'urgent', tab: incidents.length ? 'live' : 'chat', count: urgent, label: plural(urgent, 'urgent, on a drive', 'urgent, on a drive'), urgent: true },
+    { key: 'toclose', tab: 'live', count: toClose, label: plural(toClose, 'incident to close', 'incidents to close'), urgent: false },
     { key: 'pickups', tab: 'live', count: pickups, label: plural(pickups, 'pickup not confirmed', 'pickups not confirmed'), urgent: false },
     { key: 'overdue', tab: 'review', count: overdue, label: plural(overdue, 'review overdue', 'reviews overdue'), urgent: true },
     { key: 'questions', tab: 'chat', count: questions, label: plural(questions, 'question waiting', 'questions waiting'), urgent: false },

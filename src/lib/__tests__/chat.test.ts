@@ -108,7 +108,7 @@ describe('driver context', () => {
     const ctx = driverContext({ ...klara, firstGig: { gigId: g.id, bookedFor: g.at } }, gigs, NOW);
     expect(ctx.facts!.some((f) => f.startsWith('First drive:') && f.includes(`${g.pay} SEK`))).toBe(true);
     const withCall = driverContext(mk({ docs: { licence: 'verified', id: 'verified', extract: 'ready', photo: 'uploaded' }, callAt: NOW + 3_600_000 }), [], NOW);
-    expect(withCall.facts!.some((f) => f.startsWith('Call booked'))).toBe(true);
+    expect(withCall.facts!.some((f) => f.startsWith('Onboarding call booked'))).toBe(true);
   });
 });
 

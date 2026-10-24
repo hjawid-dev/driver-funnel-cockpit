@@ -31,15 +31,18 @@ export function activationFlags(a: Applicant): ActivationFlags {
   };
 }
 
-/** Welcome call within 24 h of acceptance. */
+/** Welcome call within 24 h of acceptance, only when no first drive was booked in the onboarding call. */
 export type WelcomeCall =
   | { state: 'done'; at: number }
+  | { state: 'not_needed'; label: string }
   | { state: 'due'; label: string }
   | { state: 'overdue'; label: string }
   | { state: 'missed'; label: string };
 
 export function welcomeCallState(a: Applicant, now: number): WelcomeCall {
   if (a.welcomeCallAt) return { state: 'done', at: a.welcomeCallAt };
+  // The first drive was booked (in the call or by the driver): nothing to chase.
+  if (a.firstGig?.bookedFor) return { state: 'not_needed', label: 'Not needed' };
   // Dormant: the welcome call is no longer the next step; the monthly re-engagement batch is.
   if (activationBucket(a.decision!.at, now) === 'dormant') return { state: 'missed', label: 'Missed' };
   const due = a.decision!.at + 24 * HOUR;

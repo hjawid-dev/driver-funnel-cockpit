@@ -62,7 +62,7 @@ export function MissingDocs({ apps, now, onOpen, onResult }: Props) {
         info={
           <>
             <p>Oldest first. Reminders go out by themselves at 2 h, 24 h and 72 h after registration, in the driver's chat.</p>
-            <p>The extract is the slowest item, so it is asked for first. It is on its way for {bgPending}. Applicants show it in a call; no copy is kept.</p>
+            <p>The extract is the slowest item, so it is asked for first. It is on its way for {bgPending}. Applicants show it in the onboarding call; no copy is kept.</p>
             <p className="text-muted">After 14 days with no response, close the file. Nothing is deleted until the retention date.</p>
           </>
         }

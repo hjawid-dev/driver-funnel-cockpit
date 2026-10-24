@@ -109,6 +109,18 @@ export function reportUrgent(t: ChatThread, driverText: string, now: number): Ch
   return { ...next, status: 'waiting', waitingSince: now, reason: 'urgent' };
 }
 
+/** The driver tapped "Got the keys" while waiting for ops: the urgent question is answered, so it leaves the queue. Ops still closes the incident. */
+export function keysFoundByDriver(t: ChatThread, now: number): ChatThread {
+  if (t.status !== 'waiting' || t.reason !== 'urgent') return t;
+  const next = add(add(t, { from: 'driver', text: 'I found the keys.', at: now }), {
+    from: 'note',
+    text: 'Good to hear! Ops has been told and closes the case. Ask here if you need anything on the way.',
+    at: now,
+  });
+  const { waitingSince: _w, reason: _r, ...rest } = next;
+  return { ...rest, status: 'ai' };
+}
+
 export function opsReply(t: ChatThread, text: string, by: string, now: number): ChatThread {
   const { waitingSince: _w, ...rest } = add(t, { from: 'ops', text, at: now, by });
   return { ...rest, status: 'ops' };

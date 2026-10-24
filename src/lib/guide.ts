@@ -3,10 +3,10 @@ import { REVIEWER } from './types';
 
 /** What the demo guide asks a first-time visitor to try: both sides of the funnel, the assistant, automation and the report. */
 export interface GuideStep {
-  key: 'apply' | 'chat' | 'accept' | 'time' | 'report';
+  key: 'apply' | 'chat' | 'accept' | 'live' | 'time' | 'report';
   title: string;
   hint: string;
-  action: 'phone' | 'chat' | 'open' | 'advance' | 'report';
+  action: 'phone' | 'chat' | 'open' | 'live' | 'advance' | 'report';
   targetId: string | null; // applicant to open, for 'open' and 'chat'
   done: boolean;
 }
@@ -16,6 +16,8 @@ export interface GuideProgress {
   timeMoved: boolean;
   chatTried: boolean;
   reportOpened: boolean;
+  /** Ops made a call on a stuck driver in Live ops. */
+  liveHandled?: boolean;
 }
 
 const byMe = (a?: Applicant) => a?.decision?.by === REVIEWER;
@@ -29,10 +31,10 @@ export function guideSteps(apps: Applicant[], progress: GuideProgress): GuideSte
   return [
     {
       key: 'apply',
-      title: 'Apply on the phone',
+      title: 'Apply',
       hint: applied
         ? `${firstSelf.name} applied. Finish the steps and book the call: the file appears in the review queue.`
-        : 'Four questions, BankID, photo check, extract guide, then book your own call. About two minutes.',
+        : 'Four questions, BankID, photo check, extract guide, then book your own onboarding call. About two minutes.',
       action: 'phone',
       targetId: null,
       done: applied && !!firstSelf.callAt,
@@ -47,13 +49,21 @@ export function guideSteps(apps: Applicant[], progress: GuideProgress): GuideSte
     },
     {
       key: 'accept',
-      title: 'Decide in the cockpit',
+      title: 'Decide',
       hint: applied
-        ? `Open ${firstSelf.name} or Elin Johansson, tick the photo and the extract call, then Accept. Watch the phone and the numbers.`
-        : 'Elin Johansson: tick the photo and the extract call, then Accept. Watch the numbers move.',
+        ? `Open ${firstSelf.name} or Elin Johansson, tick the photo and the extract (shown in the onboarding call), then Accept. Watch the phone and the numbers.`
+        : 'Elin Johansson: tick the photo and the extract (shown in the onboarding call), then Accept. Watch the numbers move.',
       action: 'open',
       targetId: firstSelf?.docsCompleteAt && !firstSelf.decision ? firstSelf.id : (elin?.id ?? null),
       done: apps.some((a) => byMe(a) && a.decision?.type !== 'rejected'),
+    },
+    {
+      key: 'live',
+      title: 'Stuck driver',
+      hint: 'Open Live ops: Julia has no keys at the pickup. Mark "Called Julia", then let the customer pick a new date. Julia sees it in her chat.',
+      action: 'live',
+      targetId: null,
+      done: !!progress.liveHandled,
     },
     {
       key: 'time',
@@ -65,7 +75,7 @@ export function guideSteps(apps: Applicant[], progress: GuideProgress): GuideSte
     },
     {
       key: 'report',
-      title: 'Read the weekly report',
+      title: 'Weekly report',
       hint: 'Code counts, the AI writes, and a check verifies every number against the data.',
       action: 'report',
       targetId: null,

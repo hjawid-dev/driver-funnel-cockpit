@@ -57,6 +57,8 @@ export interface Applicant {
   source?: 'self';
   /** A pre-qualifying requirement is not met. Nobody is rejected automatically: a person closes the file. */
   prequalIssue?: 'licence' | 'age';
+  /** The applicant asked to hear from us when they meet the requirement (e.g. a year with the licence). */
+  remindWhenQualifiedAt?: number;
   /** The extract call the applicant booked in a review slot. The decision is made in this call. */
   callAt?: number;
   /**

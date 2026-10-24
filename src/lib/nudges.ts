@@ -56,8 +56,8 @@ export function outstandingDocs(a: Applicant): DocKey[] {
 
 const ASK: Record<DocKey, { missing: string; pending: string }> = {
   extract: {
-    missing: 'Order your own extract from the criminal record (belastningsregistret) at polisen.se. It takes a few days, so start today. You will show it to us in a short call; we never keep a copy.',
-    pending: 'Your extract is on its way from Polisen. Tell us when it arrives and we book a short call where you show it. We never keep a copy.',
+    missing: 'Order your own extract from the criminal record (belastningsregistret) at polisen.se. It takes a few days, so start today. You will show it to us in the onboarding call; we never keep a copy.',
+    pending: 'Your extract is on its way from Polisen. Tell us when it arrives and we book your onboarding call, where you also show it. We never keep a copy.',
   },
   id: { missing: 'Verify your ID with BankID. It takes one minute.', pending: 'Finish your BankID verification.' },
   licence: { missing: 'Upload a photo of the front and back of your driving licence.', pending: 'Finish uploading your driving licence.' },

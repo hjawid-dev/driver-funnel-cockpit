@@ -9,16 +9,17 @@ interface Props {
   onChat: (id: string | null) => void;
   onAdvance: () => void;
   onReport: () => void;
+  onLive: () => void;
   onHubspot: () => void;
   onHide: () => void;
 }
 
 /** First-visit guide: five things to try, one row, with only the next step spelled out. */
-export function DemoGuide({ steps, onOpen, onPhone, onChat, onAdvance, onReport, onHubspot, onHide }: Props) {
+export function DemoGuide({ steps, onOpen, onPhone, onChat, onAdvance, onReport, onLive, onHubspot, onHide }: Props) {
   const done = steps.filter((s) => s.done).length;
   const next = steps.find((s) => !s.done);
   const run = (s: GuideStep) =>
-    s.action === 'phone' ? onPhone() : s.action === 'chat' ? onChat(s.targetId) : s.action === 'advance' ? onAdvance() : s.action === 'report' ? onReport() : s.targetId && onOpen(s.targetId);
+    s.action === 'phone' ? onPhone() : s.action === 'chat' ? onChat(s.targetId) : s.action === 'advance' ? onAdvance() : s.action === 'report' ? onReport() : s.action === 'live' ? onLive() : s.targetId && onOpen(s.targetId);
 
   return (
     <section aria-labelledby="guide-title" className="anim-fade relative rounded-2xl border border-lavender bg-card px-4 py-3 sm:px-5">
@@ -79,7 +80,7 @@ export function DemoGuide({ steps, onOpen, onPhone, onChat, onAdvance, onReport,
           <span className="font-semibold text-navy">Next:</span> {next.hint}
         </p>
       ) : (
-        <p className="mt-2 text-sm text-ok font-semibold">All five tried. Hide the guide with ✕, or Reset demo to start over.</p>
+        <p className="mt-2 text-sm text-ok font-semibold">All six tried. Hide the guide with ✕, or Reset demo to start over.</p>
       )}
     </section>
   );
