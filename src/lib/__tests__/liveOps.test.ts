@@ -8,6 +8,9 @@ import {
   customerUpdate,
   driverStatus,
   driverUpdate,
+  firstDriveJob,
+  firstDriveResult,
+  syncFirstDrive,
   gotKeys,
   incidentClock,
   jobAlert,
@@ -25,8 +28,9 @@ import {
 import { liveOpsEvents } from '../automation';
 import { emptyThread, keysFoundByDriver, reportUrgent } from '../chat/threads';
 import { generateSeed } from '../seed';
-import { HOUR, MIN } from '../time';
-import { NOW } from './helpers';
+import { DAY, HOUR, MIN } from '../time';
+import type { Applicant } from '../types';
+import { NOW, mk } from './helpers';
 
 const job = (over: Partial<Job> = {}): Job => ({
   id: 'JOB-1',
@@ -147,6 +151,39 @@ describe('the driver hears the decision in the chat', () => {
     if (!r.ok) throw new Error(r.error);
     expect(closedIncidents([r.job], NOW + HOUR).map((j) => j.id)).toEqual(['JOB-1']);
     expect(closedIncidents([r.job], NOW + 13 * HOUR)).toEqual([]);
+  });
+});
+
+describe("a new driver's first drive", () => {
+  const accepted = (over: Partial<Applicant> = {}): Applicant => ({
+    ...mk({ id: 'DRV-2001', name: 'Nova Lind', area: 'Solna' }),
+    decision: { type: 'accepted', at: NOW - HOUR, by: 'x' },
+    ...over,
+  });
+  const gig = { id: 'JOB-301', from: 'Dealership, Solna', to: 'Workshop, Sundbyberg', area: 'Solna', km: 8, minutes: 25, pay: 320, at: NOW + DAY, car: 'standard' as const };
+
+  it('booking it adds a job with ops on standby; the pickup contact has confirmed', () => {
+    const a = accepted({ firstGig: { gigId: gig.id, bookedFor: gig.at } });
+    const jobs = syncFirstDrive([], a, [gig]);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({ id: 'JOB-301', firstDrive: true, pickupAt: gig.at, reward: 320 });
+    expect(pickupChecks(jobs[0], gig.at - 30 * MIN).map((c) => c.state)).toEqual(['confirmed', 'confirmed']);
+  });
+  it('rebooking moves the job until the drive has started; nothing booked, nothing added', () => {
+    const a = accepted({ firstGig: { gigId: gig.id, bookedFor: gig.at } });
+    const jobs = syncFirstDrive([], a, [gig]);
+    const later = { ...gig, id: 'JOB-302', at: gig.at + DAY };
+    expect(syncFirstDrive(jobs, accepted({ firstGig: { gigId: later.id, bookedFor: later.at } }), [gig, later])[0].id).toBe('JOB-302');
+    expect(syncFirstDrive(jobs, accepted({ firstGig: { gigId: later.id, bookedFor: later.at } }), [later]).length).toBe(1);
+    expect(syncFirstDrive([], accepted(), [gig])).toEqual([]);
+  });
+  it('a booking by ops without a picked job gets a curated drive in the driver area', () => {
+    expect(firstDriveJob(accepted({ firstGig: { bookedFor: NOW + DAY } }), undefined)).toMatchObject({ area: 'Solna', firstDrive: true });
+  });
+  it('delivered on time without an incident counts as a good first drive', () => {
+    const j = firstDriveJob(accepted({ firstGig: { gigId: gig.id, bookedFor: gig.at } }), gig)!;
+    expect(firstDriveResult({ ...j, deliveredAt: gig.at + HOUR })).toEqual({ onTime: true, ok: true });
+    expect(firstDriveResult({ ...j, deliveredAt: j.deadline + MIN })).toEqual({ onTime: false, ok: true });
   });
 });
 

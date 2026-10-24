@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { distanceScore, firstGigOffers, generateGigs, isEasy, isWeekendOrEvening } from '../gigs';
 import { callSlots } from '../booking';
 import { automationEvents, driverInbox, summarize } from '../automation';
-import { availabilityFrom, bookCall, bookOffer, changePrequal, createApplicant, driverStep, progress, remindWhenQualified } from '../driverFlow';
+import { availabilityFrom, bookCall, bookOffer, canMoveCall, canRetake, changePrequal, createApplicant, driverStep, progress, remindWhenQualified, retakeDocument, reviewableSteps } from '../driverFlow';
 import { applyDecision, receiveDocument, setExtractShown, setPhotoApproved } from '../actions';
 import { validateDecision } from '../criteria';
 import { deriveStage } from '../stage';
@@ -50,6 +50,38 @@ describe('createApplicant', () => {
   it('a person can close a pre-qualify issue without waiting 14 days', () => {
     const r = applyDecision(apply({ licenceYears: 0.5 }), { type: 'rejected', reason: 'no_valid_licence' }, NOW);
     expect(r.ok).toBe(true);
+  });
+});
+
+describe('going back during the application', () => {
+  const upTo = (n: number) => {
+    let a = apply();
+    const steps: [Parameters<typeof receiveDocument>[1], Parameters<typeof receiveDocument>[2]][] = [['id', 'verified'], ['licence', 'verified'], ['photo', 'uploaded'], ['extract', 'ready']];
+    for (const [k, st] of steps.slice(0, n)) a = receiveDocument(a, k, st, NOW);
+    return a;
+  };
+  it('shows the answers and every step before the current one', () => {
+    expect(reviewableSteps(upTo(0))).toEqual(['answers']);
+    expect(reviewableSteps(upTo(3))).toEqual(['answers', 'id', 'licence', 'photo']);
+  });
+  it('a photo can be retaken before the file is complete, which takes the applicant back to that step', () => {
+    const a = upTo(3);
+    expect(canRetake(a, 'licence')).toBe(true);
+    const b = retakeDocument(a, 'licence', NOW + MIN);
+    expect(driverStep(b)).toBe('licence');
+    expect(b.docs.photo).toBe('uploaded');
+    expect(b.log.at(-1)?.text).toContain('retaking the licence photo');
+  });
+  it('nothing can be retaken once the file is complete', () => {
+    const done = upTo(4);
+    expect(done.docsCompleteAt).toBeDefined();
+    expect(canRetake(done, 'photo')).toBe(false);
+    expect(retakeDocument(done, 'photo', NOW)).toBe(done);
+  });
+  it('a call can be moved until two hours before', () => {
+    const a = bookCall(upTo(4), NOW + 3 * HOUR, NOW);
+    expect(canMoveCall(a, NOW)).toBe(true);
+    expect(canMoveCall(a, NOW + 2 * HOUR)).toBe(false);
   });
 });
 

@@ -6,7 +6,7 @@ import { chatTimeline, emptyThread, reportUrgent, threadIdFor, unreadCount } fro
 import { checkIn, currentJob, deliver, depart, driverStatus, gotKeys, incidentClock, jobAlert, reportProblem, OUTCOME_LABEL, type Job } from '../../lib/liveOps';
 import { DriverChat } from './DriverChat';
 import { REJECT_REASONS } from '../../lib/types';
-import { driverStep, progress, STEP_ORDER, createApplicant, bookCall, bookOffer, MIN_AGE, availabilityFrom, changePrequal, remindWhenQualified, SLOT_LABEL, type Application, type Slot } from '../../lib/driverFlow';
+import { driverStep, progress, STEP_ORDER, createApplicant, bookCall, bookOffer, MIN_AGE, availabilityFrom, changePrequal, remindWhenQualified, SLOT_LABEL, reviewableSteps, canChangeAnswers, canRetake, retakeDocument, canMoveCall, type Application, type Slot, type ReviewKey } from '../../lib/driverFlow';
 import { receiveDocument } from '../../lib/actions';
 import { callSlots } from '../../lib/booking';
 import { firstGigOffers } from '../../lib/gigs';
@@ -27,13 +27,22 @@ interface Props {
   onUpdate: (a: Applicant) => void;
   onThread: (t: ChatThread) => void;
   onJob?: (j: Job) => void;
+  onJumpTo?: (ts: number) => void;
   /** Open on the chat (e.g. from the cockpit's chat queue). */
   initialView?: 'steps' | 'chat';
 }
 
 /** The applicant's side of the funnel: one step at a time, on a phone. */
-export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, onCreate, onUpdate, onThread, onJob, initialView = 'steps' }: Props) {
+export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, onCreate, onUpdate, onThread, onJob, onJumpTo, initialView = 'steps' }: Props) {
   const [view, setView] = useState<'steps' | 'chat'>(initialView);
+  // Looking back at a step already done (null = the step the applicant is on).
+  const [review, setReview] = useState<ReviewKey | null>(null);
+  const reviewable = a ? reviewableSteps(a) : [];
+  const shown = review && reviewable.includes(review) ? review : null;
+  const update = (next: Applicant) => {
+    setReview(null);
+    onUpdate(next);
+  };
   const thread = threads.find((t) => t.id === threadIdFor(a?.id ?? null));
   // Reminders, status messages and ops replies all arrive in the chat.
   const unread = view === 'chat' ? 0 : unreadCount(chatTimeline(thread, a ? driverInbox(a, now) : []), thread?.seenAt);
@@ -58,7 +67,7 @@ export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, o
             </button>
           )}
         </div>
-        {a && view === 'steps' && <Progress a={a} />}
+        {a && view === 'steps' && <Progress a={a} reviewable={reviewable} shown={shown} onPick={setReview} />}
       </header>
 
       {view === 'chat' ? (
@@ -84,7 +93,23 @@ export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, o
                 onInbox={() => setView('chat')}
               />
             )}
-            <Step a={a} apps={apps} gigs={gigs} now={now} onUpdate={onUpdate} onInbox={() => setView('chat')} />
+            {reviewable.length > 0 && <BackNext list={reviewable} shown={shown} onGo={setReview} />}
+            {shown ? (
+              <Review k={shown} a={a} apps={apps} now={now} onUpdate={update} />
+            ) : job && driverStep(a) === 'booked' ? null : (
+              <Step
+                a={a}
+                apps={apps}
+                gigs={gigs}
+                now={now}
+                onUpdate={onUpdate}
+                onInbox={() => setView('chat')}
+                onJump={(() => {
+                  const j = jobs.find((x) => x.driverId === a.id && x.firstDrive && x.deliveredAt === undefined);
+                  return j && onJumpTo ? () => onJumpTo(j.pickupAt - 15 * 60_000) : undefined;
+                })()}
+              />
+            )}
           </>
         )}
       </div>
@@ -93,7 +118,7 @@ export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, o
   );
 }
 
-function Progress({ a }: { a: Applicant }) {
+function Progress({ a, reviewable, shown, onPick }: { a: Applicant; reviewable: ReviewKey[]; shown: ReviewKey | null; onPick: (k: ReviewKey | null) => void }) {
   const step = driverStep(a);
   const pct = progress(step);
   const idx = STEP_ORDER.findIndex((s) => s.key === step);
@@ -103,11 +128,21 @@ function Progress({ a }: { a: Applicant }) {
         <div className="h-full rounded-full bg-green transition-all" style={{ width: `${Math.max(pct, 4)}%` }} />
       </div>
       <ol className="mt-2 flex justify-between text-[10px] text-white/60">
-        {STEP_ORDER.map((s, i) => (
-          <li key={s.key} className={i === idx ? 'font-semibold text-white' : i < idx || pct === 100 ? 'text-green' : ''}>
-            {s.label}
-          </li>
-        ))}
+        {STEP_ORDER.map((s, i) => {
+          const canOpen = reviewable.includes(s.key as ReviewKey);
+          const cls = (shown ? shown === s.key : i === idx) ? 'font-semibold text-white' : i < idx || pct === 100 ? 'text-green' : '';
+          return (
+            <li key={s.key}>
+              {canOpen || (i === idx && shown) ? (
+                <button type="button" onClick={() => onPick(i === idx ? null : (s.key as ReviewKey))} className={`${cls} underline-offset-2 hover:underline`}>
+                  {s.label}
+                </button>
+              ) : (
+                <span className={cls}>{s.label}</span>
+              )}
+            </li>
+          );
+        })}
       </ol>
     </div>
   );
@@ -294,7 +329,7 @@ function PrivacyNotice() {
 
 // ---------------- Steps ----------------
 
-function Step({ a, apps, gigs, now, onUpdate, onInbox }: { a: Applicant; apps: Applicant[]; gigs: Gig[]; now: number; onUpdate: (a: Applicant) => void; onInbox: () => void }) {
+function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump }: { a: Applicant; apps: Applicant[]; gigs: Gig[]; now: number; onUpdate: (a: Applicant) => void; onInbox: () => void; onJump?: () => void }) {
   const step = driverStep(a);
   const first = a.name.split(' ')[0];
 
@@ -387,8 +422,13 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox }: { a: Applicant; apps: A
             {g && <p className="mt-0.5 text-xs text-muted">{g.km} km · about {g.minutes} min · {g.pay} SEK</p>}
           </Card>
           <Card tone="soft">
-            <p className="text-sm">Ops is on standby during the whole drive. Bring your licence and a charged phone.</p>
+            <p className="text-sm">Ops is on standby during the whole drive. On the day, this screen shows the job: tap "I'm here" at the pickup.</p>
           </Card>
+          {onJump && (
+            <button type="button" onClick={onJump} className="w-full rounded-xl border border-dashed border-lavender px-4 py-2 text-xs font-semibold text-muted hover:border-indigo hover:text-indigo">
+              Demo: jump to the morning of the drive
+            </button>
+          )}
         </div>
       );
     }
@@ -634,40 +674,7 @@ function JobCard({ j, now, onJob, onProblem, onInbox }: { j: Job; now: number; o
 /** One requirement isn't met: the application pauses here, a person decides, and a wrong answer can be changed. */
 function PrequalStop({ a, now, onUpdate, first }: { a: Applicant; now: number; onUpdate: (a: Applicant) => void; first: string }) {
   const [editing, setEditing] = useState(false);
-  const [licence, setLicence] = useState<number>(a.licenceYears);
-  const [age, setAge] = useState<boolean>(a.prequalIssue !== 'age');
-  const opt = (on: boolean) => `rounded-lg border px-3 py-2 text-sm font-medium ${on ? 'border-indigo bg-lavender text-navy' : 'border-lavender bg-white text-muted'}`;
-
-  if (editing) {
-    return (
-      <div className="space-y-4">
-        <Title icon={<ShieldCheck size={16} />} sub="If you tapped the wrong answer, change it here.">
-          Change your answers
-        </Title>
-        <fieldset>
-          <legend className="text-sm font-semibold">How long have you had a B licence?</legend>
-          <div className="mt-1 grid grid-cols-4 gap-1.5">
-            {([[0.5, '< 1 yr'], [1.5, '1–2 yrs'], [3, '2–5 yrs'], [6, '5+ yrs']] as const).map(([v, l]) => (
-              <button key={l} type="button" aria-pressed={licence === v} onClick={() => setLicence(v)} className={opt(licence === v)}>
-                {l}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend className="text-sm font-semibold">Are you {MIN_AGE} or older?</legend>
-          <div className="mt-1 grid grid-cols-2 gap-1.5">
-            <button type="button" aria-pressed={age} onClick={() => setAge(true)} className={opt(age)}>Yes</button>
-            <button type="button" aria-pressed={!age} onClick={() => setAge(false)} className={opt(!age)}>No</button>
-          </div>
-        </fieldset>
-        <Primary onClick={() => onUpdate(changePrequal(a, { licenceYears: licence, meetsMinAge: age }, now))}>Save and continue</Primary>
-        <button type="button" onClick={() => setEditing(false)} className="w-full text-sm font-semibold text-muted hover:text-navy">
-          Cancel
-        </button>
-      </div>
-    );
-  }
+  if (editing) return <AnswersForm a={a} onSave={(ans) => onUpdate(changePrequal(a, ans, now))} onCancel={() => setEditing(false)} />;
 
   return (
     <div className="space-y-3">
@@ -692,6 +699,146 @@ function PrequalStop({ a, now, onUpdate, first }: { a: Applicant; now: number; o
           Remind me when I qualify
         </button>
       )}
+    </div>
+  );
+}
+
+/** Back and Next while applying: look at a step already done, then return to where you are. */
+function BackNext({ list, shown, onGo }: { list: ReviewKey[]; shown: ReviewKey | null; onGo: (k: ReviewKey | null) => void }) {
+  const pos = shown ? list.indexOf(shown) : list.length;
+  return (
+    <div className="mb-3 flex items-center justify-between text-sm">
+      <button type="button" disabled={pos === 0} onClick={() => onGo(list[pos - 1])} className="flex items-center gap-0.5 font-semibold text-indigo disabled:invisible">
+        <ChevronLeft size={15} aria-hidden /> Back
+      </button>
+      {shown && (
+        <>
+          <span className="text-xs text-muted">A step you've done</span>
+          <button type="button" onClick={() => onGo(pos + 1 < list.length ? list[pos + 1] : null)} className="flex items-center gap-0.5 font-semibold text-indigo">
+            Next <ChevronRight size={15} aria-hidden />
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** A step already done: what was sent, and what can still be changed. */
+function Review({ k, a, apps, now, onUpdate }: { k: ReviewKey; a: Applicant; apps: Applicant[]; now: number; onUpdate: (a: Applicant) => void }) {
+  const [editing, setEditing] = useState(false);
+  const locked = <p className="text-xs text-muted">A person is reviewing your file, so this can't be changed now. Ask in Messages if something is wrong.</p>;
+  const doneCard = (text: string) => (
+    <Card tone="ok">
+      <p className="flex items-center gap-1.5 text-sm font-semibold text-ok">
+        <Check size={15} aria-hidden /> {text}
+      </p>
+    </Card>
+  );
+
+  switch (k) {
+    case 'answers':
+      if (editing) return <AnswersForm a={a} onSave={(ans) => onUpdate(changePrequal(a, ans, now))} onCancel={() => setEditing(false)} />;
+      return (
+        <div className="space-y-3">
+          <Title icon={<Sparkles size={16} />}>Your answers</Title>
+          <Card tone="soft">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+              <dt className="text-muted">Licence</dt>
+              <dd>{a.licenceYears < 1 ? 'under 1 year' : a.licenceYears < 2 ? '1–2 years' : a.licenceYears < 5 ? '2–5 years' : '5+ years'}</dd>
+              <dt className="text-muted">Age {MIN_AGE}+</dt>
+              <dd>{a.prequalIssue === 'age' ? 'No' : 'Yes'}</dd>
+              <dt className="text-muted">Can drive</dt>
+              <dd>{a.availability === 'full' ? 'Weekdays, daytime' : (a.availabilityNote ?? 'Limited')}</dd>
+            </dl>
+          </Card>
+          {canChangeAnswers(a) ? (
+            <button type="button" onClick={() => setEditing(true)} className="w-full rounded-xl border border-lavender px-4 py-2.5 text-sm font-semibold text-indigo hover:border-indigo">
+              Change my answers
+            </button>
+          ) : (
+            locked
+          )}
+        </div>
+      );
+    case 'id':
+      return (
+        <div className="space-y-3">
+          <Title icon={<ShieldCheck size={16} />}>Your ID</Title>
+          {doneCard('Verified with BankID')}
+        </div>
+      );
+    case 'licence':
+    case 'photo':
+      return (
+        <div className="space-y-3">
+          <Title icon={k === 'licence' ? <IdCard size={16} /> : <ScanFace size={16} />}>{k === 'licence' ? 'Your driving licence' : 'Your profile photo'}</Title>
+          {doneCard(k === 'licence' ? 'Licence photo sent' : 'Profile photo sent')}
+          {canRetake(a, k) ? (
+            <button type="button" onClick={() => onUpdate(retakeDocument(a, k, now))} className="w-full rounded-xl border border-lavender px-4 py-2.5 text-sm font-semibold text-indigo hover:border-indigo">
+              Take a new photo
+            </button>
+          ) : (
+            locked
+          )}
+        </div>
+      );
+    case 'extract':
+      return (
+        <div className="space-y-3">
+          <Title icon={<Lock size={16} />}>Your criminal-record extract</Title>
+          {doneCard(a.docs.extract === 'ready' ? 'Ready to show in the onboarding call' : 'Ordered')}
+          <p className="text-xs text-muted">We never keep a copy or write down what it says.</p>
+        </div>
+      );
+    case 'call':
+      if (editing && canMoveCall(a, now)) return <CallStep a={a} apps={apps} now={now} onBook={(t) => onUpdate(bookCall(a, t, now))} />;
+      return (
+        <div className="space-y-3">
+          <Title icon={<CalendarCheck size={16} />}>Your onboarding call</Title>
+          {doneCard(a.callAt ? formatDateTime(a.callAt) : 'Booked')}
+          {canMoveCall(a, now) ? (
+            <button type="button" onClick={() => setEditing(true)} className="w-full rounded-xl border border-lavender px-4 py-2.5 text-sm font-semibold text-indigo hover:border-indigo">
+              Move the call
+            </button>
+          ) : (
+            <p className="text-xs text-muted">Less than two hours to go: ask in Messages if you need to move it.</p>
+          )}
+        </div>
+      );
+  }
+}
+
+/** The licence and age questions, to correct a wrong tap. */
+function AnswersForm({ a, onSave, onCancel }: { a: Applicant; onSave: (ans: { licenceYears: number; meetsMinAge: boolean }) => void; onCancel: () => void }) {
+  const [licence, setLicence] = useState<number>(a.licenceYears);
+  const [age, setAge] = useState<boolean>(a.prequalIssue !== 'age');
+  const opt = (on: boolean) => `rounded-lg border px-3 py-2 text-sm font-medium ${on ? 'border-indigo bg-lavender text-navy' : 'border-lavender bg-white text-muted'}`;
+  return (
+    <div className="space-y-4">
+      <Title icon={<ShieldCheck size={16} />} sub="If you tapped the wrong answer, change it here.">
+        Change your answers
+      </Title>
+      <fieldset>
+        <legend className="text-sm font-semibold">How long have you had a B licence?</legend>
+        <div className="mt-1 grid grid-cols-4 gap-1.5">
+          {([[0.5, '< 1 yr'], [1.5, '1–2 yrs'], [3, '2–5 yrs'], [6, '5+ yrs']] as const).map(([v, l]) => (
+            <button key={l} type="button" aria-pressed={licence === v} onClick={() => setLicence(v)} className={opt(licence === v)}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend className="text-sm font-semibold">Are you {MIN_AGE} or older?</legend>
+        <div className="mt-1 grid grid-cols-2 gap-1.5">
+          <button type="button" aria-pressed={age} onClick={() => setAge(true)} className={opt(age)}>Yes</button>
+          <button type="button" aria-pressed={!age} onClick={() => setAge(false)} className={opt(!age)}>No</button>
+        </div>
+      </fieldset>
+      <Primary onClick={() => onSave({ licenceYears: licence, meetsMinAge: age })}>Save</Primary>
+      <button type="button" onClick={onCancel} className="w-full text-sm font-semibold text-muted hover:text-navy">
+        Cancel
+      </button>
     </div>
   );
 }

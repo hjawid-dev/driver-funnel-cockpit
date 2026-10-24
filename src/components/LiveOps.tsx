@@ -103,6 +103,7 @@ function PickupRow({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJob
         <div className="truncate text-xs text-muted">
           {j.from} → {j.to}
           {j.pilot && <span className="ml-1.5 rounded bg-lavender px-1 py-px text-[11px] font-semibold text-navy">Pilot</span>}
+          {j.firstDrive && <span className="ml-1.5 rounded bg-ok-bg px-1 py-px text-[11px] font-semibold text-ok">First drive · ops on standby</span>}
         </div>
       </div>
       <div className="flex gap-1.5">

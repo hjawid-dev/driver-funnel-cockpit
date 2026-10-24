@@ -56,7 +56,8 @@ export function useClock(intervalMs = 30_000) {
 
 function fresh(now: number): DemoData {
   const apps = generateSeed(now);
-  return { apps, gigs: generateGigs(now), threads: seedThreads(apps, now), jobs: seedJobs(apps, now) };
+  const gigs = generateGigs(now);
+  return { apps, gigs, threads: seedThreads(apps, now), jobs: seedJobs(apps, now) };
 }
 
 function load(): DemoData {
@@ -118,6 +119,11 @@ export function useDemoData() {
     setData((d) => ({ ...d, jobs: d.jobs.map((j) => (j.id === next.id ? next : j)) }));
   }, []);
 
+  /** Change the job list as a whole (e.g. a first drive was booked). */
+  const updateJobs = useCallback((f: (jobs: Job[]) => Job[]) => {
+    setData((d) => ({ ...d, jobs: f(d.jobs) }));
+  }, []);
+
   /** Fresh demo data; returns the applicants so callers can take a new baseline. */
   const reset = useCallback((): Applicant[] => {
     const next = fresh(Date.now());
@@ -125,5 +131,5 @@ export function useDemoData() {
     return next.apps;
   }, []);
 
-  return { apps: data.apps, gigs: data.gigs as Gig[], threads: data.threads, jobs: data.jobs, update, add, upsertThread, updateJob, reset };
+  return { apps: data.apps, gigs: data.gigs as Gig[], threads: data.threads, jobs: data.jobs, update, add, upsertThread, updateJob, updateJobs, reset };
 }

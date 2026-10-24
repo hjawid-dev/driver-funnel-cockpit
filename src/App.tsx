@@ -30,7 +30,8 @@ import { ChatQueue } from './components/ChatQueue';
 import { formatDateTime } from './lib/time';
 import { todayItems } from './lib/today';
 import { liveOpsEvents } from './lib/automation';
-import { currentJob, driverUpdate, openIncidents, reportProblem, type Job } from './lib/liveOps';
+import { currentJob, driverUpdate, firstDriveResult, openIncidents, reportProblem, syncFirstDrive, type Job } from './lib/liveOps';
+import { completeFirstGig } from './lib/actions';
 import { backToAi, emptyThread, keysFoundByDriver, opsReply, threadIdFor } from './lib/chat/threads';
 import { REVIEWER } from './lib/types';
 import { LiveOps } from './components/LiveOps';
@@ -70,7 +71,7 @@ const TILE_TO_TAB: Record<FunnelKey, TabKey> = {
 export default function App() {
   const clock = useClock();
   const now = clock.now;
-  const { apps, gigs, threads, jobs, update, add, upsertThread, updateJob, reset } = useDemoData();
+  const { apps, gigs, threads, jobs, update, add, upsertThread, updateJob, updateJobs, reset } = useDemoData();
   // Bumped when the cockpit opens the phone on the chat; 0 opens it on the steps.
   const [chatRequest, setChatRequest] = useState(() => (window.location.hash.startsWith('#chat') ? 1 : 0));
   // #driver opens the phone; #driver=DRV-1034 opens it as that applicant; #chat=DRV-1034 opens it on the chat (handy for presenting).
@@ -106,14 +107,25 @@ export default function App() {
   const open = apps.find((a) => a.id === openId) ?? null;
   const close = useCallback(() => setOpenId(null), []);
 
+  /** A first drive booked or moved (by the driver, in the chat or by ops) becomes a job in Live ops. */
+  const syncFirstDriveFor = useCallback(
+    (prev: Applicant | undefined, next: Applicant) => {
+      if (prev?.firstGig?.bookedFor === next.firstGig?.bookedFor && prev?.firstGig?.gigId === next.firstGig?.gigId) return;
+      updateJobs((js) => syncFirstDrive(js, next, gigs));
+    },
+    [updateJobs, gigs],
+  );
+
   const onResult = useCallback(
     (r: ActionResult, closeDrawer = false) => {
       if (!r.ok) return;
+      const prev = apps.find((a) => a.id === r.applicant.id);
       update(r.applicant);
+      syncFirstDriveFor(prev, r.applicant);
       toast.notify(r.message);
       if (closeDrawer) setOpenId(null);
     },
-    [update, toast.notify],
+    [apps, update, syncFirstDriveFor, toast.notify],
   );
 
   // ---- Demo: the driver's phone and the clock ----
@@ -164,6 +176,7 @@ export default function App() {
     (next: Applicant) => {
       const prev = apps.find((a) => a.id === next.id);
       update(next);
+      syncFirstDriveFor(prev, next);
       if (!prev) return;
       if (!prev.docsCompleteAt && next.docsCompleteAt) toast.notify(`${next.name}: file complete, auto-queued for review.`);
       else if (!prev.callAt && next.callAt) toast.notify(`${next.name} booked the onboarding call: ${formatDateTime(next.callAt)}.`);
@@ -191,9 +204,17 @@ export default function App() {
       }
       else if (!prev.arrivedAt && next.arrivedAt) toast.notify(`${first} checked in at the pickup (${next.id}).`);
       else if (!prev.departedAt && next.departedAt) toast.notify(`${first} is on the way to the drop-off (${next.id}).`);
-      else if (!prev.deliveredAt && next.deliveredAt) toast.notify(`${first} delivered the car (${next.id}).`);
+      else if (!prev.deliveredAt && next.deliveredAt) {
+        // A first drive delivered: the driver is active, and first-gig quality counts it.
+        const a = next.firstDrive ? apps.find((x) => x.id === next.driverId) : undefined;
+        const r = a ? completeFirstGig(a, firstDriveResult(next), now) : null;
+        if (r?.ok) {
+          update(r.applicant);
+          toast.notify(`${first} delivered the first drive: now an active driver.`);
+        } else toast.notify(`${first} delivered the car (${next.id}).`);
+      }
     },
-    [jobs, threads, now, updateJob, upsertThread, toast.notify],
+    [jobs, apps, threads, now, update, updateJob, upsertThread, toast.notify],
   );
 
   const onAdvance = (ms: number) => {
@@ -432,6 +453,7 @@ export default function App() {
         onUpdate={onDriverUpdate}
         onThread={onThread}
         onJob={onDriverJob}
+        onJumpTo={(ts) => ts > now && onAdvance(ts - now)}
         onClose={() => setPhoneOpen(false)}
       />
     )}

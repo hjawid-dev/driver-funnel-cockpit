@@ -1,4 +1,4 @@
-import type { Applicant } from './types';
+import type { Applicant, Gig } from './types';
 import { REVIEWER } from './types';
 import { HOUR, MIN } from './time';
 
@@ -44,6 +44,8 @@ export interface Job {
   deliveredAt?: number;
   /** The driver tapped "Problem at pickup". */
   problemAt?: number;
+  /** A new driver's first drive: ops is on standby, and delivering it makes the driver active. */
+  firstDrive?: boolean;
   incident?: Incident;
 }
 
@@ -417,6 +419,58 @@ export function seedJobs(apps: Applicant[], now: number): Job[] {
     out.push(job);
   });
   return out;
+}
+
+// ---------- A new driver's first drive ----------
+
+const CONTACT: Contact = { role: 'Service desk', phone: '08-123 45 00' };
+const BACKUP: Contact = { role: 'Site manager', phone: '070-123 45 67' };
+
+/**
+ * The job for an accepted driver's booked first drive. In the demo the pickup contact confirms
+ * both pre-pickup messages, so the first drive runs smoothly and the driver's own taps move it on.
+ */
+export function firstDriveJob(a: Applicant, gig: Gig | undefined): Job | null {
+  const at = a.firstGig?.bookedFor;
+  if (!at || a.firstGig?.doneAt) return null;
+  const from = gig?.from ?? `Curated first drive, ${a.area}`;
+  return {
+    id: gig ? gig.id : `JOB-F${a.id.replace(/\D/g, '')}`,
+    driverId: a.id,
+    driverName: a.name,
+    customer: from.split(',')[0],
+    pilot: false,
+    from,
+    to: gig?.to ?? `Customer, ${a.area}`,
+    area: gig?.area ?? a.area,
+    km: gig?.km ?? 12,
+    driveMin: gig?.minutes ?? 25,
+    pickupAt: at,
+    deadline: at + 3 * HOUR,
+    reward: gig?.pay ?? 330,
+    price: Math.round(((gig?.pay ?? 330) * 1.6) / 10) * 10,
+    contact: CONTACT,
+    backup: BACKUP,
+    keyLocation: 'Reception, ask for the car by its job number',
+    confirmed24At: at - CHECK_24_MS + 40 * MIN,
+    confirmed60At: at - CHECK_60_MS + 10 * MIN,
+    firstDrive: true,
+  };
+}
+
+/** Keep the jobs in step with an applicant's first drive: add it when booked, move it when rebooked (until it starts). */
+export function syncFirstDrive(jobs: Job[], a: Applicant, gigs: Gig[]): Job[] {
+  const job = firstDriveJob(a, gigs.find((g) => g.id === a.firstGig?.gigId));
+  if (!job) return jobs;
+  const existing = jobs.find((j) => j.driverId === a.id && j.firstDrive);
+  if (!existing) return [...jobs, job];
+  if (existing.arrivedAt !== undefined || (existing.pickupAt === job.pickupAt && existing.id === job.id)) return jobs;
+  return jobs.map((j) => (j === existing ? job : j));
+}
+
+/** How the first drive went, for first-gig quality: on time, and no incident. */
+export function firstDriveResult(j: Job): { onTime: boolean; ok: boolean } {
+  return { onTime: (j.deliveredAt ?? Infinity) <= j.deadline, ok: !j.incident };
 }
 
 /** Move every timestamp of a job by `delta` ms (an old save, rebased to now). */

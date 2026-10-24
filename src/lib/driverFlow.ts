@@ -74,6 +74,44 @@ export function remindWhenQualified(a: Applicant, now: number): Applicant {
   return { ...a, remindWhenQualifiedAt: now, log: [...a.log, { at: now, text: 'Asked to be reminded when they meet the requirement' }] };
 }
 
+// ---------- Going back during the application ----------
+
+/** What an applicant can look back at: their answers, and every step before the one they're on. */
+export type ReviewKey = 'answers' | 'id' | 'licence' | 'photo' | 'extract' | 'call';
+const APPLY_STEPS = ['id', 'licence', 'photo', 'extract', 'call', 'decision'] as const;
+
+export function reviewableSteps(a: Applicant): ReviewKey[] {
+  const i = (APPLY_STEPS as readonly string[]).indexOf(driverStep(a));
+  if (i < 0) return [];
+  return ['answers', ...(APPLY_STEPS.slice(0, i) as ReviewKey[])];
+}
+
+/** Answers and photos can be changed until the file is complete; after that a person is reviewing them. */
+export function canChangeAnswers(a: Applicant): boolean {
+  return !a.decision && !a.docsCompleteAt;
+}
+
+export function canRetake(a: Applicant, k: 'licence' | 'photo'): boolean {
+  return canChangeAnswers(a) && !['missing', 'pending'].includes(a.docs[k]);
+}
+
+/** A new licence or profile photo. BankID and anything a person has already checked can't be undone this way. */
+export function retakeDocument(a: Applicant, k: 'licence' | 'photo', now: number): Applicant {
+  if (!canRetake(a, k)) return a;
+  const { [k]: _t, ...docTimes } = a.docTimes ?? {};
+  return {
+    ...a,
+    docs: { ...a.docs, [k]: 'missing' },
+    docTimes,
+    log: [...a.log, { at: now, text: `Applicant is retaking the ${k === 'licence' ? 'licence photo' : 'profile photo'}` }],
+  };
+}
+
+/** A booked call can be moved until two hours before it starts. */
+export function canMoveCall(a: Applicant, now: number): boolean {
+  return !!a.callAt && !a.decision && a.callAt - now > 2 * 60 * 60_000;
+}
+
 export type DriverStep = 'prequal_review' | 'id' | 'licence' | 'photo' | 'extract' | 'call' | 'decision' | 'first_gig' | 'booked' | 'active' | 'closed';
 
 /** Where the driver is in the flow. Everything is derived from the applicant record. */
