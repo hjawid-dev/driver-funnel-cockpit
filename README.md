@@ -22,7 +22,7 @@ A typical driver funnel loses most applicants somewhere between registration and
 Three changes attack the leaks:
 
 1. **Make finishing easy** (unfinished documents). The driver gets one step at a time on the phone, with BankID, an instant photo check and a guide for the criminal-record extract. Reminders arrive in the chat, where one tap answers them.
-2. **Decide in one call** (slow decisions). The driver books a 15-minute call, or asks the assistant to book or move it, shows the extract, and gets the decision in the call.
+2. **Decide in one call** (slow decisions). The driver books a 15-minute onboarding call, or asks the assistant to book or move it. The call is a short interview: how a job works, what to do if stuck at a pickup, availability, the extract shown (one part, never stored), the decision, and the first drive booked in the same call.
 3. **Offer the first drive at once** (activation gap). On acceptance the driver sees three easy jobs near them that fit their availability, and picks one with a tap.
 
 Underneath, **every action writes a timestamp or a reason code**, so the funnel is measurable as a by-product of the work, and the **weekly report** turns those numbers into a short update for the team.
@@ -31,8 +31,8 @@ Underneath, **every action writes a timestamp or a reason code**, so the funnel 
 
 | Who | When | What they do |
 |---|---|---|
-| Applicant | Any time, on their phone | Applies, asks the assistant, books the call, picks a first drive |
-| Driver ops owner | Two fixed review slots a day (09:00 and 14:00), and the chat queue | Holds the extract calls and decides, answers handed-over questions within 15 minutes, follows up activation |
+| Applicant | Any time, on their phone | Applies, asks the assistant, books the onboarding call, picks and does a first drive |
+| Driver ops owner | Two fixed review slots a day (09:00 and 14:00), and the chat queue | Holds the onboarding calls and decides, answers handed-over questions within 15 minutes, follows up activation |
 | Live ops (same person on shift) | All day, from the Today row | Calls ahead on pickups nobody confirmed, runs the playbook when a driver is stuck, calls within 5 minutes |
 | Backup reviewer | When a suitability rejection needs a second opinion | Confirms it |
 | Ops lead | Monday morning | Reads the weekly report, writes the missing help articles |
@@ -40,29 +40,38 @@ Underneath, **every action writes a timestamp or a reason code**, so the funnel 
 ## What's in it
 
 **Driver side**
-- **Driver's phone** (Demo bar → Driver's phone, or `#driver`): pre-qualifying questions that flag but never reject, a privacy notice, BankID, licence, photo with an instant check, extract guide, self-booked call, status, and three first-gig offers after acceptance.
+- **Driver's phone** (Demo bar → Driver's phone, or `#driver`): pre-qualifying questions, a privacy notice, BankID, licence, photo with an instant check, extract guide, a self-booked onboarding call, status, and three first-drive offers after acceptance.
+  - **When can you drive** takes several answers (weekdays, evenings, weekends). Limited availability is noted, never a reason to reject.
+  - **An unmet requirement** (licence under a year, under the insurance age) pauses the application, so no documents are collected. Nothing is decided automatically: the applicant can change a wrong answer and carry on, or ask to be reminded when they qualify, and a person closes the file.
+  - **Back and Next**, and the step bar, open steps already done: change the answers, retake a photo, or move the call until two hours before. BankID, and everything once the file is complete, stays locked.
+  - **The first drive** shows as today's job on the day, with the same taps as any drive; delivering it makes the driver active. *Demo: jump to the morning of the drive* moves the clock there.
 - **Messages and help:** one conversation with the AI assistant, the automatic reminders and status messages, and replies from ops. `#chat=DRV-1043` opens it directly.
   - The assistant answers from 37 help articles and the driver's own status, in the driver's language, and shows its sources.
   - It hands over to a person when the driver asks, when the articles don't cover the question, when it needs a person to act, when it is sensitive, or when something is wrong on a drive.
   - One-tap replies under a reminder: *I've ordered my extract*, *Remind me tomorrow*, *Stop reminders*, free call times.
   - The assistant can **propose** one action from the driver's own options: book or move the call, mark the extract, pick a first drive, pause or stop reminders. Nothing happens until the driver taps **Confirm**.
 
-**Ops side**
-- **Today:** one row at the top with what needs a person now: urgent problems on a drive, pickups nobody confirmed, overdue reviews, questions waiting, first gigs to chase, files to close. Each opens its list.
+**Ops side: two pages**, switched in the header, so the funnel and live work don't compete for attention. Each page has its own **Today** row with what needs a person now, and each item opens its list.
+
+*Driver funnel* (applications to active drivers):
 - **Funnel scoreboard:** how many have reached each HubSpot stage, with the biggest drop-off marked. Click a stage to open its list.
 - **Six metrics**, which hold all the rates: document completion, time to decision, acceptance rate, activation rate (first gig within 14 days), application → active (the north star), and first-gig quality. ▲▼ chips show how your clicks moved them.
   - Time to decision is measured from registration to decision, as the brief does (about 6 days today, target 48 h). The ops part, from complete file to decision, is shown next to it.
 - **Explanations on demand:** the cockpit keeps one short line per item, and a **?** next to a heading or number opens what it means and how it is counted.
 - **Review queue:** sorted by SLA (48 h from a complete file), with the written criteria in three tiers, and only the decisions the rules allow.
-  - **Must-have:** valid B licence held ≥ 2 years, ID via BankID, criminal-record extract shown in a short call (viewed, never stored), photo meeting an objective standard.
+  - **Must-have:** valid B licence held ≥ 2 years, ID via BankID, criminal-record extract shown in the onboarding call (viewed, never stored), photo meeting an objective standard.
+  - The **onboarding call agenda** (six points) sits next to the decision.
   - **Borderline:** licence 1–2 years → simple drives first; limited availability → accept and flag for activation (never a reason to reject).
   - **Reject:** only with a generic reason code. A suitability rejection needs a second reviewer.
-- **Missing documents**, **Awaiting first gig** and **All applicants**. Flags show only what differs from a clean file. Each applicant opens with the decision in view; the timeline and log fold out.
-- **Live ops** (`#live`): a driver stuck at a pickup, and the check that prevents it.
+- **Missing documents**, **Awaiting first gig** and **All applicants**. Flags show only what differs from a clean file. Each applicant opens with the decision in view; the timeline and log fold out. The welcome call is only a task when no first drive was booked in the onboarding call.
+
+*Live ops* (`#live`): a driver stuck at a pickup, the check that prevents it, and driver questions.
+- **Pickups & incidents.**
   - **Today's pickups** with a pre-pickup check: the pickup contact gets a message 24 hours and 60 minutes before (time, where the keys are, who is on site). No reply gives ops a task to call the backup contact.
   - **On site** the driver taps *I'm here*, *Got the keys* or *Problem at pickup*. No keys 10 minutes after checking in is an urgent alert by itself, so ops knows before the driver has to call. An urgent handover from the assistant during a job opens the incident too.
   - **The incident card:** the clock (agreed pickup, waiting time, decide by, last departure, deadline, margin) and a six-step playbook: keep the driver, rule out our own error, escalate in parallel, update the customer (a template, not AI), the customer decides, close the loop. Every step is logged with the time, and an incident can't close without a decision and paid waiting time.
-  - The driver hears the decision in the chat. The assistant tells a stuck driver to stay, that the waiting time is paid and that ops calls within 5 minutes, and never to leave or cancel.
+  - A new driver's **first drive** is a job here too, marked "ops on standby".
+  - The driver hears the decision in the chat. If the driver finds the keys, the chat leaves the queue and the incident stays open as *to close*. The assistant tells a stuck driver to stay, that the waiting time is paid and that ops calls within 5 minutes, and never to leave or cancel.
 - **Driver questions:** the handover queue with a 15-minute reply target (5 minutes when urgent), replies that go straight to the driver's phone, and four numbers.
   The four numbers:
   - **Answered by AI** (target 95%)
@@ -71,12 +80,14 @@ Underneath, **every action writes a timestamp or a reason code**, so the funnel 
   - ops reply time
   
   Below them, **help content gaps**: the questions the articles didn't cover, the list of articles to write next.
+
+*In the header, for both pages:*
 - **Weekly report:** code computes 24 facts, the AI writes a short update (headline, what changed, biggest leak, three suggestions), and a **number check** verifies every number against the facts before it is shown. Copy for Slack, or write again.
 - **How this maps to HubSpot:** pipeline stages, the fields required to move on, workflows, and what is configured in HubSpot versus built on top.
 
 **Demo controls**
 - **Move time:** +2 h, +1 day, +3 days. Automation runs on the simulated clock: reminders, SLA alerts, chat alerts (after 15 minutes, or 5 when urgent), pre-pickup messages and their tasks, the no-keys alert, and the Monday 08:00 report. The other drivers' pickups move along by themselves.
-- **Demo guide:** one row of five things to try: apply, ask the assistant, decide, move time, read the weekly report. Only the next step is spelled out. `?guide=0` hides it for presenting.
+- **Demo guide:** one row of six things to try: apply, ask the assistant, decide, handle a stuck driver, move time, read the weekly report. Only the next step is spelled out. `?guide=0` hides it for presenting.
 - **Reset demo** in the demo bar starts over with fresh data.
 
 ## AI, and where it stops
@@ -98,7 +109,7 @@ The AI does the talking and the writing. People make the decisions.
 
 ## Configured in HubSpot, built on top
 
-Most of the ops side is HubSpot setup, not code: pipeline stages, required fields, reason-code dropdowns, workflows for reminders, SLA alerts and tasks, Meetings for booking the call, and reports. The chat could run on HubSpot's help desk and knowledge base. What HubSpot can't do on its own, and what I'd build:
+Most of the ops side is HubSpot setup, not code: pipeline stages, required fields, reason-code dropdowns, workflows for reminders, SLA alerts and tasks, Meetings for booking the onboarding call, and reports. The chat could run on HubSpot's help desk and knowledge base. What HubSpot can't do on its own, and what I'd build:
 
 - **The driver's onboarding flow:** one guided path on the phone with BankID, licence check, photo check and live status.
 - **Self-service from the chat:** actions on the driver's own file that the assistant proposes and the driver confirms, checked against the live state.
@@ -114,7 +125,7 @@ Most of the ops side is HubSpot setup, not code: pipeline stages, required field
 | Consistent decisions | Three-tier criteria, decision validation | `src/lib/criteria.ts` |
 | Slow decisions | SLA clock, call slots on weekdays | `src/lib/sla.ts`, `src/lib/booking.ts` |
 | Unfinished documents | Reminders at 2/24/72 h, pause or stop, 14-day close | `src/lib/nudges.ts` |
-| Activation gap | First-gig offers, welcome call, 7/14/30-day buckets | `src/lib/gigs.ts`, `src/lib/activation.ts` |
+| Activation gap | First-drive offers, first drive as a job, welcome call when needed, 7/14/30-day buckets | `src/lib/gigs.ts`, `src/lib/activation.ts` |
 | Driver questions | Prompt, streaming, handover, threads, AI metric, content gaps | `src/lib/chat/`, `src/content/help.ts` |
 | Self-service | Options per step, proposals, confirmed actions, quick replies | `src/lib/chat/selfService.ts` |
 | Weekly report | Facts, number check, template, Slack text | `src/lib/report/` |
@@ -129,7 +140,7 @@ The demo data (44 applicants and about 30 chat conversations over about 40 days,
 
 Built to follow GDPR, Swedish rules and the EU AI Act from the start. This is a design, not legal advice; a DPO should confirm it before real use.
 
-- **No criminal-record data (GDPR art. 10).** The applicant shows their own extract in a short call; the cockpit records only "extract shown". The assistant never asks about it, and if a driver starts sharing details it asks them not to and hands over.
+- **No criminal-record data (GDPR art. 10).** The applicant shows their own extract as one part of the onboarding call; the cockpit records only "extract shown". The assistant never asks about it, and if a driver starts sharing details it asks them not to and hands over.
 - **No traffic-offence data.** Only that the B licence is valid and how long it has been held.
 - **Humans decide.** The rules block what is not allowed; a person makes every decision. Suitability rejections need a second reviewer. Applicants can ask for the reason and a review.
 - **The AI says it is an AI** (AI Act art. 50), answers only from the help articles, and can't decide anything. A person is one tap away.
@@ -143,7 +154,7 @@ Built to follow GDPR, Swedish rules and the EU AI Act from the start. This is a 
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 248 unit tests (Vitest)
+npm test         # 263 unit tests (Vitest)
 npm run eval     # 67 questions to the real assistant (needs a key), writes evals/last-run.md
 npm run build
 ```
