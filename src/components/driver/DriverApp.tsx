@@ -3,8 +3,9 @@ import { CalendarCheck, Car, Check, ChevronLeft, ChevronRight, ExternalLink, IdC
 import type { Applicant, Gig } from '../../lib/types';
 import type { ChatThread } from '../../lib/chat/types';
 import { chatTimeline, emptyThread, reportPickup, threadIdFor, unreadCount } from '../../lib/chat/threads';
-import { assisting, checkIn, currentJob, deliver, depart, driverStatus, escalate, gotKeys, incidentClock, jobAlert, reportProblem, OUTCOME_LABEL, type Job } from '../../lib/liveOps';
+import { assisting, checkIn, currentJob, deliver, depart, driverStatus, escalate, gotKeys, incidentClock, reportProblem, type Job } from '../../lib/liveOps';
 import { DriverChat } from './DriverChat';
+import { PickupStatus } from './PickupStatus';
 import { REJECT_REASONS } from '../../lib/types';
 import { driverStep, progress, STEP_ORDER, createApplicant, bookCall, bookOffer, MIN_AGE, availabilityFrom, changePrequal, remindWhenQualified, SLOT_LABEL, reviewableSteps, canChangeAnswers, canRetake, retakeDocument, canMoveCall, type Application, type Slot, type ReviewKey } from '../../lib/driverFlow';
 import { receiveDocument } from '../../lib/actions';
@@ -616,11 +617,9 @@ const hm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-d
 /** Today's job on the driver's phone: a few taps tell ops where things stand. A problem goes to the assistant first, then a person. */
 function JobCard({ j, now, onJob, onProblem, onInbox }: { j: Job; now: number; onJob: (j: Job) => void; onProblem: () => void; onInbox: () => void }) {
   const status = driverStatus(j, now);
-  const alert = jobAlert(j, now);
   const assist = assisting(j, now);
   const outcome = j.incident?.outcome?.type;
   const stopped = outcome && outcome !== 'keys_found';
-  const waitFrom = hm(Math.max(j.pickupAt, j.arrivedAt ?? j.pickupAt));
   const problem = (
     <button type="button" onClick={onProblem} className="w-full rounded-xl border border-bad/50 px-4 py-2.5 text-sm font-semibold text-bad hover:bg-bad-bg">
       Problem at pickup
@@ -644,27 +643,15 @@ function JobCard({ j, now, onJob, onProblem, onInbox }: { j: Job; now: number; o
         </p>
       </Card>
 
-      {stopped ? (
-        <Card tone="ok">
-          <p className="text-sm font-semibold">{OUTCOME_LABEL[outcome!]}.</p>
-          <p className="mt-0.5 text-sm">You don't need to wait any longer. Your waiting time from {waitFrom} is paid.</p>
-        </Card>
-      ) : status === 'scheduled' || status === 'due' ? (
+      <PickupStatus j={j} now={now} onInbox={onInbox} />
+
+      {stopped ? null : status === 'scheduled' || status === 'due' ? (
         <>
           <Primary onClick={() => onJob(checkIn(j, now))}>I'm here</Primary>
           {problem}
         </>
       ) : status === 'arrived' && assist ? (
         <>
-          <Card tone="soft">
-            <p className="text-sm font-semibold">We're contacting the customer.</p>
-            <p className="mt-0.5 text-sm">
-              Stay where you are: your waiting time is paid from {waitFrom}. If it isn't solved by {hm(assist.until)}, a person from ops calls you.
-            </p>
-            <button type="button" onClick={onInbox} className="mt-1.5 text-sm font-semibold text-indigo hover:underline">
-              Open messages
-            </button>
-          </Card>
           <p className="text-sm font-semibold">Solved?</p>
           <div className="grid grid-cols-2 gap-2">
             <Primary onClick={() => onJob(gotKeys(j, now))}>Got the keys</Primary>
@@ -678,15 +665,6 @@ function JobCard({ j, now, onJob, onProblem, onInbox }: { j: Job; now: number; o
         </>
       ) : status === 'arrived' ? (
         <>
-          {(alert || j.problemAt) && (
-            <Card tone="warn">
-              <p className="text-sm font-semibold">A person from ops calls you within 5 minutes.</p>
-              <p className="mt-0.5 text-sm">Stay where you are: your waiting time is paid from {waitFrom}. Ops agrees the next step with the customer, so you don't need to decide anything yourself.</p>
-              <button type="button" onClick={onInbox} className="mt-1.5 text-sm font-semibold text-indigo hover:underline">
-                Open messages
-              </button>
-            </Card>
-          )}
           <Primary onClick={() => onJob(gotKeys(j, now))}>Got the keys</Primary>
           {!j.problemAt && problem}
         </>

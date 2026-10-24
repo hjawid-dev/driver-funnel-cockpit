@@ -60,6 +60,8 @@ function KpiCard({ kpi, delta }: { kpi: Kpi; delta: KpiDelta | null }) {
         <StatusChip status={kpi.status} className="ml-auto" />
       </div>
       <div className="mt-1 text-xs text-muted leading-snug">{[kpi.target, kpi.sub].filter(Boolean).join(' · ')}</div>
+      {/* Who the rate counts, so it can be checked against the tiles above. */}
+      <div className="mt-0.5 text-xs text-muted leading-snug">{kpi.caption}</div>
     </article>
   );
 }

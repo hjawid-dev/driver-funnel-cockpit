@@ -63,7 +63,7 @@ describe('nudges and no-response', () => {
   it('closes an old incomplete file with the no-response code', () => {
     const r = closeNoResponse(mk({ registeredAt: NOW - 20 * DAY }), NOW);
     expect(r.ok && r.applicant.decision?.reason).toBe('no_response_14d');
-    expect(r.ok && deriveStage(r.applicant)).toBe('rejected');
+    expect(r.ok && deriveStage(r.applicant)).toBe('closed'); // not a decision on the applicant, so not a rejection
   });
 });
 

@@ -12,13 +12,14 @@ const STAGE_STYLE: Record<Stage, string> = {
   accepted: 'bg-mint text-[#0F5132]',
   active: 'bg-green text-navy',
   rejected: 'bg-bad-bg text-bad',
+  closed: 'bg-idle-bg text-idle',
 };
 
 export function StageChip({ stage }: { stage: Stage }) {
   return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${STAGE_STYLE[stage]}`}>{STAGE_LABEL[stage]}</span>;
 }
 
-const FILTERS: StageFilter[] = ['all', 'registered', 'review', 'accepted', 'active', 'rejected'];
+const FILTERS: StageFilter[] = ['all', 'registered', 'review', 'accepted', 'active', 'rejected', 'closed'];
 
 interface Props {
   apps: Applicant[];
@@ -42,7 +43,8 @@ export function AllApplicants({ apps, now, filter, onFilter, onOpen }: Props) {
   return (
     <div className="pt-4">
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by stage">
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by where they are now">
+          <span className="mr-0.5 text-xs text-muted">Where they are now:</span>
           {FILTERS.map((f) => (
             <button
               key={f}

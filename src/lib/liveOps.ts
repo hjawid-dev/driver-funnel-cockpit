@@ -394,6 +394,39 @@ export function escalate(j: Job, why: 'driver' | 'ops' | 'safety', now: number):
   return { ...j, problemAt: j.problemAt ?? now, escalation: { at: now, why } };
 }
 
+// ---------- What the driver sees ----------
+
+/** Where a stuck pickup stands, in the driver's terms: one state, so the phone never says two things at once. */
+export type DriverIncidentState = 'assistant' | 'waiting_call' | 'ops_working' | 'decided';
+
+export function driverIncidentState(j: Job, now: number): DriverIncidentState | null {
+  if (j.incident?.outcome && j.incident.outcome.at <= now) return 'decided';
+  if (assisting(j, now)) return 'assistant';
+  if (jobAlert(j, now)?.kind !== 'escalated') return null;
+  return done(j.incident?.steps.keep_driver, now) ? 'ops_working' : 'waiting_call';
+}
+
+/** The driver's own timeline of a stuck pickup: what happened and when, without anything about the customer's internals. */
+export function driverTimeline(j: Job, now: number): { at: number; text: string }[] {
+  const out: { at: number; text: string }[] = [];
+  const push = (at: number | undefined, text: string) => {
+    if (at !== undefined && at <= now) out.push({ at, text });
+  };
+  const start = assistStart(j, now);
+  if (start !== null) {
+    push(start, j.problemAt === start ? 'You reported a problem' : 'No keys after 5 minutes');
+    push(start, `The ${j.contact.role.toLowerCase()} and ${j.backup.role.toLowerCase()} were texted`);
+  }
+  push(j.contactReply?.at, `The ${j.contact.role.toLowerCase()} replied`);
+  const e = escalation(j, now);
+  if (e) push(e.at, 'A person from ops took over');
+  push(j.incident?.steps.keep_driver, 'Ops called you');
+  push(j.incident?.steps.customer, 'Ops updated the customer');
+  const o = j.incident?.outcome;
+  if (o) push(o.at, j.incident?.by === 'assistant' ? 'Solved: you have the keys' : o.type === 'keys_found' ? 'Keys found' : OUTCOME_LABEL[o.type]);
+  return out.sort((a, b) => a.at - b.at);
+}
+
 /** The pickup contact answered the assistant's text. */
 export function contactReplies(j: Job, text: string, now: number): Job {
   return { ...j, contactReply: { at: now, text } };

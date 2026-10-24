@@ -330,9 +330,9 @@ export default function App() {
     toWorklists();
   };
   const openLink = (to: FunnelLink) => {
-    if (to === 'rejected') {
+    if (to === 'rejected' || to === 'closed') {
       changeTab('all');
-      setStageFilter('rejected');
+      setStageFilter(to);
     } else changeTab(to);
     toWorklists();
   };
@@ -467,7 +467,8 @@ export default function App() {
         <section id="worklists" className="scroll-mt-4">
           <Tabs keys={PAGE_TABS[page]} active={tab} counts={counts} alert={{ live: counts.live > 0, chat: threads.some((t) => t.status === 'waiting' && t.reason === 'urgent') }} onChange={changeTab} />
           <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-            {focused && (
+            {/* A filter that already shows everyone says nothing: leave it out. */}
+            {focused && (tab === 'live' || focused.ids.size !== counts[tab]) && (
               <p className="mt-4 flex flex-wrap items-center gap-x-2 rounded-lg bg-lavender/50 px-3 py-2 text-sm">
                 <span className="font-semibold text-navy">{focused.text}</span>
                 <span className="text-muted">·</span>

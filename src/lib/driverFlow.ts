@@ -117,7 +117,7 @@ export type DriverStep = 'prequal_review' | 'id' | 'licence' | 'photo' | 'extrac
 /** Where the driver is in the flow. Everything is derived from the applicant record. */
 export function driverStep(a: Applicant): DriverStep {
   const stage = deriveStage(a);
-  if (stage === 'rejected') return 'closed';
+  if (stage === 'rejected' || stage === 'closed') return 'closed';
   if (stage === 'active') return 'active';
   if (stage === 'accepted') return a.firstGig?.bookedFor ? 'booked' : 'first_gig';
   if (a.prequalIssue) return 'prequal_review';

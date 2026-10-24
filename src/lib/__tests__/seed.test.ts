@@ -16,7 +16,7 @@ describe('seed composition', () => {
     const counts: Record<string, number> = {};
     for (const a of seed) counts[deriveStage(a)] = (counts[deriveStage(a)] ?? 0) + 1;
     expect(seed).toHaveLength(44);
-    expect(counts).toEqual({ review: 8, registered: 15, accepted: 6, active: 10, rejected: 5 });
+    expect(counts).toEqual({ review: 8, registered: 15, accepted: 6, active: 10, rejected: 4, closed: 1 });
   });
   it('is deterministic for a given now, with unique ids', () => {
     expect(generateSeed(NOW)).toEqual(seed);

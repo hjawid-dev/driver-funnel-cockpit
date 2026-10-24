@@ -3,7 +3,8 @@ import { DOC_KEYS } from './types';
 
 /** Stage is derived, never stored. */
 export function deriveStage(a: Applicant): Stage {
-  if (a.decision?.type === 'rejected') return 'rejected';
+  // Closed because it was never finished: not a decision on the applicant, so it is not counted as a rejection.
+  if (a.decision?.type === 'rejected') return a.decision.reason === 'no_response_14d' ? 'closed' : 'rejected';
   if (a.firstGig?.doneAt) return 'active';
   if (a.decision) return 'accepted';
   if (a.docsCompleteAt) return 'review';
@@ -23,10 +24,15 @@ export function isAccepted(a: Applicant): boolean {
   return !!a.decision && a.decision.type !== 'rejected';
 }
 
+/**
+ * Where someone is now. Deliberately not the funnel tiles' words ("Registered", "Accepted"),
+ * which count everyone who ever got that far: one word, one meaning.
+ */
 export const STAGE_LABEL: Record<Stage, string> = {
-  registered: 'Registered',
-  review: 'Under review',
-  accepted: 'Accepted',
+  registered: 'Missing documents',
+  review: 'In review',
+  accepted: 'Awaiting first gig',
   active: 'Active',
   rejected: 'Rejected',
+  closed: 'Closed, not finished',
 };

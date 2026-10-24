@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bell, Bot, Check, CircleCheck, Send, UserRound } from 'lucide-react';
 import type { Applicant, Gig } from '../../lib/types';
-import { assisting, currentJob, escalate, gotKeys, jobAlert, type Job } from '../../lib/liveOps';
+import { assisting, currentJob, driverIncidentState, driverStatus, escalate, gotKeys, type Job } from '../../lib/liveOps';
+import { PickupStatus } from './PickupStatus';
 import type { ChatMsg, ChatThread } from '../../lib/chat/types';
 import { HELP_BY_ID } from '../../content/help';
 import { driverStep, type DriverStep } from '../../lib/driverFlow';
@@ -74,7 +75,8 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
   // Stuck at a pickup: while the assistant has it, the chat offers the same answers as the job card.
   const job = a ? currentJob(jobs, a.id, now) : null;
   const assist = job ? assisting(job, now) : null;
-  const escalated = job ? jobAlert(job, now)?.kind === 'escalated' : false;
+  // A stuck pickup speaks for itself, in one place: the thread's own banner stays out of the way.
+  const onPickup = !!job && !!driverIncidentState(job, now) && !['driving', 'delivered'].includes(driverStatus(job, now));
   const until = assist ? new Date(assist.until).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
   const jobChips = job && assist && onJob && !busy
     ? [
@@ -167,12 +169,8 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
             {streaming ? <span className="whitespace-pre-line">{streaming}</span> : <span className="text-muted">Typing…</span>}
           </Bubble>
         )}
-        {assist ? (
-          <p className="rounded-lg bg-lavender/60 px-3 py-2 text-xs text-navy">
-            The assistant is contacting the customer. If it isn't solved by {until}, a person from ops calls you. Your waiting time is paid.
-          </p>
-        ) : escalated ? (
-          <p className="rounded-lg bg-warn-bg px-3 py-2 text-xs text-warn">A person from ops calls you within 5 minutes. Your waiting time is paid.</p>
+        {onPickup ? (
+          <PickupStatus j={job!} now={now} />
         ) : t.status !== 'ai' && (
           <p className="rounded-lg bg-warn-bg px-3 py-2 text-xs text-warn">
             {t.status === 'waiting'

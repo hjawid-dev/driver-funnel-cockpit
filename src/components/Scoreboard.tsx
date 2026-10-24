@@ -1,44 +1,51 @@
 import { ArrowRight, ChevronRight, TriangleAlert } from 'lucide-react';
 import type { ReactNode } from 'react';
-import type { Funnel, FunnelKey } from '../lib/kpis';
+import type { Funnel, FunnelKey, FunnelLink, FunnelPart } from '../lib/kpis';
 import { SectionHeader } from './ui';
 
-/** Where a tile's second line leads: a work list, or All filtered on rejected. */
-export type FunnelLink = 'missing' | 'review' | 'awaiting' | 'rejected';
+export type { FunnelLink };
 
 interface Props {
   funnel: Funnel;
-  /** The tile: everyone who reached the stage, the same number as on the tile. */
+  /** The number: everyone who reached the stage, the same number as on the tile. */
   onSelect: (key: FunnelKey) => void;
-  /** The second line: the people sitting in the stage now, the same number as on the line. */
+  /** A part under it: the people sitting there now, the same number as on the line. */
   onLink: (to: FunnelLink) => void;
 }
 
 function StageLink({ to, onLink, children }: { to: FunnelLink; onLink: Props['onLink']; children: ReactNode }) {
   return (
-    <button type="button" onClick={() => onLink(to)} className="inline-flex items-center gap-0.5 font-semibold text-indigo hover:underline">
+    <button type="button" onClick={() => onLink(to)} className="inline-flex items-center gap-0.5 text-left font-semibold text-indigo hover:underline">
       {children}
       <ArrowRight size={11} aria-hidden />
     </button>
   );
 }
 
-export function Scoreboard({ funnel, onSelect, onLink }: Props) {
-  const { tiles, edges, rejected } = funnel;
-  const now = (k: FunnelKey) => tiles.find((t) => t.key === k)!.now;
+/** The tile's arithmetic: who stopped here (a link to their list) and who moved on to the next tile. */
+function Parts({ parts, onLink }: { parts: FunnelPart[]; onLink: Props['onLink'] }) {
+  if (!parts.length) return <span>First gig done</span>;
+  return (
+    <ul className="space-y-0.5">
+      {parts.map((p) => (
+        <li key={p.label}>
+          {p.to && !p.movedOn ? (
+            <StageLink to={p.to} onLink={onLink}>
+              <span className="num">{p.count}</span> {p.label}
+            </StageLink>
+          ) : (
+            <span>
+              <span className="num">{p.count}</span> {p.label}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
-  const subline: Record<FunnelKey, ReactNode> = {
-    registered: <StageLink onLink={onLink} to="missing">{now('registered')} missing documents</StageLink>,
-    docs: 'Auto-queued for review',
-    review: (
-      <span className="flex flex-wrap gap-x-2">
-        <StageLink onLink={onLink} to="review">{now('review')} in queue</StageLink>
-        <StageLink onLink={onLink} to="rejected">{rejected} rejected</StageLink>
-      </span>
-    ),
-    accepted: <StageLink onLink={onLink} to="awaiting">{now('accepted')} awaiting first gig</StageLink>,
-    active: 'First gig done',
-  };
+export function Scoreboard({ funnel, onSelect, onLink }: Props) {
+  const { tiles, edges } = funnel;
 
   return (
     <section>
@@ -47,7 +54,7 @@ export function Scoreboard({ funnel, onSelect, onLink }: Props) {
         info={
           <>
             <p>Everyone who has reached each stage, the same stages as the HubSpot pipeline. Click a number to see exactly those people.</p>
-            <p>The line under it is where people are now, and opens that work list.</p>
+            <p>The lines under a number always add up to it: who stopped at that stage (a link to their list) and who moved on to the next.</p>
             <p className="text-muted">The rates are in the metrics below. They only count people who have had time to move on, so they don't mix in someone who registered yesterday.</p>
           </>
         }
@@ -86,7 +93,9 @@ export function Scoreboard({ funnel, onSelect, onLink }: Props) {
                   <TriangleAlert size={12} aria-hidden /> Biggest drop-off
                 </div>
               )}
-              <div className="mt-0.5 text-xs leading-snug text-muted">{subline[t.key]}</div>
+              <div className="mt-1 text-xs leading-snug text-muted">
+                <Parts parts={t.parts} onLink={onLink} />
+              </div>
             </li>
           );
         })}

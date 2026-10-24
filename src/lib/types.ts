@@ -6,7 +6,7 @@ export type DocStatus = 'verified' | 'uploaded' | 'missing' | 'pending' | 'ready
 export type DocKey = 'licence' | 'id' | 'extract' | 'photo';
 export const DOC_KEYS: DocKey[] = ['licence', 'id', 'extract', 'photo'];
 
-export type Stage = 'registered' | 'review' | 'accepted' | 'active' | 'rejected';
+export type Stage = 'registered' | 'review' | 'accepted' | 'active' | 'rejected' | 'closed';
 
 /**
  * Reason codes are deliberately generic: none of them may reveal anything about criminal

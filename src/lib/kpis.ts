@@ -25,8 +25,8 @@ export const NORTH_STAR_WINDOW_MS = 30 * DAY;
 
 /** Reached "documents submitted" at some point. Closing as no-response means they never did. */
 export function reachedDocs(a: Applicant): boolean {
-  if (a.docsCompleteAt) return true;
-  return !!a.decision && a.decision.reason !== 'no_response_14d';
+  if (deriveStage(a) === 'closed') return false;
+  return !!a.docsCompleteAt || !!a.decision;
 }
 
 /** Decided after review (excludes files closed as no-response, which never reached review). */
@@ -98,7 +98,7 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
       value: docRate,
       display: fmtPct(docRate),
       target: 'Target 85%',
-      caption: `Registered ≥ 7 d ago · ${docDone} of ${docCohort.length}`,
+      caption: `${docDone} of ${docCohort.length} who registered 7+ days ago`,
       info: [
         'Share of applicants who sent in all documents, counting those who registered at least 7 days ago (they have had time to finish).',
         `${docDone} of ${docCohort.length} · baseline 70%`,
@@ -141,7 +141,7 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
       display: fmtPct(actRate),
       sub: 'first gig within 14 days',
       target: 'Target 75%',
-      caption: `Accepted ≥ 14 d ago · ${activated} of ${actCohort.length}`,
+      caption: `${activated} of ${actCohort.length} accepted 14+ days ago`,
       info: [
         'Share of accepted drivers who completed a first gig within 14 days, counting those accepted at least 14 days ago. After 7 days without a booking, ops follows up.',
         `${activated} of ${actCohort.length}`,
@@ -204,13 +204,25 @@ export function topRejectReasons(apps: Applicant[]) {
 
 // ---------- Funnel scoreboard ----------
 
-export type FunnelKey = 'registered' | 'docs' | 'review' | 'accepted' | 'active';
+export type FunnelKey = 'registered' | 'docs' | 'reviewed' | 'accepted' | 'active';
+
+/** A work list a part of a tile opens: four lists, or All filtered on a stage. */
+export type FunnelLink = 'missing' | 'review' | 'awaiting' | 'rejected' | 'closed';
+
+/** One piece of a tile: who stopped here (with the list they are in), or who moved on to the next tile. */
+export interface FunnelPart {
+  label: string;
+  count: number;
+  to?: FunnelLink;
+  movedOn?: boolean;
+}
 
 export interface FunnelTile {
   key: FunnelKey;
   label: string;
   reached: number; // cumulative: everyone who ever got this far
-  now: number; // currently sitting in this stage
+  /** Always adds up to `reached`: the tile shows its own arithmetic. */
+  parts: FunnelPart[];
 }
 
 export interface FunnelEdge {
@@ -218,34 +230,73 @@ export interface FunnelEdge {
   to: FunnelKey;
   rate: number | null; // %
   biggestDrop: boolean;
-  autoQueued?: boolean;
+  /** People between these tiles are waiting in a queue, not lost. */
+  pending?: boolean;
 }
 
 export interface Funnel {
   tiles: FunnelTile[];
   edges: FunnelEdge[];
-  rejected: number;
 }
 
 /** Got this far at some point. A tile's number and the list it opens both use this, so they always match. */
 export function reachedStage(a: Applicant, key: FunnelKey): boolean {
   if (key === 'registered') return true;
-  if (key === 'docs' || key === 'review') return reachedDocs(a);
+  if (key === 'docs') return reachedDocs(a);
+  if (key === 'reviewed') return reachedDocs(a) && !!a.decision;
   if (key === 'accepted') return isAccepted(a);
   return deriveStage(a) === 'active';
 }
 
+/**
+ * Five tiles, each split into who stopped there and who moved on, so every number adds up:
+ * registered = missing documents + closed + submitted, submitted = in review + reviewed,
+ * reviewed = rejected + accepted, accepted = awaiting first gig + active.
+ */
 export function computeFunnel(apps: Applicant[]): Funnel {
   const stages = apps.map(deriveStage);
-  const count = (s: string) => stages.filter((x) => x === s).length;
+  const now = (s: string) => stages.filter((x) => x === s).length;
   const reached = (key: FunnelKey) => apps.filter((a) => reachedStage(a, key)).length;
 
   const tiles: FunnelTile[] = [
-    { key: 'registered', label: 'Registered', reached: reached('registered'), now: count('registered') },
-    { key: 'docs', label: 'Docs submitted', reached: reached('docs'), now: count('review') },
-    { key: 'review', label: 'Under review', reached: reached('review'), now: count('review') },
-    { key: 'accepted', label: 'Accepted', reached: reached('accepted'), now: count('accepted') },
-    { key: 'active', label: 'Active', reached: reached('active'), now: count('active') },
+    {
+      key: 'registered',
+      label: 'Registered',
+      reached: reached('registered'),
+      parts: [
+        { label: 'missing documents', count: now('registered'), to: 'missing' },
+        { label: 'closed, not finished', count: now('closed'), to: 'closed' },
+        { label: 'submitted', count: reached('docs'), movedOn: true },
+      ],
+    },
+    {
+      key: 'docs',
+      label: 'Docs submitted',
+      reached: reached('docs'),
+      parts: [
+        { label: 'in review', count: now('review'), to: 'review' },
+        { label: 'reviewed', count: reached('reviewed'), movedOn: true },
+      ],
+    },
+    {
+      key: 'reviewed',
+      label: 'Reviewed',
+      reached: reached('reviewed'),
+      parts: [
+        { label: 'rejected', count: now('rejected'), to: 'rejected' },
+        { label: 'accepted', count: reached('accepted'), movedOn: true },
+      ],
+    },
+    {
+      key: 'accepted',
+      label: 'Accepted',
+      reached: reached('accepted'),
+      parts: [
+        { label: 'awaiting first gig', count: now('accepted'), to: 'awaiting' },
+        { label: 'active', count: reached('active'), movedOn: true },
+      ],
+    },
+    { key: 'active', label: 'Active', reached: reached('active'), parts: [] },
   ];
 
   const edges: FunnelEdge[] = tiles.slice(1).map((t, i) => ({
@@ -253,14 +304,14 @@ export function computeFunnel(apps: Applicant[]): Funnel {
     to: t.key,
     rate: pct(t.reached, tiles[i].reached),
     biggestDrop: false,
-    ...(t.key === 'review' ? { autoQueued: true } : {}),
+    ...(t.key === 'reviewed' ? { pending: true } : {}),
   }));
 
-  // Biggest drop-off: the edge that loses the most people (complete files are auto-queued, so skip that edge).
+  // Biggest drop-off: the edge that loses the most people (files waiting in the review queue are not lost).
   let worst: FunnelEdge | null = null;
   let worstLost = 0;
   edges.forEach((e, i) => {
-    if (e.autoQueued) return;
+    if (e.pending) return;
     const lost = tiles[i].reached - tiles[i + 1].reached;
     if (lost > worstLost) {
       worstLost = lost;
@@ -269,7 +320,7 @@ export function computeFunnel(apps: Applicant[]): Funnel {
   });
   if (worst) (worst as FunnelEdge).biggestDrop = true;
 
-  return { tiles, edges, rejected: count('rejected') };
+  return { tiles, edges };
 }
 
 // ---------- Change since the page was opened ----------

@@ -20,7 +20,7 @@ export interface Retention {
 
 export function retention(a: Applicant): Retention {
   const stage = deriveStage(a);
-  if (stage === 'rejected') {
+  if (stage === 'rejected' || stage === 'closed') {
     return { deleteAt: a.decision!.at + REJECTED_RETENTION_DAYS * DAY, label: 'Deleted 2 years after the decision' };
   }
   if (stage === 'registered') {

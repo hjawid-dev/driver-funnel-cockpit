@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { computeFunnel, computeKpis, median } from '../kpis';
+import { generateSeed } from '../seed';
+import { deriveStage } from '../stage';
 import type { Applicant } from '../types';
 import { DAY, HOUR } from '../time';
 import { mk, NOW } from './helpers';
@@ -98,11 +100,35 @@ describe('acceptance rate', () => {
 });
 
 describe('computeFunnel', () => {
-  it('cumulative tiles, auto-queued edge and biggest drop', () => {
+  it('cumulative tiles, a pending edge for the review queue, and the biggest drop', () => {
     const apps = [mk(), mk(), mk(), accepted(3), accepted(20, 2)];
     const f = computeFunnel(apps);
     expect(f.tiles.map((t) => t.reached)).toEqual([5, 2, 2, 2, 1]);
-    expect(f.edges.find((e) => e.to === 'review')!.autoQueued).toBe(true);
+    expect(f.edges.find((e) => e.to === 'reviewed')!.pending).toBe(true);
     expect(f.edges.find((e) => e.biggestDrop)!.to).toBe('docs');
+  });
+
+  // The rule behind the scoreboard: the lines under a number always add up to it, and the next tile is the part that moved on.
+  it.each([0, 3, 10])('every tile is the sum of its parts (demo day %i)', (days) => {
+    const apps = generateSeed(NOW + days * DAY);
+    const f = computeFunnel(apps);
+    f.tiles.forEach((t, i) => {
+      if (!t.parts.length) return;
+      expect(t.parts.reduce((s, p) => s + p.count, 0), t.key).toBe(t.reached);
+      expect(t.parts.find((p) => p.movedOn)!.count, t.key).toBe(f.tiles[i + 1].reached);
+    });
+    // Each part that links to a list has exactly as many people as that list.
+    const inStage = (s: string) => apps.filter((a) => deriveStage(a) === s).length;
+    const LIST: Record<string, string> = { missing: 'registered', review: 'review', awaiting: 'accepted', rejected: 'rejected', closed: 'closed' };
+    for (const p of f.tiles.flatMap((t) => t.parts)) if (p.to) expect(p.count, p.label).toBe(inStage(LIST[p.to]));
+    // Everyone is counted once: missing documents + closed + submitted is everyone.
+    expect(f.tiles[0].reached).toBe(apps.length);
+  });
+  it('the cards count the same people as the tiles: reviewed files and first gigs', () => {
+    const apps = generateSeed(NOW);
+    const f = computeFunnel(apps);
+    const ks = computeKpis(apps, NOW);
+    expect(ks.find((k) => k.key === 'acceptance')!.caption).toBe(`${f.tiles[3].reached} of ${f.tiles[2].reached} reviewed files`);
+    expect(ks.find((k) => k.key === 'quality')!.caption).toMatch(new RegExp(` of ${f.tiles[4].reached} first gigs$`));
   });
 });

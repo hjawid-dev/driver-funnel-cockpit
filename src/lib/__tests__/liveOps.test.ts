@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   assistantLog,
+  driverIncidentState,
+  driverTimeline,
   assisting,
   checkIn,
   contactReplies,
@@ -240,6 +242,31 @@ describe('the driver finds the keys while waiting for ops', () => {
     expect(t.messages.at(-2)?.text).toBe('I found the keys.');
     const plain = emptyThread(null);
     expect(keysFoundByDriver(plain, NOW)).toBe(plain);
+  });
+});
+
+describe("the driver's phone says one thing at a time", () => {
+  it('assistant, waiting for the call, ops on it, decided: one state, never two', () => {
+    const reported = reportProblem(job(), NOW + MIN);
+    expect(driverIncidentState(reported, NOW + 2 * MIN)).toBe('assistant');
+    expect(driverIncidentState(reported, NOW + 7 * MIN)).toBe('waiting_call'); // the assistant's 5 minutes ran out
+    const called = markStep(reported, 'keep_driver', NOW + 8 * MIN);
+    expect(driverIncidentState(called, NOW + 8 * MIN)).toBe('ops_working');
+    const decided = setOutcome(called, 'keys_found', NOW + 12 * MIN);
+    expect(driverIncidentState(decided, NOW + 12 * MIN)).toBe('decided'); // no more "a person calls you within 5 minutes"
+    expect(driverIncidentState(job(), NOW)).toBeNull();
+  });
+  it('the timeline shows what happened, in order', () => {
+    const j = setOutcome(markStep(reportProblem(job(), NOW + MIN), 'keep_driver', NOW + 8 * MIN), 'keys_found', NOW + 12 * MIN);
+    expect(driverTimeline(j, NOW + 12 * MIN).map((e) => e.text)).toEqual([
+      'You reported a problem',
+      'The service desk and site manager were texted',
+      'A person from ops took over',
+      'Ops called you',
+      'Keys found',
+    ]);
+    const solved = gotKeys(reportProblem(job(), NOW + MIN), NOW + 3 * MIN);
+    expect(driverTimeline(solved, NOW + 3 * MIN).at(-1)?.text).toBe('Solved: you have the keys');
   });
 });
 
