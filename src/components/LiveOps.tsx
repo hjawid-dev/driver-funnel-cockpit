@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, CircleCheck, Copy, PhoneCall, Smartphone, TriangleAlert } from 'lucide-react';
+import { Car, Check, CircleCheck, Clock, Copy, KeyRound, MapPin, PhoneCall, Smartphone, TriangleAlert } from 'lucide-react';
 import {
   closeIncident,
   closedIncidents,
@@ -18,6 +18,7 @@ import {
   setOutcome,
   todaysJobs,
   type Check as PickupCheck,
+  type DriverStatus,
   type Job,
   type Outcome,
   type StepKey,
@@ -69,7 +70,8 @@ export function LiveOps({ jobs, now, onJob, onViewChat }: Props) {
             <>
               <p>The pre-pickup check: the pickup contact gets a message 24 hours and 60 minutes before, to confirm the time, where the keys are and who is on site.</p>
               <p>No reply within 2 hours (or 20 minutes) gives ops a task: call the backup contact. A missing key shows up the evening before, not at the gate.</p>
-              <p className="text-muted">On site, the driver taps "I'm here" and "Got the keys". No keys 10 minutes after checking in is an urgent alert by itself.</p>
+              <p>The status comes from the driver's taps. Due soon means the pickup is within the hour and the driver hasn't tapped "I'm here" yet. Delivered pickups move to the bottom.</p>
+              <p className="text-muted">No keys 10 minutes after checking in is an urgent alert by itself.</p>
             </>
           }
         />
@@ -77,7 +79,7 @@ export function LiveOps({ jobs, now, onJob, onViewChat }: Props) {
           <p className="rounded-xl bg-card p-4 text-sm text-muted">No pickups in the next 24 hours.</p>
         ) : (
           <ul className="divide-y divide-lavender rounded-xl border border-lavender">
-            {today.map((j) => (
+            {byProgress(today, now).map((j) => (
               <PickupRow key={j.id} j={j} now={now} onJob={onJob} />
             ))}
           </ul>
@@ -92,8 +94,9 @@ function PickupRow({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJob
   const status = driverStatus(j, now);
   const alert = jobAlert(j, now);
   const call = needsConfirmation(j, now) && !alert;
+  const past = status === 'driving' || status === 'delivered';
   return (
-    <li className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-sm ${alert ? 'bg-bad-bg/30' : ''}`}>
+    <li className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-sm ${alert ? 'bg-bad-bg/30' : status === 'delivered' ? 'bg-card/40 text-muted' : ''}`}>
       <div className="w-14 shrink-0">
         <div className="num font-semibold">{hm(j.pickupAt)}</div>
         <div className="num text-xs text-muted">{j.id}</div>
@@ -107,17 +110,15 @@ function PickupRow({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJob
         </div>
       </div>
       <div className="flex gap-1.5">
-        {checks.map((c) => (
-          <CheckPill key={c.key} c={c} />
-        ))}
+        {!past && checks.map((c) => <CheckPill key={c.key} c={c} />)}
       </div>
-      <div className="w-32 text-xs">
+      <div className="w-40 text-xs">
         {alert ? (
           <span className="font-semibold text-bad">{alert.kind === 'not_arrived' ? 'Not checked in' : j.incident?.outcome ? 'Decided, not closed' : 'No keys'}</span>
         ) : j.incident?.outcome && j.incident.outcome.type !== 'keys_found' ? (
           <span className="text-muted">{OUTCOME_LABEL[j.incident.outcome.type].replace('Customer chose ', '').replace('Customer cancelled', 'Cancelled')}</span>
         ) : (
-          <span className="text-muted">{DRIVER_STATUS_LABEL[status]}</span>
+          <StatusPill status={status} at={status === 'delivered' ? j.deliveredAt : undefined} />
         )}
       </div>
       <div className="w-40 text-right">
@@ -133,6 +134,33 @@ function PickupRow({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJob
       </div>
     </li>
   );
+}
+
+const STATUS_STYLE: Record<DriverStatus, { cls: string; Icon: typeof Clock }> = {
+  scheduled: { cls: 'border border-lavender bg-white text-muted', Icon: Clock },
+  due: { cls: 'border border-indigo/50 bg-white text-indigo', Icon: Clock },
+  arrived: { cls: 'bg-lavender text-navy', Icon: MapPin },
+  keys: { cls: 'bg-lavender text-navy', Icon: KeyRound },
+  driving: { cls: 'bg-indigo text-white', Icon: Car },
+  delivered: { cls: 'bg-ok-bg text-ok', Icon: CircleCheck },
+};
+
+/** One look per stage, so a glance tells waiting, moving and done apart. */
+function StatusPill({ status, at }: { status: DriverStatus; at?: number }) {
+  const { cls, Icon } = STATUS_STYLE[status];
+  return (
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>
+      <Icon size={12} aria-hidden />
+      {DRIVER_STATUS_LABEL[status]}
+      {at !== undefined && <span className="num font-normal">{hm(at)}</span>}
+    </span>
+  );
+}
+
+/** Pickups still to happen first, by time; delivered ones last. */
+function byProgress(jobs: Job[], now: number): Job[] {
+  const done = (j: Job) => (driverStatus(j, now) === 'delivered' ? 1 : 0);
+  return [...jobs].sort((a, b) => done(a) - done(b) || a.pickupAt - b.pickupAt);
 }
 
 const CHECK_STYLE: Record<PickupCheck['state'], { cls: string; text: string }> = {

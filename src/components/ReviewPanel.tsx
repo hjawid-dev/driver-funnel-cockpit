@@ -108,7 +108,7 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
 
       <DrawerSection
         title="Decision"
-        info={<p>A person makes every decision; the rules only block what is not allowed. The applicant can ask for the reason and a review, answered within two weeks.</p>}
+        info={<p>A person makes every decision; the rules only block what is not allowed. The applicant can ask for the reason and a review, with the result within two weeks.</p>}
       >
         <div className="space-y-4">
           {/* Accept */}

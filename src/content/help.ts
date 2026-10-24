@@ -92,7 +92,7 @@ Most jobs are on weekdays between 07:00 and 18:00, but there are evening and wee
     tags: ['apply again', 'reapply', 'closed', 'stängd', 'new application'],
     body: `Yes. If your application was closed because it wasn't finished, you can start a new one at any time.
 If you were not accepted, you can apply again after 6 months, or earlier if what stopped you has changed (for example, you have now had your licence for a year).
-You can always ask why a decision was made and ask for a review. We reply within two weeks.`,
+You can always ask why a decision was made and ask for a review, here in the chat. A person confirms your request, usually within 15 minutes, and you get the result of the review within two weeks.`,
   },
 
   // ---------------- Documents ----------------
@@ -206,7 +206,7 @@ No preparation is needed beyond having your extract and licence at hand.`,
     category: 'The call and decision',
     tags: ['rejected', 'nekad', 'decision', 'beslut', 'why', 'varför', 'appeal', 'review', 'överklaga'],
     body: `A person makes every decision; nothing is decided automatically.
-If we can't offer you drives, the message gives the reason. You can ask us to explain it and to review the decision: ask to talk to a person in the chat. We reply within two weeks.
+If we can't offer you drives, the message gives the reason. You can ask us to explain it and to review the decision, here in the chat. A person confirms your request, usually within 15 minutes, and you get the result of the review within two weeks.
 Some reasons we can't go into in writing. Then we offer to explain in a call.`,
   },
 
@@ -336,7 +336,7 @@ In an emergency or if anyone is hurt, call 112 first.`,
     tags: ['waiting', 'väntar', 'vänta', 'keys', 'nycklar', 'no keys', 'key box', 'nyckelbox', 'contact', 'nobody there', 'should I leave', 'ska jag åka', 'waiting time', 'väntetid', 'pickup'],
     body: `At the pickup, tap "I'm here" in today's job, and "Got the keys" when you have them. If the keys or the contact aren't there after 10 minutes, ops is alerted by itself; you can also tap "Problem at pickup" or write here at any time.
 Stay at the pickup. Your waiting time is paid from the agreed pickup time, whatever happens with the job.
-Ops calls you within 5 minutes. Please don't leave until ops tells you to: ops agrees the next step with the customer, so you never have to cancel or decide that yourself.`,
+Ops calls you within 5 minutes and agrees the next step with the customer, so you never have to cancel or decide anything yourself. Please stay until ops has called.`,
   },
   {
     id: 'passengers',

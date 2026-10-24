@@ -157,7 +157,7 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
           <p className="rounded-lg bg-warn-bg px-3 py-2 text-xs text-warn">
             {t.status === 'waiting'
               ? t.reason === 'urgent'
-                ? 'Ops is on it and calls you within 5 minutes. Stay where you are: your waiting time is paid. If anyone is hurt, call 112 first.'
+                ? 'Ops calls you within 5 minutes. Your waiting time is paid.'
                 : 'A person from ops will reply here, usually within 15 minutes.'
               : 'A person from ops is handling your question.'}
           </p>

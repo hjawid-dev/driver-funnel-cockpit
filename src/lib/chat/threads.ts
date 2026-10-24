@@ -101,7 +101,7 @@ export function askForPerson(t: ChatThread, now: number): ChatThread {
  * The driver tapped "Problem at pickup": straight to a person as urgent, no AI in between.
  * The rule is fixed, so the driver hears it the same way every time.
  */
-export const URGENT_NOTE = "Ops has been alerted and calls you within 5 minutes. Stay at the pickup: your waiting time is paid. If anyone is hurt, call 112 first.";
+export const URGENT_NOTE = "Got it. Ops is contacting the customer and calls you within 5 minutes. Stay where you are: your waiting time is paid.";
 
 export function reportUrgent(t: ChatThread, driverText: string, now: number): ChatThread {
   const next = add(add(t, { from: 'driver', text: driverText, at: now }), { from: 'note', text: URGENT_NOTE, at: now, handover: 'urgent' });
@@ -329,7 +329,7 @@ const HISTORY: { name: string; daysAgo: number; lines: Line[]; waiting?: Handove
     ['ai', 'Wait 15 minutes and message ops here in the chat. Never leave the keys anywhere the job doesn\'t say.', 0.2, { sources: ['delivery'] }],
     // Today, a few minutes ago: a problem on a drive happening now.
     ['driver', "I'm at the pickup in Solna and the keys aren't in the key box. The dealer isn't answering.", 1293],
-    ['ai', "That needs a person right away, so I've passed it to ops now. Stay at the pickup and keep your phone close; they'll reply here within 5 minutes. If anyone is hurt, call 112 first.", 1293.2, { sources: ['running-late'], handover: 'urgent' }],
+    ['ai', "I've passed this to ops, and they're contacting the dealer. Stay where you are and keep your phone close: a person calls you within 5 minutes, and your waiting time is paid.", 1293.2, { sources: ['waiting-pickup'], handover: 'urgent' }],
   ] },
   { name: 'Emma Holmberg', daysAgo: 1.4, lines: [
     ['driver', 'Can I cancel a job I took for Saturday?', 0],

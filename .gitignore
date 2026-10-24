@@ -5,3 +5,4 @@ dist
 *.pdf
 *.local
 .env*
+evals/shown.txt

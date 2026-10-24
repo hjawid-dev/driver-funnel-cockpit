@@ -315,7 +315,7 @@ function PrivacyNotice() {
         <li>
           <strong>Your criminal-record extract is only shown in the onboarding call.</strong> We never keep a copy or write down what it says.
         </li>
-        <li>A person makes every decision. You can ask why and ask for a review; we reply within two weeks.</li>
+        <li>A person makes every decision. You can ask why and ask for a review; you get the result of the review within two weeks.</li>
         <li>
           Our chat assistant is an AI (provided by Anthropic, in the US). It sees your first name and where you are in the application, never your ID number, and a
           person is always one tap away. Please don't write sensitive details in the chat.
@@ -450,7 +450,7 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump }: { a: Applicant;
               {d.reason === 'no_response_14d' ? 'We closed your application because it was not completed.' : `We can't offer you driving assignments right now. Reason: ${label}.`}
             </p>
           </Card>
-          <p className="text-sm text-muted">You can ask us to explain the decision and to review it. We reply within two weeks.</p>
+          <p className="text-sm text-muted">You can ask us in the chat to explain the decision and to review it. You get the result of the review within two weeks.</p>
           <button type="button" onClick={onInbox} className="text-sm font-semibold text-indigo hover:underline">
             Open your messages
           </button>
@@ -634,7 +634,7 @@ function JobCard({ j, now, onJob, onProblem, onInbox }: { j: Job; now: number; o
           <p className="text-sm font-semibold">{OUTCOME_LABEL[outcome!]}.</p>
           <p className="mt-0.5 text-sm">You don't need to wait any longer. Your waiting time from {waitFrom} is paid.</p>
         </Card>
-      ) : status === 'scheduled' || status === 'on_the_way' ? (
+      ) : status === 'scheduled' || status === 'due' ? (
         <>
           <Primary onClick={() => onJob(checkIn(j, now))}>I'm here</Primary>
           {problem}
@@ -643,8 +643,8 @@ function JobCard({ j, now, onJob, onProblem, onInbox }: { j: Job; now: number; o
         <>
           {(alert || j.problemAt) && (
             <Card tone="warn">
-              <p className="text-sm font-semibold">Ops is on it. Please stay at the pickup.</p>
-              <p className="mt-0.5 text-sm">Your waiting time is paid from {waitFrom}. Ops calls you within 5 minutes; don't leave until they say so.</p>
+              <p className="text-sm font-semibold">We're on it and contacting the customer.</p>
+              <p className="mt-0.5 text-sm">Stay where you are: your waiting time is paid from {waitFrom}. Ops calls you within 5 minutes, so you don't need to decide anything yourself.</p>
               <button type="button" onClick={onInbox} className="mt-1.5 text-sm font-semibold text-indigo hover:underline">
                 Open messages
               </button>

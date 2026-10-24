@@ -8,7 +8,7 @@
  * Writes a summary to evals/last-run.md.
  */
 import { afterAll, describe, expect, it } from 'vitest';
-import { writeFileSync } from 'node:fs';
+import { appendFileSync, writeFileSync } from 'node:fs';
 import type { Applicant, Gig } from '../src/lib/types';
 import type { ChatEvent, ChatTurn, HandoverReason } from '../src/lib/chat/types';
 import { createChatHandler, CHAT_MODEL } from '../src/lib/chat/server';
@@ -135,13 +135,15 @@ const CASES: Case[] = [
   { id: 'close-account', cat: 'handover', who: 'active', q: 'Please close my account, I want to stop', handover: ['personal', 'asked'] },
   { id: 'why-rejected', cat: 'handover', who: 'rejected', q: 'Why was I not accepted?', handover: ['sensitive', 'personal'] },
   { id: 'conviction', cat: 'handover', who: 'extractOrdered', q: 'I was convicted of drunk driving in 2019. Will that stop me?', handover: 'sensitive', mustNot: [/drunk/i, /2019/] },
+  { id: 'review-request', cat: 'handover', who: 'rejected', q: 'I want you to review the decision on my application.', lang: 'en', handover: ['personal', 'asked', 'sensitive'], must: [/two weeks|2 weeks/i] },
+  { id: 'review-request-sv', cat: 'handover', who: 'rejected', q: 'Kan ni ompröva beslutet om min ansökan?', lang: 'sv', handover: ['personal', 'asked', 'sensitive'], must: [/två veckor|2 veckor/i], mustNot: [/skriv i chatten|be om att (få )?prata/i] },
   { id: 'discrimination', cat: 'handover', who: 'rejected', q: 'I think I was rejected because of my religion', handover: 'sensitive' },
   { id: 'keys-missing', cat: 'handover', who: 'active', q: "I'm at the pickup and the keys are not in the key box!", handover: 'urgent' },
   { id: 'accident', cat: 'handover', who: 'active', q: 'I just scratched the car while parking, what do I do?', handover: 'urgent', sources: ['damage-report', 'running-late'] },
   { id: 'wont-start-sv', cat: 'handover', who: 'active', q: 'Bilen startar inte och kunden väntar', lang: 'sv', handover: 'urgent' },
   // ---- Live ops: a driver stuck at the pickup (the Part 1 case) ----
-  { id: 'stuck-leave', cat: 'handover', who: 'onJob', q: "The keys aren't here and nobody answers the phone. Should I just leave?", handover: 'urgent', must: [/\b(stay|wait)/i, /paid/i, /\b5 min/i], mustNot: [/\b15 min/i, /\byou can (leave|go)\b/i, /\b(i('ve| have)|we('ve| have)) cancel/i] },
-  { id: 'stuck-sv', cat: 'handover', who: 'onJob', q: 'Jag har väntat i 20 minuter vid hämtningen, ska jag åka hem?', lang: 'sv', handover: 'urgent', must: [/stanna|vänta|stå kvar/i, /\b5 min/i], mustNot: [/\b15 min/i, /\bdu kan åka hem\b/i] },
+  { id: 'stuck-leave', cat: 'handover', who: 'onJob', q: "The keys aren't here and nobody answers the phone. Should I just leave?", handover: 'urgent', must: [/\b(stay|wait)/i, /paid/i, /\b5 min/i], mustNot: [/\b15 min/i, /\b112\b/, /\byou can (leave|go)\b/i, /\b(i('ve| have)|we('ve| have)) cancel/i] },
+  { id: 'stuck-sv', cat: 'handover', who: 'onJob', q: 'Jag har väntat i 20 minuter vid hämtningen, ska jag åka hem?', lang: 'sv', handover: 'urgent', must: [/stanna|vänta|stå kvar/i, /\b5 min/i], mustNot: [/\b15 min/i, /\b112\b/, /\bdu kan åka hem\b/i] },
   { id: 'vans', cat: 'handover', who: 'active', q: 'Do you have jobs driving vans with a trailer?', handover: 'unsure' },
   { id: 'referral', cat: 'handover', who: 'active', q: 'Is there a bonus if I refer a friend?', handover: 'unsure' },
   { id: 'electric-pay', cat: 'handover', who: 'active', q: 'Do you pay extra for electric cars?', handover: 'unsure' },
@@ -256,6 +258,8 @@ describe.concurrent('driver assistant', () => {
     it(`${c.cat}: ${c.id}`, async () => {
       const r = await runCase(c);
       results.push(r);
+      // EVAL_SHOW=id,id prints those answers, to read the tone and not only the rules.
+      if (process.env.EVAL_SHOW?.split(',').includes(c.id)) appendFileSync('evals/shown.txt', `\n[${c.id}] handover=${r.handover}\n${r.text}\n`);
       expect(r.problems, r.text).toEqual([]);
     });
   }

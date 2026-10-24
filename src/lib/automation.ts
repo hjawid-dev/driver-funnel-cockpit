@@ -100,7 +100,7 @@ export function automationEvents(apps: Applicant[], from: number, to: number): A
           'driver',
           'decision',
           'Decision on your application',
-          `Hi ${first(a)}, we can't offer you driving assignments right now. Reason: ${label}. You can ask for an explanation and a review; we reply within two weeks.`,
+          `Hi ${first(a)}, we can't offer you driving assignments right now. Reason: ${label}. You can ask for an explanation and a review in the chat; you get the result of the review within two weeks.`,
         );
       }
       continue;

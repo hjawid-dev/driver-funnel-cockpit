@@ -80,14 +80,14 @@ export const DECIDE_BEFORE_MS = 35 * MIN;
 
 const done = (t: number | undefined, now: number) => t !== undefined && t <= now;
 
-export type DriverStatus = 'scheduled' | 'on_the_way' | 'arrived' | 'keys' | 'driving' | 'delivered';
+export type DriverStatus = 'scheduled' | 'due' | 'arrived' | 'keys' | 'driving' | 'delivered';
 
 export const DRIVER_STATUS_LABEL: Record<DriverStatus, string> = {
   scheduled: 'Scheduled',
-  on_the_way: 'On the way',
-  arrived: 'At the pickup',
-  keys: 'Has the keys',
-  driving: 'Driving',
+  due: 'Due soon',
+  arrived: 'At pickup',
+  keys: 'Has keys',
+  driving: 'Driving to drop-off',
   delivered: 'Delivered',
 };
 
@@ -96,7 +96,7 @@ export function driverStatus(j: Job, now: number): DriverStatus {
   if (done(j.departedAt, now)) return 'driving';
   if (done(j.keysAt, now)) return 'keys';
   if (done(j.arrivedAt, now)) return 'arrived';
-  return now >= j.pickupAt - HOUR ? 'on_the_way' : 'scheduled';
+  return now >= j.pickupAt - HOUR ? 'due' : 'scheduled';
 }
 
 // ---------- Pre-pickup check ----------
