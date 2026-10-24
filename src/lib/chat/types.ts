@@ -11,7 +11,8 @@ export type HandoverReason =
   | 'unsure' // not covered by the help articles: a content gap
   | 'personal' // needs a person to act on the driver's own account (move a call, a payout)
   | 'sensitive' // complaint, a decision, health, or anything that shouldn't be handled by AI
-  | 'urgent'; // something is wrong on an ongoing drive
+  | 'urgent' // something on an ongoing drive a person must handle now: safety, damage, the car won't start
+  | 'pickup'; // stuck at a pickup (keys or contact missing): the assistant has the first minutes, then a person
 
 export const HANDOVER_LABEL: Record<HandoverReason, string> = {
   asked: 'Asked for a person',
@@ -19,6 +20,7 @@ export const HANDOVER_LABEL: Record<HandoverReason, string> = {
   personal: 'Needs action on their account',
   sensitive: 'Sensitive, needs a person',
   urgent: 'Urgent: ongoing drive',
+  pickup: 'Stuck at a pickup',
 };
 
 /** An action the assistant proposed; nothing happens until the driver confirms. */

@@ -30,9 +30,9 @@ import { ChatQueue } from './components/ChatQueue';
 import { formatDateTime } from './lib/time';
 import { todayItems, type TodayItem } from './lib/today';
 import { liveOpsEvents } from './lib/automation';
-import { currentJob, driverUpdate, firstDriveResult, openIncidents, reportProblem, syncFirstDrive, type Job } from './lib/liveOps';
+import { assisting, currentJob, driverUpdate, escalate, firstDriveResult, jobAlert, openIncidents, reportProblem, syncFirstDrive, type Job } from './lib/liveOps';
 import { completeFirstGig } from './lib/actions';
-import { backToAi, emptyThread, keysFoundByDriver, opsReply, threadIdFor } from './lib/chat/threads';
+import { backToAi, callRequested, emptyThread, keysFoundByDriver, opsReply, relayContactReply, solvedNote, threadIdFor } from './lib/chat/threads';
 import { REVIEWER } from './lib/types';
 import { LiveOps } from './components/LiveOps';
 
@@ -143,15 +143,30 @@ export default function App() {
   }, []);
 
   const onThread = useCallback(
-    (t: ChatThread) => {
+    (incoming: ChatThread) => {
+      let t = incoming;
       const prev = threads.find((x) => x.id === t.id);
       if (t.messages.length > (prev?.messages.length ?? 0) && t.messages.at(-1)?.from !== 'ops') setChatTried(true);
-      upsertThread(t);
-      // The assistant handed over a problem on a drive: the driver's job opens as an incident in Live ops.
-      if (t.status === 'waiting' && t.reason === 'urgent' && t.applicantId) {
-        const job = currentJob(jobs, t.applicantId, now);
-        if (job && job.problemAt === undefined && !(job.keysAt !== undefined && job.keysAt <= now)) updateJob(reportProblem(job, now));
+      const job = t.applicantId ? currentJob(jobs, t.applicantId, now) : null;
+      const newest = t.messages.length > (prev?.messages.length ?? 0) ? t.messages.at(-1) : undefined;
+      const hasKeys = job?.keysAt !== undefined && job.keysAt <= now;
+      // Stuck at a pickup: the assistant takes the first minutes and Live ops shows it. Without a job today, a person answers.
+      if (newest?.handover === 'pickup') {
+        if (job && !hasKeys) {
+          upsertThread(t);
+          if (job.problemAt === undefined) {
+            const next = reportProblem(job, now);
+            updateJob(next);
+            const until = assisting(next, now)?.until;
+            toast.notify(`${t.name} is stuck at a pickup. The assistant is on it${until ? `; a person takes over at ${new Date(until).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} if it isn't solved` : ''}. See Live ops.`);
+          }
+          return;
+        }
+        t = { ...t, status: 'waiting', waitingSince: now, reason: 'urgent' };
       }
+      upsertThread(t);
+      // Something on a drive a person must handle (damage, safety, the car won't start): Live ops has it as urgent at once.
+      if (t.status === 'waiting' && t.reason === 'urgent' && job && !hasKeys && jobAlert(job, now)?.kind !== 'escalated') updateJob(escalate(job, 'safety', now));
       if (t.status === 'waiting' && prev?.status !== 'waiting') {
         toast.notify(
           t.reason === 'urgent'
@@ -196,8 +211,18 @@ export default function App() {
       updateJob(next);
       const first = next.driverName.split(' ')[0];
       if (!prev) return;
-      if (!prev.problemAt && next.problemAt) toast.notify(`Urgent: ${first} reported a problem at the pickup. See Live ops.`);
-      else if (!(prev.keysAt !== undefined && prev.keysAt <= now) && next.keysAt !== undefined && next.keysAt <= now) {
+      const a = apps.find((x) => x.id === next.driverId) ?? null;
+      const thread = () => threads.find((x) => x.id === threadIdFor(next.driverId)) ?? emptyThread(a);
+      if (!prev.escalation && next.escalation?.why === 'driver') {
+        toast.notify(`Urgent: ${first} asked for a call (${next.id}). See Live ops.`);
+        upsertThread(callRequested(thread(), now));
+      } else if (!prev.problemAt && next.problemAt) {
+        const until = assisting(next, now)?.until;
+        toast.notify(`${first} reported a problem at the pickup. The assistant is on it${until ? `; a person takes over at ${new Date(until).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} if it isn't solved` : ''}. See Live ops.`);
+      } else if (!prev.incident && next.incident?.by === 'assistant') {
+        toast.notify(`${first} has the keys: solved by the assistant (${next.id}).`);
+        upsertThread(solvedNote(thread(), now));
+      } else if (!(prev.keysAt !== undefined && prev.keysAt <= now) && next.keysAt !== undefined && next.keysAt <= now) {
         toast.notify(`${first} has the keys (${next.id}).`);
         const t = threads.find((x) => x.id === threadIdFor(next.driverId));
         if (t) upsertThread(keysFoundByDriver(t, now));
@@ -242,6 +267,12 @@ export default function App() {
       const prev = jobs.find((x) => x.id === j.id);
       updateJob(j);
       toast.notify(message);
+      // In the demo the pickup contact answers the assistant's text: the assistant passes it on to the driver.
+      if (!prev?.contactReply && j.contactReply) {
+        const a = apps.find((x) => x.id === j.driverId) ?? null;
+        upsertThread(relayContactReply(threads.find((x) => x.id === threadIdFor(j.driverId)) ?? emptyThread(a), j.contact.role, j.contactReply.text, now));
+        return;
+      }
       // The driver hears the decision in the chat, and the chat goes back to the assistant when the incident is closed.
       const decided = !prev?.incident?.outcome && j.incident?.outcome;
       const closed = prev?.incident?.closedAt === undefined && j.incident?.closedAt !== undefined;

@@ -8,7 +8,7 @@ import type { HandoverReason } from './types';
 const OPEN = '<meta>';
 const CLOSE = '</meta>';
 
-const REASONS: HandoverReason[] = ['asked', 'unsure', 'personal', 'sensitive', 'urgent'];
+const REASONS: HandoverReason[] = ['asked', 'unsure', 'personal', 'sensitive', 'urgent', 'pickup'];
 
 export interface Meta {
   sources: string[];

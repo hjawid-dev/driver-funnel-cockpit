@@ -41,7 +41,8 @@ export function addAiAnswer(t: ChatThread, text: string, sources: string[], hand
   // A newer proposal replaces any older one that is still open.
   const base = proposal ? { ...t, messages: t.messages.map((m) => (m.proposal?.status === 'open' ? { ...m, proposal: { ...m.proposal, status: 'stale' as const } } : m)) } : t;
   const next = add(base, { from: 'ai', text, at: now, ...(sources.length ? { sources } : {}), ...(handover ? { handover } : {}), ...(proposal ? { proposal } : {}) });
-  return handover ? { ...next, status: 'waiting', waitingSince: now, reason: handover } : next;
+  // Stuck at a pickup: the assistant keeps it for the first minutes (Live ops shows it), so nobody waits in the queue yet.
+  return handover && handover !== 'pickup' ? { ...next, status: 'waiting', waitingSince: now, reason: handover } : next;
 }
 
 /** The driver answered a proposal card. `done` is the confirmation text when the action went through. */
@@ -97,16 +98,34 @@ export function askForPerson(t: ChatThread, now: number): ChatThread {
   return { ...next, status: 'waiting', waitingSince: now, reason: 'asked' };
 }
 
-/**
- * The driver tapped "Problem at pickup": straight to a person as urgent, no AI in between.
- * The rule is fixed, so the driver hears it the same way every time.
- */
-export const URGENT_NOTE = "Got it. Ops is contacting the customer and calls you within 5 minutes. Stay where you are: your waiting time is paid.";
+const hm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
-export function reportUrgent(t: ChatThread, driverText: string, now: number): ChatThread {
-  const next = add(add(t, { from: 'driver', text: driverText, at: now }), { from: 'note', text: URGENT_NOTE, at: now, handover: 'urgent' });
-  if (t.status === 'waiting' && t.reason === 'urgent') return next; // already with a person: keep the original wait time
-  return { ...next, status: 'waiting', waitingSince: now, reason: 'urgent' };
+/**
+ * The driver tapped "Problem at pickup": the assistant takes the first minutes with a fixed message,
+ * so the driver hears it the same way every time. `until` is when a person takes over.
+ */
+export function pickupNote(until: number): string {
+  return `Thanks for telling us. I'm texting the customer's contacts now. Stay where you are: your waiting time is paid. If it isn't solved by ${hm(until)}, a person from ops calls you.`;
+}
+
+export function reportPickup(t: ChatThread, driverText: string, until: number, now: number): ChatThread {
+  // No handover mark: the tap itself started the assistant's minutes on the job.
+  return add(add(t, { from: 'driver', text: driverText, at: now }), { from: 'ai', text: pickupNote(until), at: now });
+}
+
+/** The driver asked for a call ("Call me now"): a person calls within 5 minutes; Live ops has it as urgent. */
+export function callRequested(t: ChatThread, now: number): ChatThread {
+  return add(add(t, { from: 'driver', text: 'Please call me.', at: now }), { from: 'note', text: "Okay, I've asked ops to call you.", at: now });
+}
+
+/** The pickup contact answered the assistant's text: the assistant passes it on. */
+export function relayContactReply(t: ChatThread, contactRole: string, reply: string, now: number): ChatThread {
+  return add(t, { from: 'ai', text: `The ${contactRole.toLowerCase()} replied: "${reply}" Tap "Got the keys" when you have them.`, at: now });
+}
+
+/** Solved while the assistant had it: nobody else needs to act. */
+export function solvedNote(t: ChatThread, now: number): ChatThread {
+  return add(t, { from: 'note', text: 'Great, solved! Ops can see it, and your waiting time is paid. Safe drive.', at: now });
 }
 
 /** The driver tapped "Got the keys" while waiting for ops: the urgent question is answered, so it leaves the queue. Ops still closes the incident. */
@@ -175,7 +194,8 @@ export function chatStats(threads: ChatThread[], now: number, windowMs = 7 * DAY
     for (const m of t.messages) {
       const inWindow = now - m.at <= windowMs && m.at <= now;
       if (m.actionDone && inWindow) selfService++;
-      if (m.handover) {
+      // "pickup" stays with the assistant for its first minutes: answered by AI, not handed over.
+      if (m.handover && m.handover !== 'pickup') {
         if (inWindow) {
           handedOver++;
           byReason[m.handover] = (byReason[m.handover] ?? 0) + 1;
@@ -324,12 +344,12 @@ const HISTORY: { name: string; daysAgo: number; lines: Line[]; waiting?: Handove
     ['driver', 'And the congestion charge?', 2],
     ['ai', 'Congestion charges and bridge tolls are billed to the car owner, so you pay nothing.', 2.2, { sources: ['fuel-tolls'] }],
   ] },
-  { name: 'Julia Lindgren', daysAgo: 0.9, waiting: 'urgent', lines: [
+  { name: 'Julia Lindgren', daysAgo: 0.9, lines: [
     ['driver', 'The customer is not home, what do I do?', 0],
     ['ai', 'Wait 15 minutes and message ops here in the chat. Never leave the keys anywhere the job doesn\'t say.', 0.2, { sources: ['delivery'] }],
-    // Today, a few minutes ago: a problem on a drive happening now.
-    ['driver', "I'm at the pickup in Solna and the keys aren't in the key box. The dealer isn't answering.", 1293],
-    ['ai', "I've passed this to ops, and they're contacting the dealer. Stay where you are and keep your phone close: a person calls you within 5 minutes, and your waiting time is paid.", 1293.2, { sources: ['waiting-pickup'], handover: 'urgent' }],
+    // Today, 9 minutes ago (when her job's problemAt is): stuck at the pickup. The assistant took it, then a person.
+    ['driver', "I'm at the pickup in Solna and the keys aren't in the key box. The dealer isn't answering.", 1287],
+    ['ai', "Thanks for telling us, Julia. I'm texting the dealer's service desk and site manager now. Stay where you are: your waiting time is paid. If it isn't solved within 5 minutes, a person from ops calls you.", 1287.2, { sources: ['waiting-pickup'], handover: 'pickup' }],
   ] },
   { name: 'Emma Holmberg', daysAgo: 1.4, lines: [
     ['driver', 'Can I cancel a job I took for Saturday?', 0],

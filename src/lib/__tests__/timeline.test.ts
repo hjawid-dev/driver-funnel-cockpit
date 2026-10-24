@@ -50,10 +50,11 @@ describe('persist', () => {
     expect(out.threads.find((t) => t.id === waiting.id)!.waitingSince).toBe(waiting.waitingSince! + 5 * DAY);
     expect(out.jobs[0].pickupAt).toBe(jobs[0].pickupAt + 5 * DAY);
   });
-  it('keeps a v4 save and adds the demo day of live jobs', () => {
-    const out = restore(JSON.stringify({ version: 4, savedAt: NOW, apps: seed, gigs, threads }), NOW + HOUR)!;
-    expect(out.threads).toEqual(threads);
+  it.each([4, 5])('keeps the applicants of a v%i save and gives it the demo day with the assistant at the pickup', (version) => {
+    const out = restore(JSON.stringify({ version, savedAt: NOW, apps: seed, gigs, threads, jobs: [] }), NOW + HOUR)!;
+    expect(out.apps).toEqual(seed);
     expect(out.jobs).toEqual(jobs);
+    expect(out.threads.map((t) => t.messages.map((m) => m.text))).toEqual(threads.map((t) => t.messages.map((m) => m.text)));
   });
   it('keeps a save from the previous version (v3) and adds the demo conversations', () => {
     const out = restore(JSON.stringify({ version: 3, savedAt: NOW, apps: seed, gigs }), NOW + HOUR)!;

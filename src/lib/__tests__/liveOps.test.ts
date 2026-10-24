@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assistantLog,
+  assisting,
   checkIn,
+  contactReplies,
+  escalate,
   closedIncidents,
   closeIncident,
   confirmByPhone,
@@ -26,7 +30,7 @@ import {
   type Job,
 } from '../liveOps';
 import { liveOpsEvents } from '../automation';
-import { emptyThread, keysFoundByDriver, reportUrgent } from '../chat/threads';
+import { chatStats, emptyThread, keysFoundByDriver, reportPickup } from '../chat/threads';
 import { generateSeed } from '../seed';
 import { DAY, HOUR, MIN } from '../time';
 import type { Applicant } from '../types';
@@ -79,10 +83,13 @@ describe('pre-pickup check', () => {
 });
 
 describe('alerts: the app notices before anyone has to call', () => {
-  it('no keys 10 minutes after checking in', () => {
+  it('no keys 5 minutes after checking in: the assistant takes it, and a person 5 minutes later', () => {
     const j = checkIn(job(), NOW);
+    expect(assisting(j, NOW + 4 * MIN)).toBeNull();
+    expect(assisting(j, NOW + 5 * MIN)).toEqual({ since: NOW + 5 * MIN, until: NOW + 10 * MIN });
     expect(jobAlert(j, NOW + 9 * MIN)).toBeNull();
-    expect(jobAlert(j, NOW + 10 * MIN)).toMatchObject({ kind: 'no_keys', at: NOW + 10 * MIN });
+    expect(jobAlert(j, NOW + 10 * MIN)).toMatchObject({ kind: 'escalated', why: 'time', at: NOW + 10 * MIN });
+    expect(assisting(j, NOW + 10 * MIN)).toBeNull();
   });
   it('not checked in 10 minutes after pickup time', () => {
     expect(jobAlert(job(), NOW + 11 * MIN)?.kind).toBe('not_arrived');
@@ -93,15 +100,52 @@ describe('alerts: the app notices before anyone has to call', () => {
     expect(j.arrivedAt).toBe(NOW);
     expect(j.keysAt).toBeUndefined();
     expect(j.departedAt).toBeUndefined();
-    expect(jobAlert(j, NOW + 30 * MIN)?.kind).toBe('driver_reported');
+    expect(jobAlert(j, NOW + 30 * MIN)?.kind).toBe('escalated');
   });
-  it('the driver reporting a problem is an alert at once', () => {
-    expect(jobAlert(reportProblem(job(), NOW + MIN), NOW + MIN)?.kind).toBe('driver_reported');
+  it('a problem the driver reports goes to the assistant first, not to a person', () => {
+    const j = reportProblem(job(), NOW + MIN);
+    expect(jobAlert(j, NOW + MIN)).toBeNull();
+    expect(assisting(j, NOW + MIN)?.until).toBe(NOW + 6 * MIN);
+    expect(assistantLog(j, NOW + MIN).map((e) => e.text).join(' ')).toMatch(/Automated text to the service desk and the site manager/);
+  });
+  it('"Call me now", ops taking over, or safety: a person at once', () => {
+    const j = reportProblem(job(), NOW + MIN);
+    for (const why of ['driver', 'ops', 'safety'] as const) {
+      const e = escalate(j, why, NOW + 2 * MIN);
+      expect(jobAlert(e, NOW + 2 * MIN)).toMatchObject({ kind: 'escalated', why });
+      expect(assisting(e, NOW + 2 * MIN)).toBeNull();
+    }
+    // Safety on the road: no check-in needed, and it doesn't count as having arrived.
+    expect(escalate(job(), 'safety', NOW - 20 * MIN).arrivedAt).toBeUndefined();
+  });
+  it('little time before the customer must decide: a person at once, whatever the assistant clock says', () => {
+    // Deadline 2 h after pickup: decide by is 15 min after pickup, so a person is needed from the pickup on.
+    const tight = reportProblem(job({ deadline: NOW + 2 * HOUR }), NOW + MIN);
+    expect(jobAlert(tight, NOW + MIN)).toMatchObject({ kind: 'escalated', why: 'deadline' });
+  });
+  it('solved while the assistant has it: closed by the rules, waiting time paid, nobody needs to act', () => {
+    const replied = contactReplies(reportProblem(job(), NOW + MIN), 'Keys at reception.', NOW + 2 * MIN);
+    expect(assistantLog(replied, NOW + 2 * MIN).at(-1)?.text).toContain('Keys at reception.');
+    const j = gotKeys(replied, NOW + 3 * MIN, 'customer');
+    expect(j.incident).toMatchObject({ by: 'assistant', waitPaid: true, closedAt: NOW + 3 * MIN, outcome: { type: 'keys_found' } });
+    expect(j.incident?.log.at(-1)?.text).toMatch(/^The customer came with the keys\. Solved by the assistant/);
+    expect(jobAlert(j, NOW + 20 * MIN)).toBeNull();
+    expect(closedIncidents([j], NOW + 20 * MIN)).toHaveLength(1);
+    expect(firstDriveResult({ ...j, deliveredAt: NOW + HOUR }).ok).toBe(false); // still an incident on a first drive
+  });
+  it("the chat: the assistant's fixed message, and a stuck pickup is not counted as handed to a person", () => {
+    const t = reportPickup(emptyThread(null), 'No keys', NOW + 6 * MIN, NOW);
+    expect(t.status).toBe('ai');
+    expect(t.messages.at(-1)).toMatchObject({ from: 'ai' });
+    expect(t.messages.at(-1)?.handover).toBeUndefined();
+    expect(t.messages.at(-1)?.text).toMatch(/waiting time is paid.*a person from ops calls you/);
+    expect(chatStats([t], NOW + MIN)).toMatchObject({ handedOver: 0, byAi: 1 });
   });
   it('keys found after the alert: the incident stays open for ops to close, with the outcome filled in', () => {
     const j = gotKeys(checkIn(job(), NOW), NOW + 15 * MIN);
     expect(j.incident?.outcome?.type).toBe('keys_found');
     expect(j.incident?.log.at(-1)?.text).toBe('The driver found the keys');
+    expect(j.incident?.by).toBeUndefined();
     expect(jobAlert(j, NOW + 16 * MIN)).not.toBeNull();
   });
   it('keys before the alert: nothing to do', () => {
@@ -189,7 +233,7 @@ describe("a new driver's first drive", () => {
 
 describe('the driver finds the keys while waiting for ops', () => {
   it('the urgent chat leaves the queue; other threads are untouched', () => {
-    const waiting = reportUrgent(emptyThread(null), 'No keys', NOW);
+    const waiting = { ...emptyThread(null), status: 'waiting' as const, reason: 'urgent' as const, waitingSince: NOW };
     const t = keysFoundByDriver(waiting, NOW + 5 * MIN);
     expect(t.status).toBe('ai');
     expect(t.waitingSince).toBeUndefined();
@@ -203,7 +247,9 @@ describe('what the assistant may know about the drive', () => {
   it('area, time and status only: no customer, address or price', () => {
     const fact = jobFact(checkIn(job(), NOW), NOW + 5 * MIN);
     expect(fact).toContain('pickup in Solna');
-    expect(fact).toContain('keys not found yet');
+    expect(fact).toContain('no keys yet');
+    expect(jobFact(checkIn(job(), NOW), NOW + 6 * MIN)).toMatch(/you are texting the contact, a person calls at \d\d:\d\d/);
+    for (const t of [NOW + 6 * MIN, NOW + 11 * MIN]) expect(jobFact(job({ area: 'Upplands Väsby' , arrivedAt: NOW }), t).length).toBeLessThanOrEqual(160);
     expect(fact).not.toMatch(/Pilot AB|Dealership|780|500/);
   });
 });
@@ -213,9 +259,10 @@ describe('the demo day', () => {
   const jobs = seedJobs(apps, NOW);
   const julia = jobs.find((j) => j.driverName === 'Julia Lindgren')!;
 
-  it('Julia is the case: pilot customer, 35 km, 500/780 SEK, no keys after 10 min, nobody confirmed', () => {
+  it('Julia is the case: pilot customer, 35 km, 500/780 SEK, no keys, nobody confirmed; the assistant tried, then a person', () => {
     expect(julia).toMatchObject({ pilot: true, km: 35, reward: 500, price: 780 });
-    expect(jobAlert(julia, NOW)?.kind).toBe('no_keys');
+    expect(jobAlert(julia, NOW)).toMatchObject({ kind: 'escalated', why: 'time', at: NOW - 4 * MIN });
+    expect(assistantLog(julia, NOW).map((e) => e.at - NOW)).toEqual([-9 * MIN, -9 * MIN, -9 * MIN, -4 * MIN]);
     expect(pickupChecks(julia, NOW).map((c) => c.state)).toEqual(['no_reply', 'no_reply']);
     expect(openIncidents(jobs, NOW).map((j) => j.id)).toEqual([julia.id]);
     expect(currentJob(jobs, julia.driverId, NOW)?.id).toBe(julia.id);

@@ -4,12 +4,12 @@ import { deriveStage } from './stage';
 import { slaStatus } from './sla';
 import { isNoResponse } from './nudges';
 import { activationBucket } from './activation';
-import { needsConfirmation, openIncidents, type Job } from './liveOps';
+import { assistedJobs, needsConfirmation, openIncidents, type Job } from './liveOps';
 
 export type TodayTab = 'live' | 'review' | 'missing' | 'awaiting' | 'chat';
 
 export interface TodayItem {
-  key: 'urgent' | 'urgentchat' | 'toclose' | 'pickups' | 'questions' | 'overdue' | 'activation' | 'close';
+  key: 'urgent' | 'urgentchat' | 'assistant' | 'toclose' | 'pickups' | 'questions' | 'overdue' | 'activation' | 'close';
   tab: TodayTab;
   count: number;
   label: string;
@@ -37,7 +37,9 @@ export function todayItems(apps: Applicant[], threads: ChatThread[], now: number
   const incidents = open.filter((j) => !j.incident?.outcome);
   const toClose = open.filter((j) => j.incident?.outcome);
   // One problem, one item: an urgent chat about a drive with an open incident is that incident.
-  const onIncident = new Set(open.map((j) => j.driverId));
+  // The assistant's first minutes at a stuck pickup: shown, but nothing for a person to do yet.
+  const assisted = assistedJobs(jobs, now);
+  const onIncident = new Set([...open, ...assisted].map((j) => j.driverId));
   const urgentChats = urgentThreads.filter((t) => !t.applicantId || !onIncident.has(t.applicantId));
   const questions = waiting.filter((t) => t.reason !== 'urgent');
   const pickups = jobs.filter((j) => !onIncident.has(j.driverId) && needsConfirmation(j, now));
@@ -54,6 +56,7 @@ export function todayItems(apps: Applicant[], threads: ChatThread[], now: number
   const items: TodayItem[] = [
     item('urgent', 'live', incidents.map((j) => j.id), 'urgent, on a drive', 'urgent, on a drive', true),
     item('urgentchat', 'chat', urgentChats.map((t) => t.id), 'urgent question', 'urgent questions', true),
+    item('assistant', 'live', assisted.map((j) => j.id), 'handled by the assistant', 'handled by the assistant', false),
     item('toclose', 'live', toClose.map((j) => j.id), 'incident to close', 'incidents to close', false),
     item('pickups', 'live', pickups.map((j) => j.id), 'pickup not confirmed', 'pickups not confirmed', false),
     item('overdue', 'review', appIds(isOverdueReview), 'review overdue', 'reviews overdue', true),

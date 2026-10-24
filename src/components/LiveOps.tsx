@@ -1,7 +1,12 @@
 import { useState } from 'react';
-import { Car, Check, CircleCheck, Clock, Copy, KeyRound, MapPin, PhoneCall, Smartphone, TriangleAlert } from 'lucide-react';
+import { Bot, Car, Check, CircleCheck, Clock, Copy, KeyRound, MapPin, PhoneCall, Smartphone, TriangleAlert } from 'lucide-react';
 import {
+  assistantLog,
+  assistedJobs,
+  assisting,
   closeIncident,
+  contactReplies,
+  escalate,
   closedIncidents,
   confirmByPhone,
   customerUpdate,
@@ -42,28 +47,33 @@ const hm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-d
 export function LiveOps({ jobs, now, onJob, onViewChat, only }: Props) {
   const shown = (j: Job) => !only || only.has(j.id);
   const incidents = openIncidents(jobs, now).filter(shown);
+  const assisted = assistedJobs(jobs, now).filter(shown);
   const closed = only ? [] : closedIncidents(jobs, now);
   const today = todaysJobs(jobs, now).filter(shown);
 
   return (
     <div className="space-y-6 pt-4">
+      {assisted.map((j) => (
+        <AssistCard key={j.id} j={j} now={now} onJob={onJob} onViewChat={onViewChat} />
+      ))}
       {incidents.length === 0 ? (
         <p className="flex items-center gap-2 rounded-xl bg-card p-4 text-sm text-muted">
-          <CircleCheck size={18} className="text-ok" aria-hidden /> No open incidents.
-          {closed.length > 0 && (
-            <span>
-              {' '}Closed:{' '}
-              {closed.map((j, i) => (
-                <span key={j.id}>
-                  {i > 0 && ' · '}
-                  <span className="num">{j.id}</span> {j.driverName.split(' ')[0]}, {OUTCOME_LABEL[j.incident!.outcome!.type].toLowerCase()} at <span className="num">{hm(j.incident!.closedAt!)}</span>
-                </span>
-              ))}
-            </span>
-          )}
+          <CircleCheck size={18} className="text-ok" aria-hidden /> {assisted.length ? 'Nothing for a person right now.' : 'No open incidents.'}
         </p>
       ) : (
         incidents.map((j) => <IncidentCard key={j.id} j={j} now={now} onJob={onJob} onViewChat={onViewChat} />)
+      )}
+      {closed.length > 0 && (
+        <p className="-mt-3 text-xs text-muted">
+          Closed today:{' '}
+          {closed.map((j, i) => (
+            <span key={j.id}>
+              {i > 0 && ' · '}
+              <span className="num">{j.id}</span> {j.driverName.split(' ')[0]}, {j.incident!.by === 'assistant' ? 'solved by the assistant' : OUTCOME_LABEL[j.incident!.outcome!.type].toLowerCase()} at{' '}
+              <span className="num">{hm(j.incident!.closedAt!)}</span>
+            </span>
+          ))}
+        </p>
       )}
 
       <section>
@@ -74,7 +84,7 @@ export function LiveOps({ jobs, now, onJob, onViewChat, only }: Props) {
               <p>The pre-pickup check: the pickup contact gets a message 24 hours and 60 minutes before, to confirm the time, where the keys are and who is on site.</p>
               <p>No reply within 2 hours (or 20 minutes) gives ops a task: call the backup contact. A missing key shows up the evening before, not at the gate.</p>
               <p>The status comes from the driver's taps. Due soon means the pickup is within the hour and the driver hasn't tapped "I'm here" yet. Delivered pickups move to the bottom.</p>
-              <p className="text-muted">No keys 10 minutes after checking in is an urgent alert by itself.</p>
+              <p className="text-muted">No keys 5 minutes after checking in: the assistant takes it by itself, and a person 5 minutes later if it isn't solved.</p>
             </>
           }
         />
@@ -96,7 +106,8 @@ function PickupRow({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJob
   const checks = pickupChecks(j, now);
   const status = driverStatus(j, now);
   const alert = jobAlert(j, now);
-  const call = needsConfirmation(j, now) && !alert;
+  const assist = assisting(j, now);
+  const call = needsConfirmation(j, now) && !alert && !assist;
   const past = status === 'driving' || status === 'delivered';
   return (
     <li className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-sm ${alert ? 'bg-bad-bg/30' : status === 'delivered' ? 'bg-card/40 text-muted' : ''}`}>
@@ -117,7 +128,11 @@ function PickupRow({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJob
       </div>
       <div className="w-40 text-xs">
         {alert ? (
-          <span className="font-semibold text-bad">{alert.kind === 'not_arrived' ? 'Not checked in' : j.incident?.outcome ? 'Decided, not closed' : 'No keys'}</span>
+          <span className="font-semibold text-bad">{alert.kind === 'not_arrived' ? 'Not checked in' : j.incident?.outcome ? 'Decided, not closed' : 'Needs a person'}</span>
+        ) : assist ? (
+          <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-lavender px-2 py-0.5 text-xs font-semibold text-indigo">
+            <Bot size={12} aria-hidden /> Assistant handling
+          </span>
         ) : j.incident?.outcome && j.incident.outcome.type !== 'keys_found' ? (
           <span className="text-muted">{OUTCOME_LABEL[j.incident.outcome.type].replace('Customer chose ', '').replace('Customer cancelled', 'Cancelled')}</span>
         ) : (
@@ -183,6 +198,81 @@ function CheckPill({ c }: { c: PickupCheck }) {
   );
 }
 
+// ---------- The assistant's first minutes ----------
+
+const DEMO_REPLY = 'The keys are at reception today, ask for the car by its job number.';
+
+/** A stuck pickup the assistant has: what it did, when a person takes over, and a way to take over now. */
+function AssistCard({ j, now, onJob, onViewChat }: { j: Job; now: number; onJob: Props['onJob']; onViewChat: Props['onViewChat'] }) {
+  const a = assisting(j, now)!;
+  const left = a.until - now;
+  const contact = j.contact.role.toLowerCase();
+  return (
+    <article className="rounded-2xl border border-indigo/30 bg-white">
+      <header className="flex flex-wrap items-start gap-3 border-b border-lavender bg-lavender/40 px-4 py-3 sm:px-5">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-md bg-indigo px-1.5 py-0.5 text-xs font-semibold text-white">
+              <Bot size={12} aria-hidden /> Assistant handling
+            </span>
+            <h3 className="font-bold">{j.driverName}: stuck at the pickup</h3>
+            {j.pilot && <span className="rounded bg-white px-1.5 py-0.5 text-xs font-semibold text-navy">Pilot customer</span>}
+          </div>
+          <p className="mt-0.5 text-xs text-muted">
+            <span className="num">{j.id}</span> · {j.from} → {j.to} · a person takes over at <span className="num font-semibold text-navy">{hm(a.until)}</span>
+            {left > 0 ? ` (in ${formatDuration(left)})` : ''} unless it is solved
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onViewChat(j.driverId)}
+          className="flex items-center gap-1 rounded-md border border-lavender bg-white px-2 py-1 text-xs font-semibold text-indigo hover:border-indigo"
+        >
+          <Smartphone size={13} aria-hidden /> Driver's chat
+        </button>
+      </header>
+      <div className="space-y-3 px-4 py-4 sm:px-5">
+        <AssistantSteps j={j} now={now} />
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onJob(escalate(j, 'ops', now), `${j.id}: you took over from the assistant.`)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-1.5 text-sm font-semibold text-white hover:bg-navy"
+          >
+            Take over now
+          </button>
+          {!j.contactReply && (
+            <button
+              type="button"
+              onClick={() => onJob(contactReplies(j, DEMO_REPLY, now), `${j.id}: the ${contact} replied, and the assistant passed it on to ${j.driverName.split(' ')[0]}.`)}
+              className="rounded-lg border border-dashed border-lavender px-3 py-1.5 text-xs font-semibold text-muted hover:border-indigo hover:text-indigo"
+            >
+              Demo: the {contact} replies
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-muted">
+          The assistant only gathers facts and sends fixed messages. Waiting longer, a new time or cancelling is decided by a person, with the customer.
+        </p>
+      </div>
+    </article>
+  );
+}
+
+/** The assistant's steps on this job, with times. */
+function AssistantSteps({ j, now }: { j: Job; now: number }) {
+  return (
+    <ol className="space-y-1 text-sm">
+      {assistantLog(j, now).map((e, i) => (
+        <li key={i} className="flex gap-3">
+          <span className="num w-12 shrink-0 pt-0.5 text-xs text-muted">{hm(e.at)}</span>
+          <span>{e.text}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 // ---------- The incident card ----------
 
 function IncidentCard({ j, now, onJob, onViewChat }: { j: Job; now: number; onJob: Props['onJob']; onViewChat: Props['onViewChat'] }) {
@@ -230,6 +320,14 @@ function IncidentCard({ j, now, onJob, onViewChat }: { j: Job; now: number; onJo
       </header>
 
       <div className="space-y-4 px-4 py-4 sm:px-5">
+        {assistantLog(j, now).length > 0 && !j.incident?.outcome && (
+          <div className="rounded-xl bg-lavender/40 px-3 py-2.5">
+            <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-indigo">
+              <Bot size={13} aria-hidden /> The assistant tried first
+            </p>
+            <AssistantSteps j={j} now={now} />
+          </div>
+        )}
         <ClockStrip j={j} now={now} />
 
         <ol className="divide-y divide-lavender rounded-xl border border-lavender">

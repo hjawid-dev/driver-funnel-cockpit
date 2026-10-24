@@ -42,8 +42,12 @@ export interface Job {
   keysAt?: number;
   departedAt?: number;
   deliveredAt?: number;
-  /** The driver tapped "Problem at pickup". */
+  /** The driver reported a problem at the pickup (a tap, or in the chat). The assistant takes it first. */
   problemAt?: number;
+  /** A person was asked for before the assistant's minutes ran out. */
+  escalation?: { at: number; why: 'driver' | 'ops' | 'safety' };
+  /** The pickup contact answered the assistant's text (in the demo: a button). */
+  contactReply?: { at: number; text: string };
   /** A new driver's first drive: ops is on standby, and delivering it makes the driver active. */
   firstDrive?: boolean;
   incident?: Incident;
@@ -58,13 +62,19 @@ export interface Incident {
   waitPaid?: boolean;
   feeWaived?: boolean;
   closedAt?: number;
+  /** Solved while the assistant had it: closed by the rules, with no person involved. */
+  by?: 'assistant';
   log: { at: number; text: string }[];
 }
 
 // ---------- The rulebook ----------
 
-/** No contact or keys this long after the driver checks in → an urgent alert, without anyone having to call. */
-export const NO_KEYS_ALERT_MS = 10 * MIN;
+/** No keys this long after the driver checks in → the assistant takes it, without anyone having to call. */
+export const NO_KEYS_ASSIST_MS = 5 * MIN;
+/** The assistant's minutes: it texts the contact and keeps the driver calm. Not solved by then → a person. */
+export const ASSIST_MS = 5 * MIN;
+/** A person takes over at the latest this long before the customer must decide, whatever the assistant's clock says. */
+export const ESCALATE_BEFORE_DECIDE_MS = 15 * MIN;
 /** The driver hasn't checked in this long after the agreed pickup time → an alert. */
 export const NOT_ARRIVED_ALERT_MS = 10 * MIN;
 /** Pre-pickup messages to the pickup contact, and how long to wait for a reply before ops calls. */
@@ -134,28 +144,94 @@ export function needsConfirmation(j: Job, now: number): boolean {
 
 // ---------- Incidents ----------
 
+export type EscalationWhy = 'time' | 'deadline' | 'driver' | 'ops' | 'safety';
+
+/** Why a person took over from the assistant, in ops' words. */
+export const ESCALATION_LABEL: Record<EscalationWhy, string> = {
+  time: `not solved in ${ASSIST_MS / MIN} minutes`,
+  deadline: 'little time left before the customer must decide',
+  driver: 'the driver asked for a call',
+  ops: 'ops took over',
+  safety: 'the driver reported something a person must handle',
+};
+
 export interface Alert {
   at: number;
-  kind: 'no_keys' | 'not_arrived' | 'driver_reported';
+  kind: 'escalated' | 'not_arrived';
   text: string;
+  why?: EscalationWhy;
 }
 
-/** Why this job needs a person now, if it does. The earliest trigger counts. */
+const closed = (j: Job, now: number) => j.incident?.closedAt !== undefined && j.incident.closedAt <= now;
+
+/** When the assistant took the problem: the driver reported it, or the keys were missing 5 minutes after check-in. */
+export function assistStart(j: Job, now: number): number | null {
+  const at: number[] = [];
+  if (done(j.problemAt, now)) at.push(j.problemAt!);
+  if (done(j.arrivedAt, now)) {
+    const t = j.arrivedAt! + NO_KEYS_ASSIST_MS;
+    if (t <= now && !(j.keysAt !== undefined && j.keysAt <= t)) at.push(t);
+  }
+  return at.length ? Math.min(...at) : null;
+}
+
+/** When a person takes over and why: the earliest of the driver or ops asking, safety, the assistant's 5 minutes, or the decision deadline. */
+export function escalation(j: Job, now: number): { at: number; why: EscalationWhy } | null {
+  const start = assistStart(j, now);
+  const due: { at: number; why: EscalationWhy }[] = [];
+  if (j.escalation && j.escalation.at <= now) due.push(j.escalation);
+  if (start !== null) {
+    due.push({ at: start + ASSIST_MS, why: 'time' });
+    due.push({ at: Math.max(start, incidentClock(j, now).decideBy - ESCALATE_BEFORE_DECIDE_MS), why: 'deadline' });
+  }
+  const passed = due.filter((d) => d.at <= now).sort((a, b) => a.at - b.at);
+  if (!passed.length) return null;
+  // Keys in hand before that moment: nothing to hand over.
+  if (j.keysAt !== undefined && j.keysAt <= passed[0].at) return null;
+  return passed[0];
+}
+
+/** Why this job needs a person now, if it does. The earliest trigger counts. The assistant's minutes come first. */
 export function jobAlert(j: Job, now: number): Alert | null {
-  if (j.incident?.closedAt !== undefined && j.incident.closedAt <= now) return null;
+  if (closed(j, now)) return null;
   if (done(j.keysAt, now) && !j.incident) return null;
   const alerts: Alert[] = [];
-  if (done(j.problemAt, now)) alerts.push({ at: j.problemAt!, kind: 'driver_reported', text: `${first(j)} reported a problem at the pickup` });
-  if (done(j.arrivedAt, now) && !done(j.keysAt, now)) {
-    const at = j.arrivedAt! + NO_KEYS_ALERT_MS;
-    if (at <= now) alerts.push({ at, kind: 'no_keys', text: `No keys ${NO_KEYS_ALERT_MS / MIN} min after ${first(j)} checked in` });
-  }
-  if (!done(j.arrivedAt, now)) {
+  const e = escalation(j, now);
+  if (e) alerts.push({ at: e.at, kind: 'escalated', why: e.why, text: `Handed to a person: ${ESCALATION_LABEL[e.why]}` });
+  if (!done(j.arrivedAt, now) && !done(j.problemAt, now)) {
     const at = j.pickupAt + NOT_ARRIVED_ALERT_MS;
     if (at <= now) alerts.push({ at, kind: 'not_arrived', text: `${first(j)} hasn't checked in ${NOT_ARRIVED_ALERT_MS / MIN} min after pickup time` });
   }
-  if (!alerts.length) return j.incident ? { at: firstLogAt(j), kind: 'driver_reported', text: 'Incident open' } : null;
+  if (!alerts.length) return j.incident ? { at: firstLogAt(j), kind: 'escalated', why: 'ops', text: 'Incident open' } : null;
   return alerts.sort((a, b) => a.at - b.at)[0];
+}
+
+/** The assistant has this pickup: since when, and when a person takes over unless it is solved. */
+export function assisting(j: Job, now: number): { since: number; until: number } | null {
+  if (closed(j, now) || done(j.keysAt, now) || jobAlert(j, now)) return null;
+  const since = assistStart(j, now);
+  if (since === null) return null;
+  return { since, until: Math.min(since + ASSIST_MS, Math.max(since, incidentClock(j, now).decideBy - ESCALATE_BEFORE_DECIDE_MS)) };
+}
+
+export function assistedJobs(jobs: Job[], now: number): Job[] {
+  return jobs.filter((j) => assisting(j, now));
+}
+
+/** What the assistant did, worked out from the job: ops sees it while it runs and, after a hand-over, what was already tried. */
+export function assistantLog(j: Job, now: number): { at: number; text: string }[] {
+  const since = assistStart(j, now);
+  if (since === null) return [];
+  const contact = j.contact.role.toLowerCase();
+  const out = [
+    { at: since, text: j.problemAt === since ? `${first(j)} reported a problem at the pickup. The assistant took it.` : `No keys ${NO_KEYS_ASSIST_MS / MIN} min after check-in. The assistant took it.` },
+    { at: since, text: `Automated text to the ${contact} and the ${j.backup.role.toLowerCase()}: the driver is waiting, where are the keys?` },
+    { at: since, text: `Told ${first(j)}: stay, the waiting time is paid, and a person calls if it isn't solved.` },
+  ];
+  if (j.contactReply && j.contactReply.at <= now) out.push({ at: j.contactReply.at, text: `The ${contact} replied: "${j.contactReply.text}" Passed on to ${first(j)}.` });
+  const e = escalation(j, now);
+  if (e) out.push({ at: e.at, text: `Handed to a person: ${ESCALATION_LABEL[e.why]}.` });
+  return out;
 }
 
 const firstLogAt = (j: Job) => j.incident?.log[0]?.at ?? j.pickupAt;
@@ -296,12 +372,31 @@ export function checkIn(j: Job, now: number): Job {
   return base.arrivedAt !== undefined ? base : { ...base, arrivedAt: now };
 }
 
-export function gotKeys(j: Job, now: number): Job {
+/** The driver has the keys ("customer" when the contact came out with them). */
+export function gotKeys(j: Job, now: number, how: 'keys' | 'customer' = 'keys'): Job {
+  const what = how === 'customer' ? 'The customer came with the keys' : 'The driver found the keys';
+  // Solved while the assistant had it: closed by the rules, waiting time paid, nobody needs to act. Ops can still see it.
+  if (assisting(j, now)) {
+    const next = { ...checkIn(j, now), keysAt: now };
+    const log = [...assistantLog(j, now), { at: now, text: `${what}. Solved by the assistant; waiting time paid by the rule.` }];
+    return { ...next, incident: { steps: {}, log, outcome: { type: 'keys_found', at: now }, waitPaid: true, closedAt: now, by: 'assistant' } };
+  }
   // Ops was already alerted: the incident stays open with the outcome filled in, so ops closes it and the waiting time gets paid.
   const alerted = !!jobAlert(j, now);
   const next = { ...checkIn(j, now), keysAt: now };
   if (next.incident?.outcome || (!next.incident && !alerted)) return next;
-  return withIncident(next, now, (i) => ({ ...i, outcome: { type: 'keys_found', at: now }, steps: { ...i.steps, decide: now } }), 'The driver found the keys');
+  return withIncident(next, now, (i) => ({ ...i, outcome: { type: 'keys_found', at: now }, steps: { ...i.steps, decide: now } }), what);
+}
+
+/** A person takes over now: the driver asked for a call, ops took over, or something a person must handle. Without check-in. */
+export function escalate(j: Job, why: 'driver' | 'ops' | 'safety', now: number): Job {
+  if (jobAlert(j, now)?.kind === 'escalated') return j;
+  return { ...j, problemAt: j.problemAt ?? now, escalation: { at: now, why } };
+}
+
+/** The pickup contact answered the assistant's text. */
+export function contactReplies(j: Job, text: string, now: number): Job {
+  return { ...j, contactReply: { at: now, text } };
 }
 
 export function depart(j: Job, now: number): Job {
@@ -333,8 +428,11 @@ export function currentJob(jobs: Job[], driverId: string, now: number): Job | nu
 /** What the assistant may know about a drive: where and when the pickup is and where the driver is. No customer, address or price. */
 export function jobFact(j: Job, now: number): string {
   const s = driverStatus(j, now);
-  const where = s === 'arrived' ? 'at the pickup, keys not found yet' : DRIVER_STATUS_LABEL[s].toLowerCase();
-  return `On a job now: pickup in ${j.area} at ${hm(j.pickupAt)}, status: ${where}`;
+  const where = s === 'arrived' ? 'at the pickup, no keys yet' : DRIVER_STATUS_LABEL[s].toLowerCase();
+  // Kept under the 160 characters a fact may have.
+  const a = assisting(j, now);
+  const handling = a ? `; you are texting the contact, a person calls at ${hm(a.until)} if not solved` : jobAlert(j, now)?.kind === 'escalated' ? '; a person is on it, calls within 5 min' : '';
+  return `On a job now: pickup in ${j.area} at ${hm(j.pickupAt)}, status: ${where}${handling}`;
 }
 
 /** Today's pickups for the list: from 12 hours ago to 24 hours ahead, soonest first. */
@@ -357,23 +455,25 @@ type JobSeed = {
   price: number;
   customer: string;
   pilot?: boolean;
-  /** Minutes relative to pickup; undefined = not (yet) */
+  /** Minutes relative to pickup; undefined = not (yet). */
   confirm24?: number;
   confirm60?: number;
   arrive?: number;
   keys?: number;
   depart?: number;
   deliver?: number;
+  problem?: number;
 };
 
 /**
  * Today in the demo. Julia's drive is the Part 1 case: a pilot customer, 35 km, 3 hours to the
  * deadline, 500 SEK to the driver and 780 SEK from the customer. Nobody answered the pre-pickup
- * messages, and she has been at the gate without keys for a little over 10 minutes.
+ * messages, and she has been at the gate without keys for a little over 10 minutes. She told the
+ * assistant 9 minutes ago; it texted the contacts, got no reply, and handed her to a person 4 minutes ago.
  */
 const JOBS: JobSeed[] = [
   { name: 'Filip Nyström', pickupInMin: -150, hours: 3, from: 'Workshop, Nacka', to: 'Dealership, Södermalm', area: 'Nacka', km: 9, driveMin: 25, reward: 320, price: 520, customer: 'Nacka Bil & Service', confirm24: -23 * 60, confirm60: -50, arrive: -5, keys: 3, depart: 10, deliver: 40 },
-  { name: 'Julia Lindgren', pickupInMin: -12, hours: 3, from: 'Dealership, Solna', to: 'Customer, Upplands Väsby', area: 'Solna', km: 35, driveMin: 50, reward: 500, price: 780, customer: 'Solna Bilcenter', pilot: true, arrive: -2 },
+  { name: 'Julia Lindgren', pickupInMin: -12, hours: 3, from: 'Dealership, Solna', to: 'Customer, Upplands Väsby', area: 'Solna', km: 35, driveMin: 50, reward: 500, price: 780, customer: 'Solna Bilcenter', pilot: true, arrive: -2, problem: 3 },
   { name: 'Isak Bergström', pickupInMin: 45, hours: 2, from: 'Leasing depot, Bromma', to: 'Customer, Kungsholmen', area: 'Bromma', km: 11, driveMin: 30, reward: 340, price: 560, customer: 'Bromma Leasing', confirm24: -22 * 60, confirm60: -55, arrive: -6, keys: 2, depart: 8, deliver: 45 },
   { name: 'Agnes Ekström', pickupInMin: 180, hours: 3, from: 'Rental hub, Södermalm', to: 'Workshop, Huddinge', area: 'Södermalm', km: 16, driveMin: 30, reward: 350, price: 580, customer: 'City Rental Stockholm', confirm24: -21 * 60, confirm60: -50, arrive: -4, keys: 3, depart: 9, deliver: 45 },
   { name: 'Omar Khalil', pickupInMin: 330, hours: 3, from: 'Dealership, Sundbyberg', to: 'Customer, Täby', area: 'Sundbyberg', km: 18, driveMin: 35, reward: 360, price: 600, customer: 'Sundbyberg Motor', confirm60: -45, arrive: -3, keys: 4, depart: 10, deliver: 50 },
@@ -406,7 +506,7 @@ export function seedJobs(apps: Applicant[], now: number): Job[] {
       backup: { role: 'Site manager', phone: '070-123 45 67' },
       keyLocation: 'Key box by the service entrance',
     };
-    const set = (k: 'confirmed24At' | 'confirmed60At' | 'arrivedAt' | 'keysAt' | 'departedAt' | 'deliveredAt', m: number | undefined) => {
+    const set = (k: 'confirmed24At' | 'confirmed60At' | 'arrivedAt' | 'keysAt' | 'departedAt' | 'deliveredAt' | 'problemAt', m: number | undefined) => {
       const t = rel(m);
       if (t !== undefined) job[k] = t;
     };
@@ -416,6 +516,7 @@ export function seedJobs(apps: Applicant[], now: number): Job[] {
     set('keysAt', s.keys);
     set('departedAt', s.depart);
     set('deliveredAt', s.deliver);
+    set('problemAt', s.problem);
     out.push(job);
   });
   return out;
@@ -479,6 +580,8 @@ export function shiftJob(j: Job, delta: number): Job {
   const keys = ['confirmed24At', 'confirmed60At', 'checkedByOpsAt', 'arrivedAt', 'keysAt', 'departedAt', 'deliveredAt', 'problemAt'] as const;
   const moved: Job = { ...j, pickupAt: j.pickupAt + delta, deadline: j.deadline + delta };
   for (const k of keys) if (j[k] !== undefined) moved[k] = s(j[k]);
+  if (j.escalation) moved.escalation = { ...j.escalation, at: j.escalation.at + delta };
+  if (j.contactReply) moved.contactReply = { ...j.contactReply, at: j.contactReply.at + delta };
   if (j.incident) {
     const i = j.incident;
     moved.incident = {

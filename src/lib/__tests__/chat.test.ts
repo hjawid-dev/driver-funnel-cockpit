@@ -204,9 +204,9 @@ describe('threads', () => {
     const s = chatStats(threads, NOW);
     expect(s.rate!).toBeGreaterThan(75);
     expect(s.rate!).toBeLessThan(95);
-    expect(waitingThreads(threads).length).toBe(3);
-    // Urgent problems on a drive come first in the queue.
-    expect(waitingThreads(threads)[0]).toMatchObject({ name: 'Julia Lindgren', reason: 'urgent' });
+    expect(waitingThreads(threads).length).toBe(2);
+    // Julia, stuck at a pickup, is with the assistant and then Live ops, not in the chat queue.
+    expect(waitingThreads(threads).some((t) => t.name === 'Julia Lindgren')).toBe(false);
     expect(contentGaps(threads).length).toBeGreaterThanOrEqual(2);
   });
   it('alerts after 5 minutes, and puts it first, when something is wrong on a drive', () => {

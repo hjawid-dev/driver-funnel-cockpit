@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bell, Bot, Check, CircleCheck, Send, UserRound } from 'lucide-react';
 import type { Applicant, Gig } from '../../lib/types';
-import type { Job } from '../../lib/liveOps';
+import { assisting, currentJob, escalate, gotKeys, jobAlert, type Job } from '../../lib/liveOps';
 import type { ChatMsg, ChatThread } from '../../lib/chat/types';
 import { HELP_BY_ID } from '../../content/help';
 import { driverStep, type DriverStep } from '../../lib/driverFlow';
@@ -35,6 +35,8 @@ interface Props {
   now: number;
   onThread: (t: ChatThread) => void;
   onUpdate: (a: Applicant) => void;
+  /** The driver's taps on today's job (Got the keys, Call me now), also from the chat. */
+  onJob?: (j: Job) => void;
   /** Go to the application steps (e.g. to see the first-drive offers). */
   onSteps: () => void;
 }
@@ -54,7 +56,7 @@ const SUGGEST: Partial<Record<DriverStep | 'visitor', string[]>> = {
   closed: ['Why was I not accepted?', 'Can I apply again?'],
 };
 
-export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, onThread, onUpdate, onSteps }: Props) {
+export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, onThread, onUpdate, onJob, onSteps }: Props) {
   const t = thread ?? emptyThread(a);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -69,6 +71,18 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
   const askedYet = timeline.some((m) => m.from === 'driver');
   const suggestions = !quick.length && !askedYet && !busy ? (SUGGEST[a ? driverStep(a) : 'visitor'] ?? []) : [];
   const unread = unreadCount(timeline, t.seenAt);
+  // Stuck at a pickup: while the assistant has it, the chat offers the same answers as the job card.
+  const job = a ? currentJob(jobs, a.id, now) : null;
+  const assist = job ? assisting(job, now) : null;
+  const escalated = job ? jobAlert(job, now)?.kind === 'escalated' : false;
+  const until = assist ? new Date(assist.until).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+  const jobChips = job && assist && onJob && !busy
+    ? [
+        { label: 'Got the keys', run: () => onJob(gotKeys(job, now)) },
+        { label: 'Still waiting', run: () => onThread(addAck(t, 'Still waiting.', `Thanks. I'm still trying the contacts. If it isn't solved by ${until}, a person from ops calls you.`, now)) },
+        { label: 'Call me now', run: () => onJob(escalate(job, 'driver', now)) },
+      ]
+    : [];
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' });
@@ -153,7 +167,13 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
             {streaming ? <span className="whitespace-pre-line">{streaming}</span> : <span className="text-muted">Typing…</span>}
           </Bubble>
         )}
-        {t.status !== 'ai' && (
+        {assist ? (
+          <p className="rounded-lg bg-lavender/60 px-3 py-2 text-xs text-navy">
+            The assistant is contacting the customer. If it isn't solved by {until}, a person from ops calls you. Your waiting time is paid.
+          </p>
+        ) : escalated ? (
+          <p className="rounded-lg bg-warn-bg px-3 py-2 text-xs text-warn">A person from ops calls you within 5 minutes. Your waiting time is paid.</p>
+        ) : t.status !== 'ai' && (
           <p className="rounded-lg bg-warn-bg px-3 py-2 text-xs text-warn">
             {t.status === 'waiting'
               ? t.reason === 'urgent'
@@ -166,7 +186,20 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
         <div ref={endRef} />
       </div>
 
-      {chips.length > 0 && (
+      {jobChips.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5 border-t border-lavender px-3 pt-2.5" aria-label="Quick replies">
+          {jobChips.map((c, i) => (
+            <button
+              key={c.label}
+              type="button"
+              onClick={c.run}
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${i === 0 ? 'border-indigo bg-indigo text-white hover:bg-navy' : 'border-lavender text-indigo hover:border-indigo'}`}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      ) : chips.length > 0 && (
         <div className="flex flex-wrap gap-1.5 border-t border-lavender px-3 pt-2.5" aria-label="Quick replies">
           {chips.map((q) => (
             <button

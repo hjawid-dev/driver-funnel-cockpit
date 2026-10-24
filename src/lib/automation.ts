@@ -4,7 +4,7 @@ import { NUDGE_OFFSETS, NO_RESPONSE_MS, nudgeMessage, reminderSilenced } from '.
 import { DAY, HOUR, atLocal, formatDateTime } from './time';
 import type { ChatThread } from './chat/types';
 import { slaFor } from './chat/threads';
-import { jobAlert, pickupChecks, REPLY_WAIT_24_MS, REPLY_WAIT_60_MS, type Job } from './liveOps';
+import { assistStart, jobAlert, pickupChecks, REPLY_WAIT_24_MS, REPLY_WAIT_60_MS, type Job } from './liveOps';
 
 /**
  * The automation layer: what runs by itself (HubSpot workflows and the driver chat in
@@ -29,6 +29,7 @@ export type AutoKind =
   | 'weekly_report'
   | 'pickup_check'
   | 'pickup_task'
+  | 'live_assist'
   | 'live_alert';
 
 export interface AutoEvent {
@@ -179,8 +180,13 @@ export function liveOpsEvents(jobs: Job[], from: number, to: number): AutoEvent[
         out.push({ ...base, at: deadline, kind: 'pickup_task', title: `Task: no reply to the ${c.label} message for ${j.id}. Call the ${j.backup.role.toLowerCase()}.` });
       }
     }
+    // The assistant takes a missing key by itself; a person comes in when its minutes run out (taps and chat are logged where they happen).
+    const start = assistStart(j, to);
+    if (start !== null && start !== j.problemAt && inWindow(start)) {
+      out.push({ ...base, at: start, kind: 'live_assist', title: `The assistant took a stuck pickup (${j.id}): texted the ${j.contact.role.toLowerCase()} and the ${j.backup.role.toLowerCase()}.` });
+    }
     const alert = jobAlert(j, to);
-    if (alert && alert.kind !== 'driver_reported' && inWindow(alert.at)) {
+    if (alert && (alert.kind === 'not_arrived' || alert.why === 'time' || alert.why === 'deadline') && inWindow(alert.at)) {
       out.push({ ...base, at: alert.at, kind: 'live_alert', title: `Urgent: ${alert.text} (${j.id}). Call ${j.driverName.split(' ')[0]} now.` });
     }
   }
@@ -202,6 +208,7 @@ export function summarize(events: AutoEvent[]): string {
     [n(['nudge']), 'nudge'],
     [n(['sla_24', 'sla_overdue']), 'SLA alert'],
     [n(['chat_sla']), 'chat alert'],
+    [n(['live_assist']), 'assistant pickup'],
     [n(['live_alert']), 'live ops alert'],
     [n(['pickup_check']), 'pre-pickup message'],
     [n(['weekly_report']), 'weekly report'],

@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { CalendarCheck, Car, Check, ChevronLeft, ChevronRight, ExternalLink, IdCard, Lock, MessageCircle, MessageSquare, ScanFace, ShieldCheck, Sparkles } from 'lucide-react';
 import type { Applicant, Gig } from '../../lib/types';
 import type { ChatThread } from '../../lib/chat/types';
-import { chatTimeline, emptyThread, reportUrgent, threadIdFor, unreadCount } from '../../lib/chat/threads';
-import { checkIn, currentJob, deliver, depart, driverStatus, gotKeys, incidentClock, jobAlert, reportProblem, OUTCOME_LABEL, type Job } from '../../lib/liveOps';
+import { chatTimeline, emptyThread, reportPickup, threadIdFor, unreadCount } from '../../lib/chat/threads';
+import { assisting, checkIn, currentJob, deliver, depart, driverStatus, escalate, gotKeys, incidentClock, jobAlert, reportProblem, OUTCOME_LABEL, type Job } from '../../lib/liveOps';
 import { DriverChat } from './DriverChat';
 import { REJECT_REASONS } from '../../lib/types';
 import { driverStep, progress, STEP_ORDER, createApplicant, bookCall, bookOffer, MIN_AGE, availabilityFrom, changePrequal, remindWhenQualified, SLOT_LABEL, reviewableSteps, canChangeAnswers, canRetake, retakeDocument, canMoveCall, type Application, type Slot, type ReviewKey } from '../../lib/driverFlow';
@@ -74,7 +74,7 @@ export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, o
 
       {view === 'chat' ? (
         <div className="min-h-0 flex-1">
-          <DriverChat applicant={a} thread={thread} apps={apps} gigs={gigs} jobs={jobs} now={now} onThread={onThread} onUpdate={onUpdate} onSteps={() => setView('steps')} />
+          <DriverChat applicant={a} thread={thread} apps={apps} gigs={gigs} jobs={jobs} now={now} onThread={onThread} onUpdate={onUpdate} onJob={onJob} onSteps={() => setView('steps')} />
         </div>
       ) : (
       <div className="flex-1 overflow-y-auto px-4 py-4">
@@ -88,8 +88,11 @@ export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, o
                 now={now}
                 onJob={onJob}
                 onProblem={() => {
-                  onJob(reportProblem(job, now));
-                  onThread(reportUrgent(thread ?? emptyThread(a), "Problem at the pickup: the car or the keys aren't ready.", now));
+                  const next = reportProblem(job, now);
+                  onJob(next);
+                  // The assistant has the first minutes; until then a person takes over by itself.
+                  const until = assisting(next, now)?.until ?? now + 5 * 60_000;
+                  onThread(reportPickup(thread ?? emptyThread(a), "Problem at the pickup: the car or the keys aren't ready.", until, now));
                   setView('chat');
                 }}
                 onInbox={() => setView('chat')}
@@ -610,10 +613,11 @@ function OffersStep({ a, apps, gigs, now, onPick }: { a: Applicant; apps: Applic
 
 const hm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
-/** Today's job on the driver's phone: three taps tell ops where things stand, and a problem goes straight to a person. */
+/** Today's job on the driver's phone: a few taps tell ops where things stand. A problem goes to the assistant first, then a person. */
 function JobCard({ j, now, onJob, onProblem, onInbox }: { j: Job; now: number; onJob: (j: Job) => void; onProblem: () => void; onInbox: () => void }) {
   const status = driverStatus(j, now);
   const alert = jobAlert(j, now);
+  const assist = assisting(j, now);
   const outcome = j.incident?.outcome?.type;
   const stopped = outcome && outcome !== 'keys_found';
   const waitFrom = hm(Math.max(j.pickupAt, j.arrivedAt ?? j.pickupAt));
@@ -650,12 +654,34 @@ function JobCard({ j, now, onJob, onProblem, onInbox }: { j: Job; now: number; o
           <Primary onClick={() => onJob(checkIn(j, now))}>I'm here</Primary>
           {problem}
         </>
+      ) : status === 'arrived' && assist ? (
+        <>
+          <Card tone="soft">
+            <p className="text-sm font-semibold">We're contacting the customer.</p>
+            <p className="mt-0.5 text-sm">
+              Stay where you are: your waiting time is paid from {waitFrom}. If it isn't solved by {hm(assist.until)}, a person from ops calls you.
+            </p>
+            <button type="button" onClick={onInbox} className="mt-1.5 text-sm font-semibold text-indigo hover:underline">
+              Open messages
+            </button>
+          </Card>
+          <p className="text-sm font-semibold">Solved?</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Primary onClick={() => onJob(gotKeys(j, now))}>Got the keys</Primary>
+            <button type="button" onClick={() => onJob(gotKeys(j, now, 'customer'))} className="w-full rounded-xl border border-indigo px-4 py-2.5 text-sm font-semibold text-indigo hover:bg-indigo hover:text-white">
+              Customer is here
+            </button>
+          </div>
+          <button type="button" onClick={() => onJob(escalate(j, 'driver', now))} className="w-full text-center text-sm font-semibold text-muted hover:text-navy">
+            Call me now
+          </button>
+        </>
       ) : status === 'arrived' ? (
         <>
           {(alert || j.problemAt) && (
             <Card tone="warn">
-              <p className="text-sm font-semibold">We're on it and contacting the customer.</p>
-              <p className="mt-0.5 text-sm">Stay where you are: your waiting time is paid from {waitFrom}. Ops calls you within 5 minutes, so you don't need to decide anything yourself.</p>
+              <p className="text-sm font-semibold">A person from ops calls you within 5 minutes.</p>
+              <p className="mt-0.5 text-sm">Stay where you are: your waiting time is paid from {waitFrom}. Ops agrees the next step with the customer, so you don't need to decide anything yourself.</p>
               <button type="button" onClick={onInbox} className="mt-1.5 text-sm font-semibold text-indigo hover:underline">
                 Open messages
               </button>
