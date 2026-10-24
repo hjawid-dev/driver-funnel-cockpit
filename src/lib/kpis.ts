@@ -227,17 +227,25 @@ export interface Funnel {
   rejected: number;
 }
 
+/** Got this far at some point. A tile's number and the list it opens both use this, so they always match. */
+export function reachedStage(a: Applicant, key: FunnelKey): boolean {
+  if (key === 'registered') return true;
+  if (key === 'docs' || key === 'review') return reachedDocs(a);
+  if (key === 'accepted') return isAccepted(a);
+  return deriveStage(a) === 'active';
+}
+
 export function computeFunnel(apps: Applicant[]): Funnel {
   const stages = apps.map(deriveStage);
   const count = (s: string) => stages.filter((x) => x === s).length;
-  const docs = apps.filter(reachedDocs).length;
+  const reached = (key: FunnelKey) => apps.filter((a) => reachedStage(a, key)).length;
 
   const tiles: FunnelTile[] = [
-    { key: 'registered', label: 'Registered', reached: apps.length, now: count('registered') },
-    { key: 'docs', label: 'Docs submitted', reached: docs, now: count('review') },
-    { key: 'review', label: 'Under review', reached: docs, now: count('review') },
-    { key: 'accepted', label: 'Accepted', reached: apps.filter(isAccepted).length, now: count('accepted') },
-    { key: 'active', label: 'Active', reached: count('active'), now: count('active') },
+    { key: 'registered', label: 'Registered', reached: reached('registered'), now: count('registered') },
+    { key: 'docs', label: 'Docs submitted', reached: reached('docs'), now: count('review') },
+    { key: 'review', label: 'Under review', reached: reached('review'), now: count('review') },
+    { key: 'accepted', label: 'Accepted', reached: reached('accepted'), now: count('accepted') },
+    { key: 'active', label: 'Active', reached: reached('active'), now: count('active') },
   ];
 
   const edges: FunnelEdge[] = tiles.slice(1).map((t, i) => ({

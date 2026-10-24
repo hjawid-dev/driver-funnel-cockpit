@@ -1,11 +1,11 @@
 import { useCallback, useMemo, useState } from 'react';
 import { CalendarClock, Compass, FileText, Network } from 'lucide-react';
 import { useClock, useDemoData, type TabKey } from './state';
-import { computeFunnel, computeKpis, type FunnelKey } from './lib/kpis';
+import { computeFunnel, computeKpis, reachedStage, type FunnelKey } from './lib/kpis';
 import { deriveStage } from './lib/stage';
 import { nextReviewSlot } from './lib/sla';
 import { formatDuration } from './lib/time';
-import { Scoreboard } from './components/Scoreboard';
+import { Scoreboard, type FunnelLink } from './components/Scoreboard';
 import { KpiRow } from './components/KpiRow';
 import { Tabs } from './components/Tabs';
 import { ReviewQueue } from './components/ReviewQueue';
@@ -28,7 +28,7 @@ import { HANDOVER_LABEL } from './lib/chat/types';
 import { waitingThreads } from './lib/chat/threads';
 import { ChatQueue } from './components/ChatQueue';
 import { formatDateTime } from './lib/time';
-import { todayItems } from './lib/today';
+import { todayItems, type TodayItem } from './lib/today';
 import { liveOpsEvents } from './lib/automation';
 import { currentJob, driverUpdate, firstDriveResult, openIncidents, reportProblem, syncFirstDrive, type Job } from './lib/liveOps';
 import { completeFirstGig } from './lib/actions';
@@ -60,13 +60,8 @@ type Page = 'funnel' | 'live';
 const PAGE_TABS: Record<Page, TabKey[]> = { funnel: ['review', 'missing', 'awaiting', 'all'], live: ['live', 'chat'] };
 const LIVE_TABS: TabKey[] = PAGE_TABS.live;
 
-const TILE_TO_TAB: Record<FunnelKey, TabKey> = {
-  registered: 'missing',
-  docs: 'review',
-  review: 'review',
-  accepted: 'awaiting',
-  active: 'all',
-};
+/** A list narrowed to what was clicked, so the number clicked is the number shown. */
+type Focus = { tab: TabKey } & ({ kind: 'today'; key: TodayItem['key'] } | { kind: 'reached'; stage: FunnelKey });
 
 export default function App() {
   const clock = useClock();
@@ -82,9 +77,14 @@ export default function App() {
   // #live opens Live ops (handy for presenting Part 1).
   const [page, setPage] = useState<Page>(() => (window.location.hash === '#live' ? 'live' : 'funnel'));
   const [tab, setTab] = useState<TabKey>(() => (window.location.hash === '#live' ? 'live' : 'review'));
+  const [focus, setFocus] = useState<Focus | null>(null);
+  const changeTab = (t: TabKey) => {
+    setTab(t);
+    setFocus(null);
+  };
   const showPage = (p: Page) => {
     setPage(p);
-    setTab(PAGE_TABS[p][0]);
+    changeTab(PAGE_TABS[p][0]);
     window.scrollTo({ top: 0 });
   };
   const [openId, setOpenId] = useState<string | null>(null);
@@ -263,24 +263,47 @@ export default function App() {
     setBaseline(computeKpis(fresh, Date.now()));
     setOpenId(null);
     setStageFilter('all');
+    setFocus(null);
     toast.notify('Demo reset with fresh data.');
   };
 
-  const openTab = (t: TabKey) => {
-    setPage(LIVE_TABS.includes(t) ? 'live' : 'funnel');
-    setTab(t);
-    if (t === 'all') setStageFilter('all');
-    setTimeout(() => document.getElementById('worklists')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  const toWorklists = () => setTimeout(() => document.getElementById('worklists')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  const openToday = (i: TodayItem) => {
+    setPage(LIVE_TABS.includes(i.tab) ? 'live' : 'funnel');
+    setTab(i.tab);
+    setFocus({ kind: 'today', key: i.key, tab: i.tab });
+    toWorklists();
   };
+
+  // Who the focused list shows, and the line above it. Worked out on every render, so it follows the data.
+  const focused = useMemo(() => {
+    if (!focus || focus.tab !== tab) return null;
+    if (focus.kind === 'today') {
+      const i = today.find((x) => x.key === focus.key);
+      return { ids: new Set(i?.ids ?? []), text: i ? `Showing ${i.label}` : 'All done here' };
+    }
+    const label = funnel.tiles.find((t) => t.key === focus.stage)!.label;
+    const ids = new Set(apps.filter((a) => reachedStage(a, focus.stage)).map((a) => a.id));
+    return { ids, text: `Showing ${ids.size} who reached ${label}` };
+  }, [focus, tab, today, funnel, apps]);
+  const inFocus = (id: string) => !focused || focused.ids.has(id);
 
   const pageToday = today.filter((i) => (page === 'live') === LIVE_TABS.includes(i.tab));
   const liveAlert = counts.live + threads.filter((t) => t.status === 'waiting' && t.reason === 'urgent' && !jobs.some((j) => j.driverId === t.applicantId && openIncidents([j], now).length)).length;
 
+  // A tile shows everyone who reached the stage; its second line opens the work list for who is there now.
   const jumpTo = (key: FunnelKey) => {
-    setTab(TILE_TO_TAB[key]);
-    if (key === 'active') setStageFilter('active');
-    // After the tab bar has settled, so the two scrolls don't cancel each other.
-    setTimeout(() => document.getElementById('worklists')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    setTab('all');
+    setStageFilter('all');
+    setFocus({ kind: 'reached', stage: key, tab: 'all' });
+    toWorklists();
+  };
+  const openLink = (to: FunnelLink) => {
+    if (to === 'rejected') {
+      changeTab('all');
+      setStageFilter('rejected');
+    } else changeTab(to);
+    toWorklists();
   };
 
   return (
@@ -368,7 +391,7 @@ export default function App() {
             <button
               key={i.key}
               type="button"
-              onClick={() => openTab(i.tab)}
+              onClick={() => openToday(i)}
               className={`rounded-full border px-3 py-1 font-semibold transition-colors ${
                 i.urgent ? 'border-bad/40 bg-bad-bg text-bad hover:border-bad' : 'border-lavender bg-white text-navy hover:border-indigo hover:text-indigo'
               }`}
@@ -405,26 +428,36 @@ export default function App() {
 
         {page === 'funnel' && (
           <>
-            <Scoreboard funnel={funnel} onSelect={jumpTo} />
+            <Scoreboard funnel={funnel} onSelect={jumpTo} onLink={openLink} />
             <KpiRow kpis={kpis} baseline={baseline} />
           </>
         )}
 
         <section id="worklists" className="scroll-mt-4">
-          <Tabs keys={PAGE_TABS[page]} active={tab} counts={counts} alert={{ live: counts.live > 0, chat: threads.some((t) => t.status === 'waiting' && t.reason === 'urgent') }} onChange={setTab} />
+          <Tabs keys={PAGE_TABS[page]} active={tab} counts={counts} alert={{ live: counts.live > 0, chat: threads.some((t) => t.status === 'waiting' && t.reason === 'urgent') }} onChange={changeTab} />
           <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
+            {focused && (
+              <p className="mt-4 flex flex-wrap items-center gap-x-2 rounded-lg bg-lavender/50 px-3 py-2 text-sm">
+                <span className="font-semibold text-navy">{focused.text}</span>
+                <span className="text-muted">·</span>
+                <button type="button" onClick={() => setFocus(null)} className="font-semibold text-indigo hover:underline">
+                  {/* Live ops' tab count is incidents only, so a number there would not be "all". */}
+                  Show all{tab === 'live' ? '' : ` ${counts[tab]}`}
+                </button>
+              </p>
+            )}
             {tab === 'live' ? (
-              <LiveOps jobs={jobs} now={now} onJob={onJob} onViewChat={openDriverChat} />
+              <LiveOps jobs={jobs} now={now} onJob={onJob} onViewChat={openDriverChat} only={focused?.ids} />
             ) : tab === 'review' ? (
-              <ReviewQueue apps={apps.filter((a) => deriveStage(a) === 'review')} now={now} onOpen={setOpenId} />
+              <ReviewQueue apps={apps.filter((a) => deriveStage(a) === 'review' && inFocus(a.id))} now={now} onOpen={setOpenId} />
             ) : tab === 'missing' ? (
-              <MissingDocs apps={apps.filter((a) => deriveStage(a) === 'registered')} now={now} onOpen={setOpenId} onResult={onResult} />
+              <MissingDocs apps={apps.filter((a) => deriveStage(a) === 'registered' && inFocus(a.id))} now={now} onOpen={setOpenId} onResult={onResult} />
             ) : tab === 'awaiting' ? (
-              <Activation apps={apps.filter((a) => deriveStage(a) === 'accepted')} now={now} onOpen={setOpenId} />
+              <Activation apps={apps.filter((a) => deriveStage(a) === 'accepted' && inFocus(a.id))} now={now} onOpen={setOpenId} />
             ) : tab === 'chat' ? (
-              <ChatQueue threads={threads} now={now} onThread={onThread} onViewChat={openDriverChat} />
+              <ChatQueue threads={threads} now={now} onThread={onThread} onViewChat={openDriverChat} only={focused?.ids} />
             ) : (
-              <AllApplicants apps={apps} now={now} filter={stageFilter} onFilter={setStageFilter} onOpen={setOpenId} />
+              <AllApplicants apps={apps.filter((a) => inFocus(a.id))} now={now} filter={stageFilter} onFilter={setStageFilter} onOpen={setOpenId} />
             )}
           </div>
         </section>
@@ -454,6 +487,10 @@ export default function App() {
         onThread={onThread}
         onJob={onDriverJob}
         onJumpTo={(ts) => ts > now && onAdvance(ts - now)}
+        onDecide={(id) => {
+          showPage('funnel');
+          setOpenId(id);
+        }}
         onClose={() => setPhoneOpen(false)}
       />
     )}

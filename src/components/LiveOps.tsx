@@ -32,15 +32,18 @@ interface Props {
   now: number;
   onJob: (j: Job, message: string) => void;
   onViewChat: (driverId: string) => void;
+  /** Opened from a Today item: show only the jobs it counts. */
+  only?: Set<string>;
 }
 
 const hm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
 /** Live ops: a driver stuck at a pickup gets the playbook; every other pickup today shows its pre-pickup check. */
-export function LiveOps({ jobs, now, onJob, onViewChat }: Props) {
-  const incidents = openIncidents(jobs, now);
-  const closed = closedIncidents(jobs, now);
-  const today = todaysJobs(jobs, now);
+export function LiveOps({ jobs, now, onJob, onViewChat, only }: Props) {
+  const shown = (j: Job) => !only || only.has(j.id);
+  const incidents = openIncidents(jobs, now).filter(shown);
+  const closed = only ? [] : closedIncidents(jobs, now);
+  const today = todaysJobs(jobs, now).filter(shown);
 
   return (
     <div className="space-y-6 pt-4">

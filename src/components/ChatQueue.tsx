@@ -14,14 +14,16 @@ interface Props {
   now: number;
   onThread: (t: ChatThread) => void;
   onViewChat: (applicantId: string | null) => void;
+  /** Opened from a Today item: show only the questions it counts. */
+  only?: Set<string>;
 }
 
 /**
  * Driver questions: what the AI assistant handed over, the share it answers on its own, and the
  * questions the help articles don't cover yet (what ops writes next).
  */
-export function ChatQueue({ threads, now, onThread, onViewChat }: Props) {
-  const waiting = waitingThreads(threads);
+export function ChatQueue({ threads, now, onThread, onViewChat, only }: Props) {
+  const waiting = waitingThreads(threads).filter((t) => !only || only.has(t.id));
   const [openId, setOpenId] = useState<string | null>(waiting[0]?.id ?? null);
   const open = threads.find((t) => t.id === openId) ?? null;
   const stats = chatStats(threads, now);

@@ -28,12 +28,14 @@ interface Props {
   onThread: (t: ChatThread) => void;
   onJob?: (j: Job) => void;
   onJumpTo?: (ts: number) => void;
+  /** Demo only: open this applicant's decision in the cockpit. */
+  onDecide?: (id: string) => void;
   /** Open on the chat (e.g. from the cockpit's chat queue). */
   initialView?: 'steps' | 'chat';
 }
 
 /** The applicant's side of the funnel: one step at a time, on a phone. */
-export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, onCreate, onUpdate, onThread, onJob, onJumpTo, initialView = 'steps' }: Props) {
+export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, onCreate, onUpdate, onThread, onJob, onJumpTo, onDecide, initialView = 'steps' }: Props) {
   const [view, setView] = useState<'steps' | 'chat'>(initialView);
   // Looking back at a step already done (null = the step the applicant is on).
   const [review, setReview] = useState<ReviewKey | null>(null);
@@ -104,6 +106,7 @@ export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, o
                 now={now}
                 onUpdate={onUpdate}
                 onInbox={() => setView('chat')}
+                onDecide={onDecide && (() => onDecide(a.id))}
                 onJump={(() => {
                   const j = jobs.find((x) => x.driverId === a.id && x.firstDrive && x.deliveredAt === undefined);
                   return j && onJumpTo ? () => onJumpTo(j.pickupAt - 15 * 60_000) : undefined;
@@ -329,7 +332,7 @@ function PrivacyNotice() {
 
 // ---------------- Steps ----------------
 
-function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump }: { a: Applicant; apps: Applicant[]; gigs: Gig[]; now: number; onUpdate: (a: Applicant) => void; onInbox: () => void; onJump?: () => void }) {
+function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump, onDecide }: { a: Applicant; apps: Applicant[]; gigs: Gig[]; now: number; onUpdate: (a: Applicant) => void; onInbox: () => void; onJump?: () => void; onDecide?: () => void }) {
   const step = driverStep(a);
   const first = a.name.split(' ')[0];
 
@@ -407,6 +410,14 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump }: { a: Applicant;
               ))}
             </ol>
           </Card>
+          {onDecide && (
+            <div className="rounded-xl border border-dashed border-lavender px-4 py-2 text-center">
+              <button type="button" onClick={onDecide} className="text-xs font-semibold text-indigo hover:underline">
+                Demo: decide as ops
+              </button>
+              <p className="mt-0.5 text-[11px] text-muted">Not shown in production: ops decides in the onboarding call.</p>
+            </div>
+          )}
         </div>
       );
     case 'first_gig':

@@ -21,6 +21,7 @@ interface Props {
   onJob: (j: Job) => void;
   /** Demo: move the clock to a moment (e.g. just before the first drive). */
   onJumpTo?: (ts: number) => void;
+  onDecide?: (id: string) => void;
   onClose: () => void;
 }
 
@@ -28,7 +29,7 @@ interface Props {
  * The driver's phone, docked next to the cockpit on desktop and full screen on a phone.
  * It shares the same data, so every step shows up in the cockpit at once.
  */
-export function DriverPhone({ applicantId, apps, gigs, threads, jobs, now, chatRequest, onSelect, onCreate, onUpdate, onThread, onJob, onJumpTo, onClose }: Props) {
+export function DriverPhone({ applicantId, apps, gigs, threads, jobs, now, chatRequest, onSelect, onCreate, onUpdate, onThread, onJob, onJumpTo, onDecide, onClose }: Props) {
   const a = applicantId ? (apps.find((x) => x.id === applicantId) ?? null) : null;
   const self = apps.filter((x) => x.source === 'self');
   const others = apps.filter((x) => x.source !== 'self').sort((x, y) => x.name.localeCompare(y.name));
@@ -85,6 +86,7 @@ export function DriverPhone({ applicantId, apps, gigs, threads, jobs, now, chatR
             onThread={onThread}
             onJob={onJob}
             onJumpTo={onJumpTo}
+            onDecide={onDecide}
             initialView={chatRequest ? 'chat' : 'steps'}
           />
         </div>
