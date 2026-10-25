@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bell, Bot, Check, CircleCheck, Send, UserRound } from 'lucide-react';
 import type { Applicant, Gig } from '../../lib/types';
-import { assisting, currentJob, driverIncidentState, driverStatus, escalate, gotKeys, pendingText, reportReason, sendPickupTexts, type Job } from '../../lib/liveOps';
-import { REASON_LABEL, TEXT_REASONS } from '../../lib/sms';
-import { TextPreview } from './PickupProblem';
+import { assisting, currentJob, driverIncidentState, driverStatus, escalate, gotKeys, reportReason, type Job } from '../../lib/liveOps';
+import { REASON_LABEL, type PickupReason } from '../../lib/sms';
 import { PickupStatus } from './PickupStatus';
 import type { ChatMsg, ChatThread } from '../../lib/chat/types';
 import { HELP_BY_ID } from '../../content/help';
@@ -13,7 +12,7 @@ import { askAssistant, toTurns } from '../../lib/chat/client';
 import { searchHelp } from '../../lib/chat/offline';
 import { LIMITS } from '../../lib/chat/guard';
 import { driverInbox } from '../../lib/automation';
-import { actionOptions, applyChatAction, quickReplies, type QuickReply } from '../../lib/chat/selfService';
+import { actionOptions, applyChatAction, pickupOptions, quickReplies, sameAction, type QuickReply } from '../../lib/chat/selfService';
 import {
   addAck,
   addAiAnswer,
@@ -39,12 +38,15 @@ interface Props {
   onThread: (t: ChatThread) => void;
   onUpdate: (a: Applicant) => void;
   /** The driver's taps on today's job (Got the keys, Call me now), also from the chat. */
-  onJob?: (j: Job) => void;
+  onJob?: (j: Job, base?: ChatThread) => void;
   /** Ops' switch for automated texts to customers. */
   textsEnabled?: boolean;
   /** Go to the application steps (e.g. to see the first-drive offers). */
   onSteps: () => void;
 }
+
+/** The same choices as the job card, minus "something else" (they are already in the chat). */
+const CHAT_REASONS: PickupReason[] = ['keys_missing', 'no_contact', 'car_missing', 'damage', 'unsafe'];
 
 /** Suggested first questions, by where the driver is in the flow. */
 const SUGGEST: Partial<Record<DriverStep | 'visitor', string[]>> = {
@@ -70,14 +72,15 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
   const endRef = useRef<HTMLDivElement>(null);
 
   const timeline = chatTimeline(thread, a ? driverInbox(a, now) : []);
-  const options = actionOptions(a, apps, gigs, now);
+  // A stuck pickup the driver says is solved can be confirmed from the chat too.
+  const job = a ? currentJob(jobs, a.id, now) : null;
+  const options = [...actionOptions(a, apps, gigs, now), ...pickupOptions(job, now)];
   const last = timeline[timeline.length - 1];
   const quick = busy || t.status !== 'ai' ? [] : quickReplies(last, a, options);
   const askedYet = timeline.some((m) => m.from === 'driver');
   const suggestions = !quick.length && !askedYet && !busy ? (SUGGEST[a ? driverStep(a) : 'visitor'] ?? []) : [];
   const unread = unreadCount(timeline, t.seenAt);
   // Stuck at a pickup: while the assistant has it, the chat offers the same answers as the job card.
-  const job = a ? currentJob(jobs, a.id, now) : null;
   const assist = job ? assisting(job, now) : null;
   // A stuck pickup speaks for itself, in one place: the thread's own banner stays out of the way.
   const onPickup = !!job && !!driverIncidentState(job, now) && !['driving', 'delivered'].includes(driverStatus(job, now));
@@ -85,13 +88,12 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
   // While the assistant has the pickup: first what is wrong (the same short list as the job card), then the
   // answers that close it. The AI never picks the reason and never writes the text: the driver does.
   const texted = !!job && (job.texts ?? []).length > 0;
-  const pending = !!job && !!pendingText(job, now);
   const callMe = job && onJob ? { label: 'Call me now', run: () => onJob(escalate(job, 'driver', now)) } : null;
   const jobChips =
-    !job || !assist || !onJob || busy || pending
+    !job || !assist || !onJob || busy
       ? []
       : !texted && (!job.problemReason || job.problemReason === 'other')
-        ? [...TEXT_REASONS.map((r) => ({ label: REASON_LABEL[r], run: () => onJob(reportReason(job, r, now)) })), callMe!]
+        ? [...CHAT_REASONS.map((r) => ({ label: REASON_LABEL[r], run: () => onJob(reportReason(job, r, now, textsEnabled)) })), callMe!]
         : [
             { label: 'Got the keys', run: () => onJob(gotKeys(job, now)) },
             { label: 'Still waiting', run: () => onThread(addAck(t, 'Still waiting.', `Thanks for waiting. If it isn't solved by ${until}, a person from ops calls you.`, now)) },
@@ -138,6 +140,12 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
 
   function confirm(m: ChatMsg) {
     if (!a || !m.proposal) return;
+    const act = m.proposal.action;
+    if (act.type === 'pickup_solved') {
+      // Checked again: the pickup may have been solved or handed over since the assistant offered it.
+      if (!job || !onJob || !pickupOptions(job, now).some((o) => sameAction(o.action, act))) return onThread(resolveProposal(t, m.id, { stale: 'That pickup is already closed.' }, now));
+      return onJob(gotKeys(job, now, act.how), resolveProposal(t, m.id, { done: 'Done: ops can see the pickup is solved. Carry on with the drive.' }, now));
+    }
     const r = applyChatAction(a, m.proposal.action, apps, gigs, now);
     if (r.ok) {
       onUpdate(r.applicant);
@@ -184,7 +192,6 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
         {onPickup ? (
           <>
             <PickupStatus j={job!} now={now} />
-            {onJob && <TextPreview j={job!} now={now} onSend={() => onJob(sendPickupTexts(job!, now, textsEnabled))} />}
           </>
         ) : t.status !== 'ai' && (
           <p className="rounded-lg bg-warn-bg px-3 py-2 text-xs text-warn">

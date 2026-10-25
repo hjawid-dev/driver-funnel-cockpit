@@ -1,4 +1,4 @@
-import { assisting, driverIncidentState, driverStatus, driverTimeline, OUTCOME_LABEL, pendingText, type DriverIncidentState, type Job } from '../../lib/liveOps';
+import { assisting, driverIncidentState, driverStatus, driverTimeline, OUTCOME_LABEL, type DriverIncidentState, type Job } from '../../lib/liveOps';
 
 const hm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
@@ -22,7 +22,7 @@ export function PickupStatus({ j, now, onInbox }: { j: Job; now: number; onInbox
   const headline: Record<DriverIncidentState, string> = {
     // Only say the customer was contacted once the text has actually gone out.
     assistant: `${
-      (j.texts ?? []).some((t) => t.at <= now) ? 'We texted the pickup contact.' : pendingText(j, now) ? 'Check the message below and tap Send to reach the pickup contact.' : "Tell us what's wrong below."
+      (j.texts ?? []).some((t) => t.at <= now) ? 'We texted the pickup contact.' : "Tell us what's wrong below."
     } If it isn't solved by ${hm(assisting(j, now)?.until ?? now)}, a person from ops calls you.`,
     waiting_call: 'A person from ops calls you within 5 minutes.',
     ops_working: 'Ops has called you and is working on it with the customer.',

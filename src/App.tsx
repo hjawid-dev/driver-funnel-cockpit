@@ -31,7 +31,7 @@ import { ChatQueue } from './components/ChatQueue';
 import { formatDateTime } from './lib/time';
 import { todayItems, type TodayItem } from './lib/today';
 import { liveOpsEvents } from './lib/automation';
-import { assisting, currentJob, driverUpdate, escalate, firstDriveResult, jobAlert, openIncidents, reportProblem, syncFirstDrive, type Job } from './lib/liveOps';
+import { assistedJobs, assisting, currentJob, driverUpdate, escalate, firstDriveResult, jobAlert, openIncidents, reportProblem, syncFirstDrive, type Job } from './lib/liveOps';
 import { completeFirstGig } from './lib/actions';
 import { backToAi, callRequested, emptyThread, keysFoundByDriver, opsReply, pickupReported, relayContactReply, solvedNote, textsSentNote, threadIdFor } from './lib/chat/threads';
 import { REVIEWER } from './lib/types';
@@ -138,7 +138,8 @@ export default function App() {
 
   const onResult = useCallback(
     (r: ActionResult, closeDrawer = false) => {
-      if (!r.ok) return;
+      // A refused action says why, so a button never silently does nothing.
+      if (!r.ok) return toast.notify(r.error);
       const prev = apps.find((a) => a.id === r.applicant.id);
       update(r.applicant);
       syncFirstDriveFor(prev, r.applicant);
@@ -226,21 +227,23 @@ export default function App() {
 
   // The driver's taps on today's job: the cockpit says what changed.
   const onDriverJob = useCallback(
-    (next: Job) => {
+    // `base` is the thread as the chat just changed it (a confirmed proposal), so that change isn't lost.
+    (next: Job, base?: ChatThread) => {
       const prev = jobs.find((j) => j.id === next.id);
       updateJob(next);
       const first = next.driverName.split(' ')[0];
       if (!prev) return;
       const a = apps.find((x) => x.id === next.driverId) ?? null;
       // One thread update per tap, built up in order, so nothing a step adds is lost.
-      let t = threads.find((x) => x.id === threadIdFor(next.driverId)) ?? emptyThread(a);
-      const before = t;
+      const stored = threads.find((x) => x.id === threadIdFor(next.driverId)) ?? emptyThread(a);
+      let t = base ?? stored;
+      const before = stored;
       const hhmm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
       const roles = [next.contact.role.toLowerCase(), next.backup.role.toLowerCase()];
       const until = assisting(next, now)?.until ?? null;
       let note: string | null = null;
       if (next.problemReason && next.problemReason !== prev.problemReason) {
-        t = pickupReported(t, next.problemReason, roles, until, now);
+        t = pickupReported(t, next.problemReason, roles, until, now, !(prev.texts ?? []).length && (next.texts ?? []).length > 0);
         note = `${first} reported a problem at the pickup: ${REASON_LABEL[next.problemReason].toLowerCase()}.${until ? ` The assistant has it; a person takes over at ${hhmm(until)} if it isn't solved.` : ''} See Live ops.`;
       }
       if (!(prev.texts ?? []).length && (next.texts ?? []).length) {
@@ -259,13 +262,11 @@ export default function App() {
         t = solvedNote(t, now);
         note = `${first} has the keys: solved by the assistant (${next.id}).`;
       }
+      const keysNow = !solved && !(prev.keysAt !== undefined && prev.keysAt <= now) && next.keysAt !== undefined && next.keysAt <= now;
+      if (keysNow) t = keysFoundByDriver(t, now);
       if (t !== before) upsertThread(t);
       if (note) toast.notify(note);
-      else if (!solved && !(prev.keysAt !== undefined && prev.keysAt <= now) && next.keysAt !== undefined && next.keysAt <= now) {
-        toast.notify(`${first} has the keys (${next.id}).`);
-        const t = threads.find((x) => x.id === threadIdFor(next.driverId));
-        if (t) upsertThread(keysFoundByDriver(t, now));
-      }
+      else if (keysNow) toast.notify(`${first} has the keys (${next.id}).`);
       else if (!prev.arrivedAt && next.arrivedAt) toast.notify(`${first} checked in at the pickup (${next.id}).`);
       else if (!prev.departedAt && next.departedAt) toast.notify(`${first} is on the way to the drop-off (${next.id}).`);
       else if (!prev.deliveredAt && next.deliveredAt) {
@@ -293,7 +294,8 @@ export default function App() {
   const counts = useMemo(() => {
     const stages = apps.map(deriveStage);
     const n = (s: string) => stages.filter((x) => x === s).length;
-    return { live: openIncidents(jobs, now).length, review: n('review'), missing: n('registered'), awaiting: n('accepted'), chat: waitingThreads(threads).length, all: apps.length };
+    // The tab counts every card on it: incidents for a person and pickups the assistant has. Only the first are urgent.
+    return { live: openIncidents(jobs, now).length + assistedJobs(jobs, now).length, review: n('review'), missing: n('registered'), awaiting: n('accepted'), chat: waitingThreads(threads).length, all: apps.length };
   }, [apps, threads, jobs, now]);
   const slot = nextReviewSlot(now);
   const liveHandled = jobs.some((j) => j.incident?.outcome);
@@ -359,7 +361,8 @@ export default function App() {
   const inFocus = (id: string) => !focused || focused.ids.has(id);
 
   const pageToday = today.filter((i) => (page === 'live') === LIVE_TABS.includes(i.tab));
-  const liveAlert = counts.live + threads.filter((t) => t.status === 'waiting' && t.reason === 'urgent' && !jobs.some((j) => j.driverId === t.applicantId && openIncidents([j], now).length)).length;
+  const urgentIncidents = openIncidents(jobs, now).filter((j) => !j.incident?.outcome).length;
+  const liveAlert = urgentIncidents + threads.filter((t) => t.status === 'waiting' && t.reason === 'urgent' && !jobs.some((j) => j.driverId === t.applicantId && openIncidents([j], now).length)).length;
 
   // A tile shows everyone who reached the stage; its second line opens the work list for who is there now.
   const jumpTo = (key: FunnelKey) => {
@@ -504,7 +507,7 @@ export default function App() {
         )}
 
         <section id="worklists" className="scroll-mt-4">
-          <Tabs keys={PAGE_TABS[page]} active={tab} counts={counts} alert={{ live: counts.live > 0, chat: threads.some((t) => t.status === 'waiting' && t.reason === 'urgent') }} onChange={changeTab} />
+          <Tabs keys={PAGE_TABS[page]} active={tab} counts={counts} alert={{ live: urgentIncidents > 0, chat: threads.some((t) => t.status === 'waiting' && t.reason === 'urgent') }} onChange={changeTab} />
           <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
             {/* A filter that already shows everyone says nothing: leave it out. */}
             {focused && (tab === 'live' || focused.ids.size !== counts[tab]) && (

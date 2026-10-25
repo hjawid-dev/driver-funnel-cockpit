@@ -105,12 +105,16 @@ const hm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-d
  * The driver picked what is wrong at the pickup. The reply is fixed per reason, so the driver hears it
  * the same way every time; `until` is when a person takes over if the assistant has it.
  */
-export function pickupReported(t: ChatThread, reason: PickupReason, roles: string[], until: number | null, now: number): ChatThread {
+export function pickupReported(t: ChatThread, reason: PickupReason, roles: string[], until: number | null, now: number, texted = false): ChatThread {
   const by = until ? ` If it isn't solved by ${hm(until)}, a person from ops calls you.` : '';
+  // A reason with a template sends the text on the tap; if it couldn't go out, a person has it already.
+  const texts = texted
+    ? `Thanks. We texted the ${roles.join(' and the ')} for you. Stay where you are: your waiting time is paid.${by}`
+    : 'Thanks. A person from ops calls you within 5 minutes. Stay where you are: your waiting time is paid.';
   const reply: Record<PickupReason, string> = {
-    keys_missing: `Thanks. Check the message below and tap Send to text the ${roles.join(' and the ')}. Stay where you are: your waiting time is paid.${by}`,
-    no_contact: `Thanks. Check the message below and tap Send to text the ${roles.join(' and the ')}. Stay where you are: your waiting time is paid.${by}`,
-    car_missing: `Thanks. Check the message below and tap Send to text the ${roles.join(' and the ')}. Stay where you are: your waiting time is paid.${by}`,
+    keys_missing: texts,
+    no_contact: texts,
+    car_missing: texts,
     damage: 'A person from ops calls you now. If anyone is hurt, call 112 first. Your waiting time is paid.',
     unsafe: 'Get somewhere safe first. If you are in danger, call 112. A person from ops calls you now.',
     other: `Tell me what's happening and I'll help. Your waiting time is paid.${by}`,
@@ -360,9 +364,11 @@ const HISTORY: { name: string; daysAgo: number; lines: Line[]; waiting?: Handove
   { name: 'Julia Lindgren', daysAgo: 0.9, lines: [
     ['driver', 'The customer is not home, what do I do?', 0],
     ['ai', 'Wait 15 minutes and message ops here in the chat. Never leave the keys anywhere the job doesn\'t say.', 0.2, { sources: ['delivery'] }],
-    // Today, 9 minutes ago (when her job's problemAt is): stuck at the pickup. The assistant took it, then a person.
+    // Today, 9 minutes ago (when her job's problemAt is): stuck at the pickup. She picked the reason, the fixed text went out, then a person.
     ['driver', "I'm at the pickup in Solna and the keys aren't in the key box. The dealer isn't answering.", 1287],
-    ['ai', "Thanks for telling us, Julia. I'm texting the dealer's service desk and site manager now. Stay where you are: your waiting time is paid. If it isn't solved within 5 minutes, a person from ops calls you.", 1287.2, { sources: ['waiting-pickup'], handover: 'pickup' }],
+    ['ai', "Stay where you are, Julia: your waiting time is paid. Tap what's wrong below, and the pickup contact gets a fixed message. If it isn't solved within 5 minutes, a person from ops calls you.", 1287.1, { sources: ['waiting-pickup'], handover: 'pickup' }],
+    ['driver', "Problem at the pickup: keys aren't where the job says.", 1287.2],
+    ['ai', 'Thanks. We texted the service desk and the site manager for you. Stay where you are: your waiting time is paid. If it isn\'t solved within 5 minutes, a person from ops calls you.', 1287.3],
   ] },
   { name: 'Emma Holmberg', daysAgo: 1.4, lines: [
     ['driver', 'Can I cancel a job I took for Saturday?', 0],

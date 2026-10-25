@@ -37,6 +37,25 @@ export interface FirstGig {
   doneAt?: number;
   onTime?: boolean;
   ok?: boolean; // no incident, customer happy
+  /** What went wrong, when it wasn't ok: a cause and a short note about the drive, never about the person. */
+  issue?: { cause: FirstGigIssue; note: string };
+}
+
+export type FirstGigIssue = 'customer_keys' | 'contact_absent' | 'car_not_ready' | 'late' | 'damage' | 'our_error' | 'other';
+
+export const FIRST_GIG_ISSUE_LABEL: Record<FirstGigIssue, string> = {
+  customer_keys: 'Customer: keys not where agreed',
+  contact_absent: 'Customer: nobody on site',
+  car_not_ready: 'Customer: car not there or not ready',
+  late: 'Late delivery',
+  damage: 'Damage or an accident',
+  our_error: 'Our error (address, time, booking)',
+  other: 'Other',
+};
+
+/** A note someone types: plain text, capped. */
+export function cleanNote(s: string): string {
+  return s.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
 }
 
 export interface Applicant {

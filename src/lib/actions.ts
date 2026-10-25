@@ -1,6 +1,6 @@
 import type { Applicant, DocKey } from './types';
 import { DECISION_LABEL, validateDecision, type DecisionInput } from './criteria';
-import { REJECT_REASONS, REVIEWER } from './types';
+import { cleanNote, FIRST_GIG_ISSUE_LABEL, REJECT_REASONS, REVIEWER, type FirstGigIssue } from './types';
 import { allDocsSubmitted, deriveStage, isSubmitted } from './stage';
 
 /**
@@ -122,13 +122,17 @@ export function bookFirstGig(a: Applicant, bookedFor: number, now: number): Acti
   };
 }
 
-export function completeFirstGig(a: Applicant, result: { onTime: boolean; ok: boolean }, now: number): ActionResult {
+export function completeFirstGig(a: Applicant, result: { onTime: boolean; ok: boolean; issue?: { cause: FirstGigIssue; note: string } }, now: number): ActionResult {
   const error = requireAccepted(a);
   if (error) return { ok: false, error };
-  const quality = result.onTime && result.ok ? 'on time, no incident' : [!result.onTime && 'late', !result.ok && 'incident or unhappy customer'].filter(Boolean).join(', ');
+  // An incident needs a cause and a few words on what happened: that is what anyone reading it later can act on.
+  const note = result.issue ? cleanNote(result.issue.note) : '';
+  if (!result.ok && (!result.issue || !note)) return { ok: false, error: 'Say what happened: pick a cause and write a short note about the drive.' };
+  const issue = !result.ok && result.issue ? { cause: result.issue.cause, note } : undefined;
+  const quality = result.onTime && result.ok ? 'on time, no incident' : [!result.onTime && 'late', issue && `incident: ${FIRST_GIG_ISSUE_LABEL[issue.cause].toLowerCase()}, "${issue.note}"`].filter(Boolean).join(', ');
   return {
     ok: true,
-    applicant: withLog({ ...a, firstGig: { ...a.firstGig, doneAt: now, ...result } }, now, `First gig completed (${quality})`),
+    applicant: withLog({ ...a, firstGig: { ...a.firstGig, doneAt: now, onTime: result.onTime, ok: result.ok, ...(issue ? { issue } : {}) } }, now, `First gig completed (${quality})`),
     message: `${a.name} is now an active driver.`,
   };
 }

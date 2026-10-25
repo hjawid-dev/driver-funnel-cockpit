@@ -1,4 +1,4 @@
-import type { Applicant, Gig } from './types';
+import { cleanNote, type Applicant, type FirstGigIssue, type Gig } from './types';
 import { REVIEWER } from './types';
 import { HOUR, MIN } from './time';
 import { cleanReply, composeText, isTextReason, prepareTexts, REASON_LABEL, type PickupReason, type SentText } from './sms';
@@ -86,6 +86,8 @@ export interface Incident {
   by?: 'assistant';
   /** Why it happened, picked when it closes: what the weekly report and prevention learn from. */
   cause?: IncidentCause;
+  /** In ops' words, required when the cause is "other". */
+  causeNote?: string;
   log: { at: number; text: string }[];
 }
 
@@ -342,16 +344,18 @@ export function setOutcome(j: Job, outcome: Outcome, now: number): Job {
 export type CloseResult = { ok: true; job: Job } | { ok: false; error: string };
 
 /** Close only once there is a decision and the driver's waiting time is paid: the driver never carries the cost. */
-export function closeIncident(j: Job, opts: { waitPaid: boolean; feeWaived: boolean; cause?: IncidentCause }, now: number): CloseResult {
+export function closeIncident(j: Job, opts: { waitPaid: boolean; feeWaived: boolean; cause?: IncidentCause; note?: string }, now: number): CloseResult {
   if (!j.incident?.outcome) return { ok: false, error: 'Record the decision first.' };
   if (!opts.waitPaid) return { ok: false, error: "Pay the driver's waiting time before closing: it is paid regardless." };
   if (!opts.cause) return { ok: false, error: 'Pick the cause: it is what prevention learns from.' };
   const cause = opts.cause;
+  const note = cleanNote(opts.note ?? '');
+  if (cause === 'other' && !note) return { ok: false, error: 'Say what happened: "other" needs a few words.' };
   const job = withIncident(
     j,
     now,
-    (i) => ({ ...i, waitPaid: true, feeWaived: opts.feeWaived, cause, closedAt: now, steps: { ...i.steps, close: now } }),
-    `Closed: waiting time paid${opts.feeWaived ? ', fee waived (pilot)' : ''}, cause: ${CAUSE_LABEL[cause].toLowerCase()} (${REVIEWER})`,
+    (i) => ({ ...i, waitPaid: true, feeWaived: opts.feeWaived, cause, ...(note ? { causeNote: note } : {}), closedAt: now, steps: { ...i.steps, close: now } }),
+    `Closed: waiting time paid${opts.feeWaived ? ', fee waived (pilot)' : ''}, cause: ${CAUSE_LABEL[cause].toLowerCase()}${note ? ` ("${note}")` : ''} (${REVIEWER})`,
   );
   return { ok: true, job };
 }
@@ -477,18 +481,19 @@ export function sendPickupTexts(j: Job, now: number, enabled = true): Job {
 }
 
 /**
- * The driver picked what is wrong. A reason with a template waits for the driver's Send; damage or
- * feeling unsafe goes to a person at once (no assistant, no text); "something else" goes to the chat.
+ * The driver picked what is wrong: that tap is the confirmation. A reason with a template sends the
+ * pre-approved text at once (the content was approved once, when the template was); damage or feeling
+ * unsafe goes to a person at once, with no assistant and no text; "something else" goes to the chat.
  */
-export function reportReason(j: Job, reason: PickupReason, now: number): Job {
+export function reportReason(j: Job, reason: PickupReason, now: number, textsEnabled = true): Job {
   const next = reportProblem(j, now, reason);
-  return reason === 'damage' || reason === 'unsafe' ? escalate(next, 'safety', now) : next;
+  if (reason === 'damage' || reason === 'unsafe') return escalate(next, 'safety', now);
+  return isTextReason(reason) && !(next.texts ?? []).length ? sendPickupTexts(next, now, textsEnabled) : next;
 }
 
-/** The text the driver would send, to show before they tap Send. */
-export function pendingText(j: Job, now: number): string | null {
-  if (!isTextReason(j.problemReason) || (j.texts ?? []).length || !assisting(j, now)) return null;
-  return composeText(j, j.problemReason);
+/** The text a reason would send, for the button that says what it does. */
+export function textFor(j: Job, reason: PickupReason): string | null {
+  return isTextReason(reason) ? composeText(j, reason) : null;
 }
 
 export function depart(j: Job, now: number): Job {
@@ -677,9 +682,15 @@ export function syncFirstDrive(jobs: Job[], a: Applicant, gigs: Gig[]): Job[] {
   return jobs.map((j) => (j === existing ? job : j));
 }
 
-/** How the first drive went, for first-gig quality: on time, and no incident. */
-export function firstDriveResult(j: Job): { onTime: boolean; ok: boolean } {
-  return { onTime: (j.deliveredAt ?? Infinity) <= j.deadline, ok: !j.incident };
+/** How the first drive went, for first-gig quality: on time, and no incident. An incident brings its cause and what happened. */
+export function firstDriveResult(j: Job): { onTime: boolean; ok: boolean; issue?: { cause: FirstGigIssue; note: string } } {
+  const onTime = (j.deliveredAt ?? Infinity) <= j.deadline;
+  const i = j.incident;
+  if (!i) return { onTime, ok: true };
+  const cause: FirstGigIssue = i.cause ?? causeFromReason(j.problemReason);
+  const what = i.by === 'assistant' ? `solved by the assistant` : i.outcome ? OUTCOME_LABEL[i.outcome.type].toLowerCase() : 'incident at the pickup';
+  const note = cleanNote([j.problemReason ? REASON_LABEL[j.problemReason] : 'Problem at the pickup', what, i.causeNote].filter(Boolean).join('; '));
+  return { onTime, ok: false, issue: { cause, note } };
 }
 
 /** Move every timestamp of a job by `delta` ms (an old save, rebased to now). */

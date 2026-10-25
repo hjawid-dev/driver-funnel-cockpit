@@ -1,11 +1,18 @@
 import { ShieldAlert } from 'lucide-react';
-import { pendingText, type Job } from '../../lib/liveOps';
-import { REASON_LABEL, recipients, type PickupReason } from '../../lib/sms';
+import type { Job } from '../../lib/liveOps';
+import { isTextReason, REASON_LABEL, recipients, type PickupReason } from '../../lib/sms';
 
 const ORDER: PickupReason[] = ['keys_missing', 'no_contact', 'car_missing', 'damage', 'unsafe', 'other'];
 
-/** What is wrong at the pickup: six clear choices, so nothing is assumed. */
-export function ReasonPicker({ onPick, onCancel }: { onPick: (r: PickupReason) => void; onCancel?: () => void }) {
+/** What each choice does next, said on the button, so one tap is an informed one. */
+function effect(j: Job, r: PickupReason, textsEnabled: boolean): string {
+  if (r === 'damage' || r === 'unsafe') return 'A person from ops calls you now';
+  if (r === 'other') return 'Tell the assistant in the chat';
+  return textsEnabled ? `We text the ${recipients(j).map((x) => x.role.toLowerCase()).join(' and the ')}` : 'A person from ops calls you';
+}
+
+/** What is wrong at the pickup: six clear choices, so nothing is assumed. The tap is the confirmation. */
+export function ReasonPicker({ j, textsEnabled, onPick, onCancel }: { j: Job; textsEnabled: boolean; onPick: (r: PickupReason) => void; onCancel?: () => void }) {
   return (
     <div className="space-y-1.5" role="group" aria-label="What is wrong at the pickup?">
       <p className="text-sm font-semibold">What's wrong?</p>
@@ -18,8 +25,11 @@ export function ReasonPicker({ onPick, onCancel }: { onPick: (r: PickupReason) =
             r === 'damage' || r === 'unsafe' ? 'border-bad/40 text-bad hover:bg-bad-bg' : r === 'other' ? 'border-lavender text-muted hover:text-navy' : 'border-indigo/40 text-navy hover:border-indigo'
           }`}
         >
-          {r === 'unsafe' && <ShieldAlert size={15} aria-hidden />}
-          {REASON_LABEL[r]}
+          {r === 'unsafe' && <ShieldAlert size={15} aria-hidden className="shrink-0" />}
+          <span>
+            {REASON_LABEL[r]}
+            <span className={`block text-xs font-normal ${isTextReason(r) ? 'text-indigo' : 'opacity-80'}`}>{effect(j, r, textsEnabled)}</span>
+          </span>
         </button>
       ))}
       {onCancel && (
@@ -27,23 +37,6 @@ export function ReasonPicker({ onPick, onCancel }: { onPick: (r: PickupReason) =
           Cancel
         </button>
       )}
-    </div>
-  );
-}
-
-/** The exact text the customer's contacts would get. Nothing goes out until the driver taps Send. */
-export function TextPreview({ j, now, onSend }: { j: Job; now: number; onSend: () => void }) {
-  const body = pendingText(j, now);
-  if (!body) return null;
-  const to = recipients(j).map((r) => r.role.toLowerCase());
-  return (
-    <div className="space-y-2 rounded-xl border border-indigo/30 bg-white px-3.5 py-3">
-      <p className="text-sm font-semibold">Send this to the {to.join(' and the ')}?</p>
-      <blockquote className="rounded-lg bg-card px-3 py-2 text-sm">{body}</blockquote>
-      <p className="text-xs text-muted">A fixed message from the booking. It can't be edited, and nothing else is sent.</p>
-      <button type="button" onClick={onSend} className="w-full rounded-xl bg-indigo px-4 py-2.5 text-sm font-semibold text-white hover:bg-navy">
-        Send
-      </button>
     </div>
   );
 }

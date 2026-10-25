@@ -20,7 +20,6 @@ import {
   needsConfirmation,
   OUTCOME_LABEL,
   openIncidents,
-  pendingText,
   PLAYBOOK,
   pickupChecks,
   setOutcome,
@@ -258,7 +257,7 @@ function AssistCard({ j, now, onJob, onViewChat }: { j: Job; now: number; onJob:
           </blockquote>
         ) : (
           <p className="text-sm text-muted">
-            {pendingText(j, now) ? `${first} sees the text but hasn't tapped Send. Nothing has gone to the customer.` : `${first} hasn't said what is wrong yet. Nothing has gone to the customer.`}
+            {`${first} hasn't said what is wrong yet. Nothing has gone to the customer.`}
           </p>
         )}
         <div className="flex flex-wrap items-center gap-2">
@@ -451,6 +450,7 @@ function StepDetail({ step, j, now, onJob, done, first }: { step: StepKey; j: Jo
   const [feeWaived, setFeeWaived] = useState(j.pilot);
   // The likely cause from what the driver reported; ops confirms or changes it.
   const [cause, setCause] = useState<IncidentCause>(causeFromReason(j.problemReason));
+  const [causeNote, setCauseNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const mark = (label: string) => onJob(markStep(j, step, now), `${j.id}: ${label}.`);
   const btn = 'inline-flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-1.5 text-sm font-semibold text-white hover:bg-navy disabled:bg-lavender disabled:text-muted';
@@ -580,10 +580,23 @@ function StepDetail({ step, j, now, onJob, done, first }: { step: StepKey; j: Jo
             </select>
             <span className="text-xs text-muted">feeds the weekly report and prevention</span>
           </label>
+          {cause === 'other' && (
+            <label className="block">
+              <span className="text-xs font-semibold">What happened (required for "Other")</span>
+              <textarea
+                value={causeNote}
+                onChange={(e) => setCauseNote(e.target.value)}
+                maxLength={300}
+                rows={2}
+                placeholder="e.g. the gate code in the booking was wrong"
+                className="mt-1 w-full rounded-md border border-lavender px-2 py-1.5 text-sm"
+              />
+            </label>
+          )}
           <button
             type="button"
             onClick={() => {
-              const r = closeIncident(j, { waitPaid, feeWaived, cause }, now);
+              const r = closeIncident(j, { waitPaid, feeWaived, cause, note: causeNote }, now);
               if (!r.ok) return setError(r.error);
               setError(null);
               onJob(r.job, `${j.id}: incident closed and logged.`);

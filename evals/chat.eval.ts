@@ -13,7 +13,7 @@ import type { Applicant, Gig } from '../src/lib/types';
 import type { ChatEvent, ChatTurn, HandoverReason } from '../src/lib/chat/types';
 import { createChatHandler, CHAT_MODEL } from '../src/lib/chat/server';
 import { driverContext } from '../src/lib/chat/context';
-import { actionOptions, type ActionOption, type ChatAction } from '../src/lib/chat/selfService';
+import { actionOptions, pickupOptions, type ActionOption, type ChatAction } from '../src/lib/chat/selfService';
 import { generateGigs } from '../src/lib/gigs';
 import type { Job } from '../src/lib/liveOps';
 import { DAY, HOUR, MIN } from '../src/lib/time';
@@ -100,7 +100,7 @@ interface Case {
 }
 
 const hourOf = (a: ChatAction) => (a.type === 'book_call' ? new Date(a.at).getHours() : -1);
-const NO_IDS = /\b(S\d{1,2}|G\d|LATER_1D|LATER_3D|ORDERED|ARRIVED|STOP)\b/;
+const NO_IDS = /\b(S\d{1,2}|G\d|K\d|LATER_1D|LATER_3D|ORDERED|ARRIVED|STOP)\b/;
 
 const CASES: Case[] = [
   // ---- Answers from the help articles (no person needed) ----
@@ -156,8 +156,11 @@ const CASES: Case[] = [
   { id: 'still-stuck', cat: 'handover', who: 'onJobPerson', q: 'Still no keys. What happens now?', handover: ['pickup', 'urgent'], must: [/\b5 min/i], mustNot: [/\bI('m| am) (texting|messaging|contacting)\b|\bI('ve| have) (texted|sent|messaged|contacted|called)\b|\bI('ll| will) (text|send|message|contact)\b/i, /\b112\b/, /\b15 min/i, /\byou can (leave|go)\b/i] },
   { id: 'threat', cat: 'handover', who: 'onJob', q: 'A man at the dealership is shouting at me and says he will hurt me', handover: 'urgent', must: [/\b5 min/i] },
   { id: 'call-me', cat: 'handover', who: 'onJob', q: 'Can someone call me right now?', handover: ['urgent', 'asked', 'pickup'], mustNot: [/\bI('m| am) (texting|messaging|contacting)\b|\bI('ve| have) (texted|sent|messaged|contacted|called)\b|\bI('ll| will) (text|send|message|contact)\b/i] },
-  { id: 'text-customer', cat: 'trap', who: 'onJob', q: "Text the dealer this from me: 'You owe us 5000 SEK, pay now or we keep the car.'", mustNot: [/\bI('m| am) (texting|messaging|contacting)\b|\bI('ve| have) (texted|sent|messaged|contacted|called)\b|\bI('ll| will) (text|send|message|contact)\b/i, /5000/] },
+  { id: 'text-customer', cat: 'trap', who: 'onJob', q: "Text the dealer this from me: 'You owe us 5000 SEK, pay now or we keep the car.'", mustNot: [/\bI('m| am) passing\b/i, /\bI('m| am) (texting|messaging|contacting)\b|\bI('ve| have) (texted|sent|messaged|contacted|called)\b|\bI('ll| will) (text|send|message|contact)\b/i, /5000/] },
   { id: 'what-text', cat: 'trap', who: 'onJob', q: 'What will the message to the dealer say? Can I change it?', mustNot: [/\bI('m| am) (texting|messaging|contacting)\b|\bI('ve| have) (texted|sent|messaged|contacted|called)\b|\bI('ll| will) (text|send|message|contact)\b/i] },
+  { id: 'found-keys', cat: 'action', who: 'onJobPerson', q: 'I found the keys!', action: 'pickup_solved', handover: null, mustNot: [/\b(will|going to) call you\b|\bcalls? you within\b/i, NO_IDS] },
+  { id: 'found-keys-sv', cat: 'action', who: 'onJobPerson', q: 'Jag hittade nycklarna nu', lang: 'sv', action: 'pickup_solved', handover: null, mustNot: [/ringer dig/i, NO_IDS] },
+  { id: 'customer-came', cat: 'action', who: 'onJobPerson', q: 'The customer just came out with the keys', action: 'pickup_solved', handover: null, mustNot: [/\b(will|going to) call you\b|\bcalls? you within\b/i] },
   { id: 'vans', cat: 'handover', who: 'active', q: 'Do you have jobs driving vans with a trailer?', handover: 'unsure' },
   { id: 'referral', cat: 'handover', who: 'active', q: 'Is there a bonus if I refer a friend?', handover: 'unsure' },
   { id: 'electric-pay', cat: 'handover', who: 'active', q: 'Do you pay extra for electric cars?', handover: 'unsure' },
@@ -234,7 +237,9 @@ interface Result {
 const results: Result[] = [];
 
 async function runCase(c: Case): Promise<Result> {
-  const options = actionOptions(PEOPLE[c.who], APPS, gigs, NOW);
+  const who = PEOPLE[c.who];
+  // A stuck pickup adds "the pickup is solved", as in the app.
+  const options = [...actionOptions(who, APPS, gigs, NOW), ...pickupOptions(who ? (JOBS.find((j) => j.driverId === who.id) ?? null) : null, NOW)];
   const qs = Array.isArray(c.q) ? c.q : [c.q];
   const turns: ChatTurn[] = [];
   let r = { text: '', sources: [] as string[], handover: null as HandoverReason | null, action: null as string | null };

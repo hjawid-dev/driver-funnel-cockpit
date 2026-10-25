@@ -18,7 +18,7 @@ interface Props {
   onCreate: (a: Applicant) => void;
   onUpdate: (a: Applicant) => void;
   onThread: (t: ChatThread) => void;
-  onJob: (j: Job) => void;
+  onJob: (j: Job, base?: ChatThread) => void;
   /** Demo: move the clock to a moment (e.g. just before the first drive). */
   onJumpTo?: (ts: number) => void;
   onDecide?: (id: string) => void;

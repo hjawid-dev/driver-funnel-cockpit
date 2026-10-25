@@ -84,6 +84,13 @@ describe('activation actions', () => {
     expect(r.ok && deriveStage(r.applicant)).toBe('active');
     expect(r.ok && r.applicant.firstGig).toMatchObject({ doneAt: NOW, onTime: false, ok: true });
   });
+  it('an incident on the first gig needs a cause and a note about the drive', () => {
+    expect(completeFirstGig(accepted(), { onTime: true, ok: false }, NOW)).toEqual({ ok: false, error: 'Say what happened: pick a cause and write a short note about the drive.' });
+    expect(completeFirstGig(accepted(), { onTime: true, ok: false, issue: { cause: 'damage', note: '   ' } }, NOW).ok).toBe(false);
+    const r = completeFirstGig(accepted(), { onTime: true, ok: false, issue: { cause: 'damage', note: 'Scratch on the rear bumper, reported with photos.' } }, NOW);
+    expect(r.ok && r.applicant.firstGig?.issue).toEqual({ cause: 'damage', note: 'Scratch on the rear bumper, reported with photos.' });
+    expect(r.ok && r.applicant.log.at(-1)?.text).toContain('incident: damage or an accident, "Scratch on the rear bumper, reported with photos."');
+  });
   it('activation actions only apply to accepted drivers', () => {
     expect(logWelcomeCall(inReview(), NOW).ok).toBe(false);
   });

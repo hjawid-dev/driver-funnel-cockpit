@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  pendingText,
+  textFor,
   reportReason,
   sendPickupTexts,
   assistantLog,
@@ -35,6 +35,7 @@ import {
   type Job,
 } from '../liveOps';
 import { liveOpsEvents } from '../automation';
+import { pickupOptions } from '../chat/selfService';
 import { chatStats, emptyThread, keysFoundByDriver, pickupReported, relayContactReply } from '../chat/threads';
 import { toTurns } from '../chat/client';
 import { generateSeed } from '../seed';
@@ -116,28 +117,30 @@ describe('alerts: the app notices before anyone has to call', () => {
     expect(j.texts).toBeUndefined();
     expect(assistantLog(j, NOW + MIN).map((e) => e.text).join(' ')).not.toMatch(/Automated text/);
   });
-  it('a text goes out only after the driver picks a reason and taps Send, once per contact', () => {
-    const picked = reportReason(job(), 'keys_missing', NOW + MIN);
-    expect(picked.texts).toBeUndefined();
-    expect(pendingText(picked, NOW + MIN)).toMatch(/keys are not at the agreed place \(Key box\)/);
-    const sent = sendPickupTexts(picked, NOW + 2 * MIN);
+  it('picking a reason with a template sends the pre-approved text at once, once per contact', () => {
+    // The tap on the reason is the driver's confirmation; the content was approved with the template.
+    expect(textFor(job(), 'keys_missing')).toMatch(/keys are not at the agreed place \(Key box\)/);
+    const sent = reportReason(job(), 'keys_missing', NOW + MIN);
     expect(sent.texts!.map((t) => t.role)).toEqual(['Service desk', 'Site manager']);
-    expect(pendingText(sent, NOW + 2 * MIN)).toBeNull();
-    expect(assistantLog(sent, NOW + 2 * MIN).map((e) => e.text).join(' ')).toMatch(/Automated text \(keys aren't where the job says\) to the service desk and the site manager/);
-    // A second Send can't text them again: a person takes over instead.
+    expect(sent.texts![0].body).toBe(textFor(job(), 'keys_missing'));
+    expect(assistantLog(sent, NOW + MIN).map((e) => e.text).join(' ')).toMatch(/Automated text \(keys aren't where the job says\) to the service desk and the site manager/);
+    // Picking again can't text them twice, and a second send hands the pickup to a person.
+    expect(reportReason(sent, 'no_contact', NOW + 2 * MIN).texts).toHaveLength(2);
     expect(jobAlert(sendPickupTexts(sent, NOW + 3 * MIN), NOW + 3 * MIN)).toMatchObject({ kind: 'escalated', why: 'text_failed' });
   });
   it('texts switched off, damage or feeling unsafe: a person at once, and nothing is sent', () => {
-    const off = sendPickupTexts(reportReason(job(), 'no_contact', NOW + MIN), NOW + MIN, false);
+    const off = reportReason(job(), 'no_contact', NOW + MIN, false);
     expect(off.texts).toBeUndefined();
     expect(jobAlert(off, NOW + MIN)).toMatchObject({ why: 'text_failed' });
     for (const r of ['damage', 'unsafe'] as const) {
       const j = reportReason(job(), r, NOW + MIN);
       expect(jobAlert(j, NOW + MIN)).toMatchObject({ kind: 'escalated', why: 'safety' });
-      expect(pendingText(j, NOW + MIN)).toBeNull();
+      expect(j.texts).toBeUndefined();
     }
-    // "Something else" goes to the chat: no text to offer until the driver picks a reason.
-    expect(pendingText(reportReason(job(), 'other', NOW + MIN), NOW + MIN)).toBeNull();
+    // "Something else" goes to the chat: nothing is sent until the driver picks a reason there.
+    const other = reportReason(job(), 'other', NOW + MIN);
+    expect(other.texts).toBeUndefined();
+    expect(reportReason(other, 'car_missing', NOW + 2 * MIN).texts![0].reason).toBe('car_missing');
   });
   it('"Call me now", ops taking over, or safety: a person at once', () => {
     const j = reportProblem(job(), NOW + MIN);
@@ -155,7 +158,7 @@ describe('alerts: the app notices before anyone has to call', () => {
     expect(jobAlert(tight, NOW + MIN)).toMatchObject({ kind: 'escalated', why: 'deadline' });
   });
   it('solved while the assistant has it: closed by the rules, waiting time paid, nobody needs to act', () => {
-    const replied = contactReplies(sendPickupTexts(reportReason(job(), 'keys_missing', NOW + MIN), NOW + MIN), 'Keys at reception.', NOW + 2 * MIN);
+    const replied = contactReplies(reportReason(job(), 'keys_missing', NOW + MIN), 'Keys at reception.', NOW + 2 * MIN);
     expect(assistantLog(replied, NOW + 2 * MIN).at(-1)?.text).toContain('Keys at reception.');
     const j = gotKeys(replied, NOW + 3 * MIN, 'customer');
     expect(j.incident).toMatchObject({ by: 'assistant', waitPaid: true, closedAt: NOW + 3 * MIN, outcome: { type: 'keys_found' }, cause: 'customer_keys' });
@@ -165,9 +168,11 @@ describe('alerts: the app notices before anyone has to call', () => {
     expect(firstDriveResult({ ...j, deliveredAt: NOW + HOUR }).ok).toBe(false); // still an incident on a first drive
   });
   it("the chat: a fixed reply per reason, and a stuck pickup is not counted as handed to a person", () => {
-    const t = pickupReported(emptyThread(null), 'keys_missing', ['service desk', 'site manager'], NOW + 6 * MIN, NOW);
+    const t = pickupReported(emptyThread(null), 'keys_missing', ['service desk', 'site manager'], NOW + 6 * MIN, NOW, true);
     expect(t.status).toBe('ai');
-    expect(t.messages.at(-1)?.text).toMatch(/tap Send to text the service desk and the site manager.*waiting time is paid.*a person from ops calls you/);
+    expect(t.messages.at(-1)?.text).toMatch(/We texted the service desk and the site manager for you.*waiting time is paid.*a person from ops calls you/);
+    // Texts switched off: the reply says a person calls, never that anyone was texted.
+    expect(pickupReported(emptyThread(null), 'keys_missing', ['service desk'], null, NOW, false).messages.at(-1)?.text).toMatch(/^Thanks. A person from ops calls you within 5 minutes/);
     expect(chatStats([t], NOW + MIN)).toMatchObject({ handedOver: 0, byAi: 1 });
     expect(pickupReported(emptyThread(null), 'unsafe', [], null, NOW).messages.at(-1)?.text).toMatch(/112/);
   });
@@ -290,7 +295,7 @@ describe("the driver's phone says one thing at a time", () => {
     expect(driverIncidentState(job(), NOW)).toBeNull();
   });
   it('the timeline shows what happened, in order', () => {
-    const j = setOutcome(markStep(sendPickupTexts(reportReason(job(), 'keys_missing', NOW + MIN), NOW + MIN), 'keep_driver', NOW + 8 * MIN), 'keys_found', NOW + 12 * MIN);
+    const j = setOutcome(markStep(reportReason(job(), 'keys_missing', NOW + MIN), 'keep_driver', NOW + 8 * MIN), 'keys_found', NOW + 12 * MIN);
     expect(driverTimeline(j, NOW + 12 * MIN).map((e) => e.text)).toEqual([
       'You reported a problem',
       'The service desk and site manager were texted',
@@ -358,3 +363,26 @@ describe('closing an incident needs a cause', () => {
     expect(r.ok && r.job.incident?.cause).toBe('our_error');
   });
 });
+
+describe('round F: a note where a choice says too little, and "solved" from the chat', () => {
+  it('closing with "other" needs a few words, kept in the log', () => {
+    const decided = setOutcome(checkIn(job(), NOW), 'new_date', NOW + 30 * MIN);
+    expect(closeIncident(decided, { waitPaid: true, feeWaived: true, cause: 'other' }, NOW + 31 * MIN)).toEqual({ ok: false, error: 'Say what happened: "other" needs a few words.' });
+    const r = closeIncident(decided, { waitPaid: true, feeWaived: true, cause: 'other', note: '  The gate code\nwas wrong  ' }, NOW + 31 * MIN);
+    expect(r.ok && r.job.incident?.causeNote).toBe('The gate code was wrong');
+    expect(r.ok && r.job.incident?.log.at(-1)?.text).toContain('("The gate code was wrong")');
+  });
+  it("a first drive with an incident brings its cause and what happened", () => {
+    const solved = gotKeys(reportReason(job({ firstDrive: true }), 'keys_missing', NOW + MIN), NOW + 3 * MIN);
+    expect(firstDriveResult({ ...solved, deliveredAt: NOW + HOUR })).toMatchObject({ ok: false, issue: { cause: 'customer_keys', note: "Keys aren't where the job says; solved by the assistant" } });
+    expect(firstDriveResult({ ...job(), deliveredAt: NOW + HOUR })).toEqual({ onTime: true, ok: true });
+  });
+  it('the assistant can offer "the pickup is solved" only while a pickup is stuck', () => {
+    expect(pickupOptions(job(), NOW)).toEqual([]);
+    const stuck = reportReason(job(), 'keys_missing', NOW + MIN);
+    expect(pickupOptions(stuck, NOW + 2 * MIN).map((o) => o.id)).toEqual(['K1', 'K2']);
+    expect(pickupOptions(stuck, NOW + 8 * MIN)).toHaveLength(2); // still while a person has it
+    expect(pickupOptions(gotKeys(stuck, NOW + 3 * MIN), NOW + 3 * MIN)).toEqual([]);
+  });
+});
+

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CalendarCheck, Car, Flag, PhoneCall } from 'lucide-react';
-import type { Applicant } from '../lib/types';
+import { FIRST_GIG_ISSUE_LABEL, type Applicant, type FirstGigIssue } from '../lib/types';
 import { ACTIVATION_RULE, activationBucket, activationFlags, welcomeCallState } from '../lib/activation';
 import { bookFirstGig, completeFirstGig, logWelcomeCall, type ActionResult } from '../lib/actions';
 import { DAY, formatDateTime } from '../lib/time';
@@ -32,6 +32,8 @@ export function ActivationPanel({ a, now, onResult }: Props) {
   const [date, setDate] = useState(toInputDate(a.firstGig?.bookedFor ?? now + DAY));
   const [onTime, setOnTime] = useState(false);
   const [ok, setOk] = useState(false);
+  const [cause, setCause] = useState<FirstGigIssue>('customer_keys');
+  const [note, setNote] = useState('');
 
   const outcome = onTime && ok ? 'on time, no incident' : [!onTime && 'late', !ok && 'incident or unhappy customer'].filter(Boolean).join(' + ');
 
@@ -127,12 +129,38 @@ export function ActivationPanel({ a, now, onResult }: Props) {
             <input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} className="h-4 w-4 accent-indigo" />
             No incident, customer happy
           </label>
+          {!ok && (
+            <div className="space-y-1.5 rounded-md bg-card/60 p-2">
+              <label className="flex flex-wrap items-center gap-2">
+                What went wrong
+                <select value={cause} onChange={(e) => setCause(e.target.value as FirstGigIssue)} className="rounded-md border border-lavender bg-white px-2 py-1 text-sm">
+                  {(Object.keys(FIRST_GIG_ISSUE_LABEL) as FirstGigIssue[]).map((c) => (
+                    <option key={c} value={c}>
+                      {FIRST_GIG_ISSUE_LABEL[c]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="sr-only">What happened</span>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  maxLength={300}
+                  rows={2}
+                  placeholder="What happened on the drive, e.g. the keys weren't at reception and the customer moved the time."
+                  className="w-full rounded-md border border-lavender px-2 py-1.5 text-sm"
+                />
+              </label>
+              <p className="text-xs text-muted">Describe the drive, not the person. Required for an incident.</p>
+            </div>
+          )}
           <p className="text-xs text-muted">
             Will log: <span className={onTime && ok ? 'text-ok font-semibold' : 'text-bad font-semibold'}>{outcome}</span>
           </p>
           <button
             type="button"
-            onClick={() => onResult(completeFirstGig(a, { onTime, ok }, now), true)}
+            onClick={() => onResult(completeFirstGig(a, { onTime, ok, ...(ok ? {} : { issue: { cause, note } }) }, now), true)}
             className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-indigo px-3 py-2.5 text-sm font-semibold text-white hover:bg-navy"
           >
             <Car size={16} aria-hidden /> Mark first gig completed

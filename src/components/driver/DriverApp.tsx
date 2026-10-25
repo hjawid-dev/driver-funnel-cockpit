@@ -3,8 +3,8 @@ import { CalendarCheck, Car, Check, ChevronLeft, ChevronRight, ExternalLink, IdC
 import type { Applicant, Gig } from '../../lib/types';
 import type { ChatThread } from '../../lib/chat/types';
 import { chatTimeline, threadIdFor, unreadCount } from '../../lib/chat/threads';
-import { assisting, checkIn, currentJob, deliver, depart, driverStatus, escalate, gotKeys, incidentClock, pendingText, reportReason, sendPickupTexts, type Job } from '../../lib/liveOps';
-import { ReasonPicker, TextPreview } from './PickupProblem';
+import { assisting, checkIn, currentJob, deliver, depart, driverStatus, escalate, gotKeys, incidentClock, reportReason, type Job } from '../../lib/liveOps';
+import { ReasonPicker } from './PickupProblem';
 import { DriverChat } from './DriverChat';
 import { PickupStatus } from './PickupStatus';
 import { REJECT_REASONS } from '../../lib/types';
@@ -28,7 +28,7 @@ interface Props {
   onCreate: (a: Applicant) => void;
   onUpdate: (a: Applicant) => void;
   onThread: (t: ChatThread) => void;
-  onJob?: (j: Job) => void;
+  onJob?: (j: Job, base?: ChatThread) => void;
   onJumpTo?: (ts: number) => void;
   /** Demo only: open this applicant's decision in the cockpit. */
   onDecide?: (id: string) => void;
@@ -622,18 +622,18 @@ function JobCard({ j, now, onJob, onInbox, textsEnabled }: { j: Job; now: number
   const stopped = outcome && outcome !== 'keys_found';
   const pick = (r: Parameters<typeof reportReason>[1]) => {
     setPicking(false);
-    onJob(reportReason(j, r, now));
+    onJob(reportReason(j, r, now, textsEnabled));
     if (r === 'other') onInbox();
   };
   const problem = picking ? (
-    <ReasonPicker onPick={pick} onCancel={() => setPicking(false)} />
+    <ReasonPicker j={j} textsEnabled={textsEnabled} onPick={pick} onCancel={() => setPicking(false)} />
   ) : (
     <button type="button" onClick={() => setPicking(true)} className="w-full rounded-xl border border-bad/50 px-4 py-2.5 text-sm font-semibold text-bad hover:bg-bad-bg">
       Problem at pickup
     </button>
   );
   // The assistant has it but doesn't know what is wrong yet (no keys after 5 minutes, or "something else").
-  const needsReason = !!assist && !(j.texts ?? []).length && !pendingText(j, now) && (!j.problemReason || j.problemReason === 'other');
+  const needsReason = !!assist && !(j.texts ?? []).length && (!j.problemReason || j.problemReason === 'other');
 
   return (
     <div className="mb-5 space-y-3">
@@ -653,7 +653,6 @@ function JobCard({ j, now, onJob, onInbox, textsEnabled }: { j: Job; now: number
       </Card>
 
       <PickupStatus j={j} now={now} onInbox={onInbox} />
-      <TextPreview j={j} now={now} onSend={() => onJob(sendPickupTexts(j, now, textsEnabled))} />
 
       {stopped ? null : status === 'scheduled' || status === 'due' ? (
         <>
@@ -662,7 +661,7 @@ function JobCard({ j, now, onJob, onInbox, textsEnabled }: { j: Job; now: number
         </>
       ) : status === 'arrived' && assist ? (
         <>
-          {needsReason && <ReasonPicker onPick={pick} />}
+          {needsReason && <ReasonPicker j={j} textsEnabled={textsEnabled} onPick={pick} />}
           <p className="text-sm font-semibold">Solved?</p>
           <div className="grid grid-cols-2 gap-2">
             <Primary onClick={() => onJob(gotKeys(j, now))}>Got the keys</Primary>

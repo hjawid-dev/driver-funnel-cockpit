@@ -6,6 +6,7 @@ import { callSlots } from '../booking';
 import { firstGigOffers } from '../gigs';
 import { deriveStage } from '../stage';
 import { HOUR, atLocal, formatDateTime } from '../time';
+import { driverIncidentState, driverStatus, type Job } from '../liveOps';
 export { reminderSilenced } from '../nudges';
 
 /**
@@ -19,7 +20,8 @@ export type ChatAction =
   | { type: 'extract_arrived' }
   | { type: 'pick_gig'; gigId: string }
   | { type: 'remind_later'; until: number }
-  | { type: 'stop_reminders' };
+  | { type: 'stop_reminders' }
+  | { type: 'pickup_solved'; how: 'keys' | 'customer' };
 
 export interface ActionOption {
   /** Short id the assistant refers to, e.g. "S2". */
@@ -52,6 +54,22 @@ function spreadSlots(free: number[]): number[] {
 export function remindersApply(a: Applicant): boolean {
   return deriveStage(a) === 'registered' && !a.prequalIssue;
 }
+
+/**
+ * A stuck pickup the driver says is solved ("found the keys"): the assistant offers it, the driver
+ * confirms, and the pickup closes as if they had tapped the button on the job card.
+ */
+export function pickupOptions(job: Job | null, now: number): ActionOption[] {
+  if (!job) return [];
+  const state = driverIncidentState(job, now);
+  if (!state || state === 'decided' || !['scheduled', 'due', 'arrived'].includes(driverStatus(job, now))) return [];
+  return [
+    { id: 'K1', label: 'Tell ops you have the keys now, and carry on with the drive', action: { type: 'pickup_solved', how: 'keys' } },
+    { id: 'K2', label: 'Tell ops the customer came out with the keys, and carry on with the drive', action: { type: 'pickup_solved', how: 'customer' } },
+  ];
+}
+
+export const sameAction = (x: ChatAction, y: ChatAction) => JSON.stringify(x) === JSON.stringify(y);
 
 /** Everything the driver can do from the chat right now. */
 export function actionOptions(a: Applicant | null, apps: Applicant[], gigs: Gig[], now: number): ActionOption[] {
@@ -122,6 +140,9 @@ export function applyChatAction(a: Applicant, action: ChatAction, apps: Applican
         applicant: { ...a, reminders: { ...a.reminders, offAt: now }, log: [...a.log, { at: now, text: `Reminders stopped${via}` }] },
         done: 'Done, no more reminders. Your application stays open, and you can continue any time.',
       };
+    case 'pickup_solved':
+      // A job, not the application: the chat carries it out on the job (see pickupOptions).
+      return { ok: false, reason: "That can't be done right now." };
   }
 }
 
