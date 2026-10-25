@@ -45,3 +45,6 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
   .anim-drawer, .anim-fade, .anim-rise { animation: none; }
   * { scroll-behavior: auto !important; }
 }
+
+/* Presentation mode: drawers and dialogs open below the sticky presentation bar, so it stays clickable. */
+.below-present { top: var(--present-top, 0px) !important; }

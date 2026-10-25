@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Smartphone, X } from 'lucide-react';
-import type { Applicant } from '../lib/types';
+import type { Applicant, Gig } from '../lib/types';
 import { DOC_KEYS } from '../lib/types';
 import { deriveStage, STAGE_LABEL } from '../lib/stage';
 import { slaStatus } from '../lib/sla';
@@ -14,18 +14,24 @@ import { MissingPanel } from './MissingPanel';
 import { ActivationPanel } from './ActivationPanel';
 import { Timeline } from './Timeline';
 import { CollapsibleSection, DrawerSection } from './ui';
+import type { WorkItem } from '../lib/workQueue';
 
 interface Props {
   applicant: Applicant;
+  /** Everyone and the open jobs: for the reason an accepted driver hasn't driven yet. */
+  apps: Applicant[];
+  gigs: Gig[];
   now: number;
   onClose: () => void;
   /** Apply a change. Results that end the task (a decision) close the drawer. */
   onUpdate: (next: Applicant) => void;
   onResult: (r: ActionResult, close?: boolean) => void;
   onViewAsDriver?: (id: string) => void;
+  /** Where they are and the next action, as the queue shows it. */
+  next?: WorkItem | null;
 }
 
-export function ApplicantDrawer({ applicant: a, now, onClose, onUpdate, onResult, onViewAsDriver }: Props) {
+export function ApplicantDrawer({ applicant: a, apps, gigs, now, onClose, onUpdate, onResult, onViewAsDriver, next }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const stage = deriveStage(a);
 
@@ -41,7 +47,7 @@ export function ApplicantDrawer({ applicant: a, now, onClose, onUpdate, onResult
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50">
+    <div className="below-present fixed inset-0 z-50">
       <div className="anim-fade absolute inset-0 bg-navy/40" onClick={onClose} aria-hidden />
       <aside
         role="dialog"
@@ -77,9 +83,15 @@ export function ApplicantDrawer({ applicant: a, now, onClose, onUpdate, onResult
         </header>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+          {next && (
+            <div className={`rounded-xl px-3.5 py-2.5 text-sm ${next.needsAction ? 'bg-indigo text-white' : 'bg-card'}`}>
+              <div className={`text-xs ${next.needsAction ? 'text-white/75' : 'text-muted'}`}>Next step · {next.status}</div>
+              <div className="font-semibold">{next.next}</div>
+            </div>
+          )}
           <Facts a={a} now={now} />
           {stage === 'registered' && <MissingPanel a={a} now={now} onResult={onResult} />}
-          {stage === 'accepted' && <ActivationPanel key={a.id} a={a} now={now} onUpdate={onUpdate} onResult={onResult} />}
+          {stage === 'accepted' && <ActivationPanel key={a.id} a={a} apps={apps} gigs={gigs} now={now} onUpdate={onUpdate} onResult={onResult} />}
           {stage !== 'review' && <Documents a={a} />}
           {stage === 'review' && <ReviewPanel key={a.id} a={a} now={now} onUpdate={onUpdate} onResult={onResult} />}
           <Timeline a={a} now={now} />

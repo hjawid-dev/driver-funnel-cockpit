@@ -78,8 +78,8 @@ export function ReportModal({ apps, threads, jobs = [], gigs = [], now, onClose,
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-0 sm:p-6">
-      <div className="anim-fade fixed inset-0 bg-navy/40" onClick={onClose} aria-hidden />
+    <div className="below-present fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-0 sm:p-6">
+      <div className="below-present anim-fade fixed inset-0 bg-navy/40" onClick={onClose} aria-hidden />
       <div role="dialog" aria-modal="true" aria-labelledby="report-title" className="anim-rise relative min-h-full w-full max-w-3xl bg-white shadow-2xl sm:min-h-0 sm:rounded-2xl">
         <header className="flex items-start gap-3 border-b border-lavender px-5 py-4">
           <FileText size={20} className="mt-0.5 shrink-0 text-indigo" aria-hidden />

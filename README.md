@@ -1,44 +1,52 @@
-# Driver Funnel Cockpit (short version)
+# Driver Ops
 
-A clickable prototype for a car-relocation service's operations case, with one page per part of the case. Demo data only, no real people. Built by Hjalmar Widlund with Claude Code.
+A clickable prototype for a car-relocation service's operations case. Demo data only, no real people. Built by Hjalmar Widlund with Claude Code.
 
 **Live:** https://driver-funnel-cockpit-lite.vercel.app
 
-## Part 1 · A driver stuck at a pickup
+Two connected jobs, one page each:
 
-The page opens on the case at **Tuesday 09:30**. The pickup was agreed for 09:00, and the driver has waited 25 minutes. The pickup contact isn't answering, and nobody on site knows about the transport.
+- **Driver Funnel** builds a supply of qualified, active drivers (Part 2 of the case).
+- **Live Ops** keeps that supply delivering when something goes wrong at a pickup (Part 1).
 
-1. **Handle it now: the playbook.**
-   - **The clock:** the agreed pickup, the waiting time, when the customer must decide (10:15), the last departure (10:50) and the deadline (12:00).
-   - **Six steps**, each logged with the time:
-     - keep the driver (stay, the waiting time is paid)
-     - rule out our own error
-     - call the contact, then the backup
-     - tell the customer before they ask
-     - the customer decides
-     - close the loop with a cause
-2. **Prevent it: the pre-pickup check.** Four touchpoints, each saying what to confirm, who does it and when:
-   - at booking
-   - 24 hours before (a person calls a new site or a pilot customer)
-   - 60 minutes before
-   - on arrival
-   
-   The pickups for today and tomorrow show where each check stands. When nobody replied, there is a button to log the call to the backup, and for a new site one to log the call to the site.
+## Driver Funnel: turn qualified applicants into active drivers
 
-## Part 2 · From application to active driver
+1. **Four metrics.** Application → active (the north star), document completion, time to decision and first-gig activation. Each shows the live demo number, its target, and the case's own baseline on a separate line, so the two are never mixed.
+2. **Where candidates get stuck.** Registered → Docs submitted → Reviewed → Accepted → Active, with the share who moved on and the biggest drop-off marked. A click on a stage opens the people who are there now.
+3. **One candidate queue.** Each row shows who, where they are, why now and the next action: request documents, review and decide, book a first gig, call the driver. Filters: Needs action, Missing documents, In review, Awaiting first gig, All applicants.
+4. **Candidate panel.** It shows the next step at the top, then the written criteria:
+   - **Must-have:** licence, BankID, photo, and the criminal-record extract shown before the first drive, never stored.
+   - **Borderline:** a written rule decides.
+   - **Reject:** always with a reason code.
 
-- **Funnel scoreboard:** Registered → Docs submitted → Reviewed → Accepted → Active, with the biggest drop-off marked. The lines under each number add up to it.
-- **Four metrics:** application → active (the north star), document completion, time to decision and activation within 14 days.
-- **Review queue:** sorted by the 48-hour target, with written criteria in three tiers:
-  - **Must-have:** licence, BankID, photo, and the criminal-record extract shown before the first drive, never stored.
-  - **Borderline:** a written rule decides.
-  - **Reject:** always with a reason code.
-  
-  Only the decisions the rules allow are possible.
-- **Missing documents:** reminders at 2 h, 24 h and 72 h, and a person closes the file after 14 days.
-- **Awaiting first gig:** book a first gig after 7 days, call the driver after 14.
+   Only the decisions the rules allow are possible, and a person makes every one. History and logs are folded away until needed.
 
-**Reset demo** starts over at Tuesday 09:30.
+## Live Ops: keep pickups on track
+
+1. **Exceptions first.** Today's pickups are grouped as Needs attention, On track and Done, each with a state: Needs a person, Issue reported, Check needed, Upcoming, At pickup, On the way, Resolved, Delivered.
+2. **The incident.** The demo opens on the case at **Tuesday 09:30**: the pickup was agreed for 09:00, the driver has waited 25 minutes, and the keys are missing. The panel shows:
+   - who owns it
+   - the next step
+   - when the customer must decide (10:15)
+   - one time bar up to the 12:00 deadline
+3. **The playbook.** Six steps, with the current one open:
+   - keep the driver
+   - rule out our own error
+   - call the contact, then the backup
+   - the customer hears it from us
+   - the customer decides
+   - close the loop with the waiting time paid and a cause
+
+   Every step is logged with the time, and a closed incident keeps its summary.
+4. **The pre-pickup check.** A routine pickup shows its touchpoints: at booking, the day before, 60 minutes before, and on arrival. The action appears when a reply is missing.
+
+## Secondary, where it is needed
+
+- **Weekly report:** on Driver Funnel. The numbers are computed by code, the AI writes the text, and a check verifies every number.
+- **Driver's phone and chat:** from a candidate ("Driver's view") or a pickup ("Driver's chat").
+- **Driver questions:** in Live Ops. The assistant says it is an AI.
+- **Demo menu:** the clock icon. It holds the simulated time (+2 h, +1 day, +3 days), what ran by itself, the automated-texts switch, the HubSpot mapping, and Reset demo.
+- **Present:** five steps through the case. The app stays usable at every step. ← and → move between steps.
 
 ## Run it
 
@@ -46,6 +54,7 @@ The page opens on the case at **Tuesday 09:30**. The pickup was agreed for 09:00
 npm install
 npm run dev      # http://localhost:5173
 npm test         # unit tests (Vitest)
+npm run eval     # the AI checks (needs ANTHROPIC_API_KEY)
 ```
 
-Stack: React 18, TypeScript, Vite, Tailwind. Every push to `main` deploys through Vercel.
+Stack: React 18, TypeScript, Vite, Tailwind, Claude Haiku for the assistant and the report. Every push to `main` deploys through Vercel.

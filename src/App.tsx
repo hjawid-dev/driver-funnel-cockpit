@@ -1,61 +1,113 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { RotateCcw } from 'lucide-react';
-import { useClock, useDemoData, type TabKey } from './state';
-import { computeFunnel, computeKpis } from './lib/kpis';
-import { deriveStage } from './lib/stage';
-import { caseTime, formatDateTime } from './lib/time';
-import { Scoreboard, type FunnelLink } from './components/Scoreboard';
-import { KpiRow } from './components/KpiRow';
-import { Tabs } from './components/Tabs';
-import { ReviewQueue } from './components/ReviewQueue';
-import { MissingDocs } from './components/MissingDocs';
-import { Activation } from './components/Activation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarClock, Presentation } from 'lucide-react';
+import { useClock, useDemoData } from './state';
+import { computeFunnel, computeKpis, type FunnelKey } from './lib/kpis';
+import { nextReviewSlot } from './lib/sla';
+import { caseTime, formatDateTime, formatDuration } from './lib/time';
+import { AllApplicants, type StageFilter } from './components/AllApplicants';
+import { HubspotModal } from './components/HubspotModal';
 import { ApplicantDrawer } from './components/ApplicantDrawer';
 import { Toast, useToast } from './components/Toast';
-import { LiveOps } from './components/LiveOps';
 import type { ActionResult } from './lib/actions';
+import { DriverPhone } from './components/driver/DriverPhone';
+import { automationEvents, chatEvents, liveOpsEvents, reportEvents, summarize, type AutoEvent } from './lib/automation';
+import { ReportModal } from './components/ReportModal';
 import type { Applicant } from './lib/types';
+import type { ChatThread } from './lib/chat/types';
+import { HANDOVER_LABEL } from './lib/chat/types';
+import { REASON_LABEL } from './lib/sms';
+import { waitingThreads } from './lib/chat/threads';
 import { releaseDue } from './lib/extract';
-import { openIncidents, syncFirstDrive, type Job } from './lib/liveOps';
+import { assisting, currentJob, driverUpdate, escalate, firstDriveResult, jobAlert, openIncidents, reportProblem, syncFirstDrive, type Job } from './lib/liveOps';
+import { completeFirstGig } from './lib/actions';
+import { backToAi, callRequested, emptyThread, keysFoundByDriver, opsReply, pickupReported, relayContactReply, solvedNote, textsSentNote, threadIdFor } from './lib/chat/threads';
+import { REVIEWER } from './lib/types';
+import { LiveOps, type LiveSelection } from './components/LiveOps';
+import { DemoMenu } from './components/DemoMenu';
+import { PresentBar } from './components/PresentBar';
+import { FunnelKpis, FunnelStages } from './components/FunnelOverview';
+import { WorkQueue } from './components/WorkQueue';
+import { filterItems, QUEUE_FILTER_LABEL, queueCounts, workItems, type QueueFilter } from './lib/workQueue';
+import { activationTarget, incidentTarget, PRESENT_STEPS, reviewTarget } from './lib/present';
 
 /**
- * The short version: one page per part of the case, and nothing on screen that doesn't answer it.
- * Part 1, a driver stuck at a pickup: the playbook for now, and the pre-pickup check that prevents it.
- * Part 2, the driver funnel: where people drop off, decisions against written criteria, and the lists that keep them moving.
+ * Two connected jobs, one page each.
+ * Driver Funnel builds a supply of qualified, active drivers (Part 2 of the case).
+ * Live Ops keeps that supply delivering when something goes wrong at a pickup (Part 1).
  */
-type Page = 'live' | 'funnel';
-const PAGE_LABEL: Record<Page, string> = { live: 'Part 1 · Stuck at pickup', funnel: 'Part 2 · Driver funnel' };
-const FUNNEL_TABS: TabKey[] = ['review', 'missing', 'awaiting'];
-/** The metrics the case asks for. */
-const SHOWN_KPIS = ['docCompletion', 'timeToDecision', 'activation', 'appToActive'];
+type Page = 'funnel' | 'live';
+const PAGE_LABEL: Record<Page, string> = { funnel: 'Driver Funnel', live: 'Live Ops' };
+const PAGE_SUB: Record<Page, string> = {
+  funnel: 'Turn qualified applicants into active drivers.',
+  live: 'Keep pickups on track and resolve incidents before they affect delivery.',
+};
+const FILTERS: QueueFilter[] = ['action', 'missing', 'review', 'awaiting', 'all'];
+
+const TEXTS_KEY = 'driver-funnel-cockpit-texts';
 
 export default function App() {
   const clock = useClock();
   const now = clock.now;
-  const { apps, gigs, jobs, update, updateJob, updateJobs, reset } = useDemoData();
-  const [page, setPage] = useState<Page>(() => (window.location.hash === '#part2' ? 'funnel' : 'live'));
-  const [tab, setTab] = useState<TabKey>('review');
-  const [openId, setOpenId] = useState<string | null>(null);
+  const { apps, gigs, threads, jobs, update, add, upsertThread, updateJob, updateJobs, reset } = useDemoData();
   const toast = useToast();
+
+  const [page, setPage] = useState<Page>(() => (window.location.hash === '#live' ? 'live' : 'funnel'));
+  const [filter, setFilter] = useState<QueueFilter>('action');
+  const [stageFilter, setStageFilter] = useState<StageFilter>('all');
+  const [liveSel, setLiveSel] = useState<LiveSelection>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [showHubspot, setShowHubspot] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [present, setPresent] = useState<number | null>(null);
+  // Bumped when the cockpit opens the phone on the chat; 0 opens it on the steps.
+  const [chatRequest, setChatRequest] = useState(0);
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  const [phoneId, setPhoneId] = useState<string | null>(null);
+  const [lastRun, setLastRun] = useState<{ from: number; to: number; events: AutoEvent[] } | null>(null);
   // The metrics when the demo started: the ▲▼ chips show how your clicks moved them.
   const [baseline, setBaseline] = useState(() => computeKpis(apps, now));
+  // Ops' switch for automated texts to pickup contacts. Kept in this browser.
+  const [textsEnabled, setTextsEnabled] = useState(() => {
+    try {
+      return localStorage.getItem(TEXTS_KEY) !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  const switchTexts = (on: boolean) => {
+    setTextsEnabled(on);
+    try {
+      localStorage.setItem(TEXTS_KEY, on ? 'on' : 'off');
+    } catch {
+      /* private mode: the switch still works for this visit */
+    }
+    toast.notify(on ? 'Automated texts to pickup contacts are on.' : 'Automated texts are off: every stuck pickup goes straight to a person.');
+  };
+
   const open = apps.find((a) => a.id === openId) ?? null;
   const close = useCallback(() => setOpenId(null), []);
+  const closeReport = useCallback(() => setShowReport(false), []);
+  const closeHubspot = useCallback(() => setShowHubspot(false), []);
 
-  /** Start over on the case as the brief gives it: Tuesday 09:30, Julia 25 minutes at the gate. */
+  const showPage = (p: Page) => {
+    setPage(p);
+    window.scrollTo({ top: 0 });
+  };
+
+  /** Start over on the case as the brief gives it: a fresh demo on Tuesday 09:30, Julia 25 minutes at the gate. */
   const playCase = useCallback(
     (quiet = false) => {
       const at = caseTime(Date.now());
       const fresh = reset(at, true);
       clock.setTo(at);
+      setLastRun(null);
+      setPhoneId(null);
       setBaseline(computeKpis(fresh, at));
       setOpenId(null);
-      setTab('review');
-      if (!quiet) {
-        setPage('live');
-        window.scrollTo({ top: 0 });
-        toast.notify('Tuesday 09:30: Julia calls. She has waited 25 minutes at the pickup.');
-      }
+      setFilter('action');
+      setStageFilter('all');
+      setLiveSel(null);
+      if (!quiet) toast.notify('Demo reset: Tuesday 09:30, fresh data. Julia has waited 25 minutes at the pickup.');
     },
     [reset, clock, toast.notify],
   );
@@ -65,7 +117,7 @@ export default function App() {
     if (!jobs.some((j) => j.asInCase)) playCase(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** A first drive booked or moved becomes a job; one released goes back. */
+  /** A first drive booked or moved (by the driver, in the chat or by ops) becomes a job in Live Ops. */
   const syncFirstDriveFor = useCallback(
     (prev: Applicant | undefined, next: Applicant) => {
       if (prev?.firstGig?.bookedFor === next.firstGig?.bookedFor && prev?.firstGig?.gigId === next.firstGig?.gigId) return;
@@ -74,7 +126,7 @@ export default function App() {
     [updateJobs, gigs],
   );
 
-  // A first drive whose extract wasn't shown by the day before goes back to the pool.
+  // A first drive whose extract wasn't shown by the day before goes back to the pool (checked as the clock moves).
   useEffect(() => {
     const due = releaseDue(apps, now);
     if (!due.length) return;
@@ -82,7 +134,8 @@ export default function App() {
       update(next);
       updateJobs((js) => syncFirstDrive(js, next, gigs));
     }
-  }, [apps, now, gigs, update, updateJobs]);
+    toast.notify(`${due.map((a) => a.name.split(' ')[0]).join(', ')}: first drive released, the extract wasn't shown by the day before.`);
+  }, [apps, now, gigs, update, updateJobs, toast.notify]);
 
   const onResult = useCallback(
     (r: ActionResult, closeDrawer = false) => {
@@ -97,105 +150,408 @@ export default function App() {
     [apps, update, syncFirstDriveFor, toast.notify],
   );
 
-  const onJob = useCallback(
-    (j: Job, message: string) => {
-      updateJob(j);
-      toast.notify(message);
+  // ---- The driver's phone ----
+  const openAsDriver = useCallback((id: string | null) => {
+    setPhoneId(id);
+    setPhoneOpen(true);
+    setChatRequest(0);
+    setOpenId(null);
+  }, []);
+
+  const openDriverChat = useCallback((id: string | null) => {
+    setPhoneId(id);
+    setPhoneOpen(true);
+    setChatRequest(Date.now());
+  }, []);
+
+  const onThread = useCallback(
+    (incoming: ChatThread) => {
+      let t = incoming;
+      const prev = threads.find((x) => x.id === t.id);
+      const job = t.applicantId ? currentJob(jobs, t.applicantId, now) : null;
+      const newest = t.messages.length > (prev?.messages.length ?? 0) ? t.messages.at(-1) : undefined;
+      const hasKeys = job?.keysAt !== undefined && job.keysAt <= now;
+      // Stuck at a pickup: the assistant takes the first minutes and Live Ops shows it. Without a job today, a person answers.
+      if (newest?.handover === 'pickup') {
+        if (job && !hasKeys) {
+          upsertThread(t);
+          if (job.problemAt === undefined) {
+            const next = reportProblem(job, now);
+            updateJob(next);
+            const until = assisting(next, now)?.until;
+            toast.notify(`${t.name} is stuck at a pickup. The assistant is on it${until ? `; a person takes over at ${new Date(until).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} if it isn't solved` : ''}. See Live Ops.`);
+          }
+          return;
+        }
+        t = { ...t, status: 'waiting', waitingSince: now, reason: 'urgent' };
+      }
+      upsertThread(t);
+      // Something on a drive a person must handle (damage, safety, the car won't start): Live Ops has it as urgent at once.
+      if (t.status === 'waiting' && t.reason === 'urgent' && job && !hasKeys && jobAlert(job, now)?.kind !== 'escalated') updateJob(escalate(job, 'safety', now));
+      if (t.status === 'waiting' && prev?.status !== 'waiting') {
+        toast.notify(
+          t.reason === 'urgent'
+            ? `Urgent: ${t.name} has a problem on a drive. Call within 5 minutes: see Live Ops.`
+            : `${t.name} needs a person in the chat${t.reason ? `: ${HANDOVER_LABEL[t.reason].toLowerCase()}` : ''}. See Live Ops → Driver questions.`,
+        );
+      }
     },
-    [updateJob, toast.notify],
+    [threads, jobs, now, upsertThread, updateJob, toast.notify],
   );
 
+  const onDriverCreate = useCallback(
+    (a: Applicant) => {
+      add(a);
+      setPhoneId(a.id);
+      toast.notify(`New applicant: ${a.name} registered in the driver app.`);
+    },
+    [add, toast.notify],
+  );
+
+  const onDriverUpdate = useCallback(
+    (next: Applicant) => {
+      const prev = apps.find((a) => a.id === next.id);
+      update(next);
+      syncFirstDriveFor(prev, next);
+      if (!prev) return;
+      if (!prev.docsCompleteAt && next.docsCompleteAt) toast.notify(`${next.name}: file complete, auto-queued for review.`);
+      else if (!prev.callAt && next.callAt) toast.notify(`${next.name} booked the onboarding call: ${formatDateTime(next.callAt)}.`);
+      else if (prev.callAt && next.callAt && prev.callAt !== next.callAt) toast.notify(`${next.name} moved the onboarding call to ${formatDateTime(next.callAt)}.`);
+      else if (!prev.reminders?.offAt && next.reminders?.offAt) toast.notify(`${next.name} stopped the reminders in the chat.`);
+      else if (next.reminders?.snooze && prev.reminders?.snooze?.until !== next.reminders.snooze.until) toast.notify(`${next.name} asked for a reminder ${formatDateTime(next.reminders.snooze.until)}.`);
+      else if (!prev.firstGig?.gigId && next.firstGig?.gigId) toast.notify(`${next.name} picked a first drive. It shows in Awaiting first gig.`);
+    },
+    [apps, update, syncFirstDriveFor, toast.notify],
+  );
+
+  // The driver's taps on today's job: the cockpit says what changed.
+  const onDriverJob = useCallback(
+    // `base` is the thread as the chat just changed it (a confirmed proposal), so that change isn't lost.
+    (next: Job, base?: ChatThread) => {
+      const prev = jobs.find((j) => j.id === next.id);
+      updateJob(next);
+      const first = next.driverName.split(' ')[0];
+      if (!prev) return;
+      const a = apps.find((x) => x.id === next.driverId) ?? null;
+      // One thread update per tap, built up in order, so nothing a step adds is lost.
+      const stored = threads.find((x) => x.id === threadIdFor(next.driverId)) ?? emptyThread(a);
+      let t = base ?? stored;
+      const before = stored;
+      const hhmm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const roles = [next.contact.role.toLowerCase(), next.backup.role.toLowerCase()];
+      const until = assisting(next, now)?.until ?? null;
+      let note: string | null = null;
+      if (next.problemReason && next.problemReason !== prev.problemReason) {
+        t = pickupReported(t, next.problemReason, roles, until, now, !(prev.texts ?? []).length && (next.texts ?? []).length > 0);
+        note = `${first} reported a problem at the pickup: ${REASON_LABEL[next.problemReason].toLowerCase()}.${until ? ` The assistant has it; a person takes over at ${hhmm(until)} if it isn't solved.` : ''} See Live Ops.`;
+      }
+      if (!(prev.texts ?? []).length && (next.texts ?? []).length) {
+        t = textsSentNote(t, next.texts!.map((x) => x.role.toLowerCase()), next.texts![0].body, now);
+        note = `${first} sent the automated text to the ${roles.join(' and the ')} (${next.id}).`;
+      }
+      if (!prev.escalation && next.escalation) {
+        if (next.escalation.why === 'driver') t = callRequested(t, now);
+        note =
+          next.escalation.why === 'text_failed'
+            ? `Urgent: the automated text couldn't go out, so ${first}'s pickup is with a person now (${next.id}). See Live Ops.`
+            : `Urgent: ${first} ${next.escalation.why === 'driver' ? 'asked for a call' : 'needs a person now'} (${next.id}). See Live Ops.`;
+      }
+      const solved = !prev.incident && next.incident?.by === 'assistant';
+      if (solved) {
+        t = solvedNote(t, now);
+        note = `${first} has the keys: solved by the assistant (${next.id}).`;
+      }
+      const keysNow = !solved && !(prev.keysAt !== undefined && prev.keysAt <= now) && next.keysAt !== undefined && next.keysAt <= now;
+      if (keysNow) t = keysFoundByDriver(t, now);
+      if (t !== before) upsertThread(t);
+      if (note) toast.notify(note);
+      else if (keysNow) toast.notify(`${first} has the keys (${next.id}).`);
+      else if (!prev.arrivedAt && next.arrivedAt) toast.notify(`${first} checked in at the pickup (${next.id}).`);
+      else if (!prev.departedAt && next.departedAt) toast.notify(`${first} is on the way to the drop-off (${next.id}).`);
+      else if (!prev.deliveredAt && next.deliveredAt) {
+        // A first drive delivered: the driver is active, and first-gig quality counts it.
+        const driver = next.firstDrive ? apps.find((x) => x.id === next.driverId) : undefined;
+        const r = driver ? completeFirstGig(driver, firstDriveResult(next), now) : null;
+        if (r?.ok) {
+          update(r.applicant);
+          toast.notify(`${first} delivered the first drive: now an active driver.`);
+        } else toast.notify(`${first} delivered the car (${next.id}).`);
+      }
+    },
+    [jobs, apps, threads, now, update, updateJob, upsertThread, toast.notify],
+  );
+
+  const onAdvance = (ms: number) => {
+    const w = clock.advance(ms);
+    const events = [...automationEvents(apps, w.from, w.to), ...chatEvents(threads, w.from, w.to), ...liveOpsEvents(jobs, w.from, w.to), ...reportEvents(w.from, w.to)].sort((x, y) => x.at - y.at);
+    setLastRun({ ...w, events });
+    toast.notify(`Time moved forward. Automation: ${summarize(events)}.`);
+  };
+
+  const onJob = useCallback(
+    (j: Job, message: string) => {
+      const prev = jobs.find((x) => x.id === j.id);
+      updateJob(j);
+      toast.notify(message);
+      // In the demo the pickup contact answers the assistant's text: the assistant passes it on to the driver.
+      if (!prev?.contactReply && j.contactReply) {
+        const a = apps.find((x) => x.id === j.driverId) ?? null;
+        upsertThread(relayContactReply(threads.find((x) => x.id === threadIdFor(j.driverId)) ?? emptyThread(a), j.contact.role, j.contactReply.text, now));
+        return;
+      }
+      // The driver hears the decision in the chat, and the chat goes back to the assistant when the incident is closed.
+      const decided = !prev?.incident?.outcome && j.incident?.outcome;
+      const closed = prev?.incident?.closedAt === undefined && j.incident?.closedAt !== undefined;
+      if (!decided && !closed) return;
+      const a = apps.find((x) => x.id === j.driverId) ?? null;
+      let t = threads.find((x) => x.id === threadIdFor(j.driverId)) ?? emptyThread(a);
+      if (decided) t = opsReply(t, driverUpdate(j, j.incident!.outcome!.type, now), REVIEWER, now);
+      if (closed && t.status !== 'ai') t = backToAi(t, now);
+      upsertThread(t);
+    },
+    [jobs, apps, threads, now, updateJob, upsertThread, toast.notify],
+  );
+
+  // ---- What the two pages show ----
   const funnel = useMemo(() => computeFunnel(apps), [apps]);
   const kpis = useMemo(() => computeKpis(apps, now), [apps, now]);
-  const counts = useMemo(() => {
-    const stages = apps.map(deriveStage);
-    const n = (s: string) => stages.filter((x) => x === s).length;
-    return { live: 0, review: n('review'), missing: n('registered'), awaiting: n('accepted'), chat: 0, all: apps.length };
-  }, [apps]);
+  const items = useMemo(() => workItems(apps, gigs, now), [apps, gigs, now]);
+  const counts = queueCounts(items, apps.length);
+  const shownItems = filterItems(items, filter);
+  const openItem = items.find((w) => w.a.id === openId) ?? null;
+  const slot = nextReviewSlot(now);
   const urgent = openIncidents(jobs, now).filter((j) => !j.incident?.outcome).length;
+  const questions = waitingThreads(threads).length;
 
-  const showPage = (p: Page) => {
-    setPage(p);
-    window.scrollTo({ top: 0 });
+  const toQueue = () => setTimeout(() => document.getElementById('queue')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  // A stage opens the people who are there now.
+  const onStage = (k: FunnelKey) => {
+    if (k === 'registered') setFilter('missing');
+    else if (k === 'docs') setFilter('review');
+    else if (k === 'accepted') setFilter('awaiting');
+    else {
+      setFilter('all');
+      setStageFilter(k === 'active' ? 'active' : 'rejected');
+    }
+    toQueue();
   };
-  // A line under a funnel tile opens the list of who is there now.
-  const openLink = (to: FunnelLink) => {
-    if (to === 'review' || to === 'missing' || to === 'awaiting') setTab(to);
-    setTimeout(() => document.getElementById('worklists')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  const pickFilter = (f: QueueFilter) => {
+    setFilter(f);
+    if (f === 'all') setStageFilter('all');
+  };
+
+  // ---- Presentation mode: five steps through the case; the app stays usable at every step ----
+  const goStep = (i: number) => {
+    const step = PRESENT_STEPS[i];
+    if (!step) return;
+    setPresent(i);
+    setShowReport(false);
+    setShowHubspot(false);
+    setOpenId(null);
+    if (step.key === 'funnel') {
+      setPage('funnel');
+      setFilter('action');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (step.key === 'review') {
+      setPage('funnel');
+      setFilter('review');
+      setOpenId(reviewTarget(apps)?.id ?? null);
+    } else if (step.key === 'activate') {
+      setPage('funnel');
+      setFilter('awaiting');
+      setOpenId(activationTarget(apps, gigs, now)?.id ?? null);
+    } else if (step.key === 'incident') {
+      setPage('live');
+      setLiveSel(incidentTarget(jobs, now)?.id ?? null);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      setPage('funnel');
+      setShowReport(true);
+    }
+  };
+  // While presenting, the header and the bar stick to the top; drawers and dialogs open below them.
+  const topRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = document.documentElement.style;
+    const el = topRef.current;
+    if (present === null || !el) {
+      root.removeProperty('--present-top');
+      return;
+    }
+    const set = () => root.setProperty('--present-top', `${el.offsetHeight}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [present]);
+  // ← and → move between the steps, unless you are typing.
+  useEffect(() => {
+    if (present === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target instanceof Element ? e.target : null;
+      if (t?.closest('input, textarea, select, [contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'ArrowRight' && present < PRESENT_STEPS.length - 1) goStep(present + 1);
+      else if (e.key === 'ArrowLeft' && present > 0) goStep(present - 1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+  const startPresenting = () => {
+    playCase(true);
+    setPhoneOpen(false);
+    setPage('funnel');
+    setPresent(0);
+    window.scrollTo({ top: 0 });
+    toast.notify('Presentation: fresh demo data, Tuesday 09:30.');
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="bg-navy text-white">
-        <div className="mx-auto max-w-7xl px-4 h-14 flex items-center gap-3">
-          <span className="hidden sm:inline font-semibold tracking-tight whitespace-nowrap">Driver Ops</span>
-          <nav aria-label="The two parts of the case" className="sm:ml-2 flex rounded-lg bg-white/10 p-0.5 text-sm font-semibold">
-            {(['live', 'funnel'] as const).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => showPage(p)}
-                aria-current={page === p ? 'page' : undefined}
-                className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 ${page === p ? 'bg-white text-navy' : 'text-white/80 hover:text-white'}`}
-              >
-                <span className="sm:hidden">{p === 'live' ? 'Part 1' : 'Part 2'}</span>
-                <span className="hidden sm:inline">{PAGE_LABEL[p]}</span>
-                {p === 'live' && urgent > 0 && <span className="num rounded-full bg-bad px-1.5 text-xs text-white">{urgent}</span>}
-              </button>
-            ))}
-          </nav>
-          <div className="ml-auto flex items-center gap-2">
-            <span className="hidden md:inline num text-xs text-white/70">{formatDateTime(now)}</span>
-            <button
-              type="button"
-              onClick={() => playCase()}
-              title="Start over: Tuesday 09:30, the case as the brief gives it"
-              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white"
-            >
-              <RotateCcw size={15} aria-hidden /> <span className="hidden sm:inline">Reset demo</span>
-              <span className="sr-only sm:hidden">Reset demo</span>
-            </button>
+    <div className="min-h-screen flex">
+      <div className="min-w-0 flex-1 flex flex-col">
+        <div ref={topRef} className={present !== null ? 'sticky top-0 z-[60]' : ''}>
+        <header className="bg-navy text-white">
+          <div className="mx-auto max-w-7xl px-4 h-14 flex items-center gap-3">
+            <span className="hidden sm:inline font-semibold tracking-tight whitespace-nowrap">Driver Ops</span>
+            <nav aria-label="Pages" className="sm:ml-2 flex rounded-lg bg-white/10 p-0.5 text-sm font-semibold">
+              {(['funnel', 'live'] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => showPage(p)}
+                  aria-current={page === p ? 'page' : undefined}
+                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1 ${page === p ? 'bg-white text-navy' : 'text-white/80 hover:text-white'}`}
+                >
+                  {PAGE_LABEL[p]}
+                  {p === 'live' && urgent > 0 && (
+                    <span className="num rounded-full bg-bad px-1.5 text-xs text-white">
+                      {urgent}
+                      <span className="sr-only"> urgent</span>
+                    </span>
+                  )}
+                </button>
+              ))}
+            </nav>
+            <div className="ml-auto flex items-center gap-1">
+              {present === null && (
+                <button
+                  type="button"
+                  onClick={startPresenting}
+                  title="Presentation mode: five steps through the case, from fresh demo data"
+                  className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white"
+                >
+                  <Presentation size={15} aria-hidden /> <span className="hidden sm:inline">Present</span>
+                  <span className="sr-only sm:hidden">Present</span>
+                </button>
+              )}
+              <DemoMenu
+                now={now}
+                onAdvance={onAdvance}
+                onReset={() => playCase()}
+                onPhone={() => openAsDriver(phoneId)}
+                onHubspot={() => setShowHubspot(true)}
+                textsEnabled={textsEnabled}
+                onTexts={switchTexts}
+                lastRun={lastRun}
+              />
+            </div>
           </div>
-        </div>
-      </header>
-
-      <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-5 space-y-6">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-indigo">{page === 'live' ? 'Part 1 · Live ops' : 'Part 2 · Driver ops'}</p>
-          <h1 className="mt-0.5 text-2xl font-bold tracking-tight">{page === 'live' ? 'Driver stuck at pickup: keys not found' : 'From application to active driver'}</h1>
-          <p className="mt-0.5 text-sm text-muted">
-            {page === 'live'
-              ? 'Handle it now with the playbook. Prevent it with the pre-pickup check below.'
-              : 'Where applicants drop off, decisions against written criteria, and the lists that keep them moving.'}
-          </p>
+        </header>
+        {present !== null && <PresentBar step={present} onStep={goStep} onExit={() => setPresent(null)} />}
         </div>
 
-        {page === 'live' ? (
-          <LiveOps jobs={jobs} now={now} onJob={onJob} />
-        ) : (
-          <>
-            <Scoreboard funnel={funnel} onLink={openLink} />
-            <KpiRow kpis={kpis.filter((k) => SHOWN_KPIS.includes(k.key))} baseline={baseline} />
-            <section id="worklists" className="scroll-mt-4">
-              <Tabs keys={FUNNEL_TABS} active={tab} counts={counts} alert={{}} onChange={setTab} />
-              <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-                {tab === 'missing' ? (
-                  <MissingDocs apps={apps.filter((a) => deriveStage(a) === 'registered')} now={now} onOpen={setOpenId} onResult={onResult} />
-                ) : tab === 'awaiting' ? (
-                  <Activation apps={apps.filter((a) => deriveStage(a) === 'accepted')} now={now} onOpen={setOpenId} />
+        <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-6 space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">{PAGE_LABEL[page]}</h1>
+            <p className="mt-0.5 text-sm text-muted">{PAGE_SUB[page]}</p>
+          </div>
+
+          {page === 'funnel' ? (
+            <>
+              <FunnelKpis kpis={kpis} baseline={baseline} onReport={() => setShowReport(true)} />
+              <FunnelStages funnel={funnel} onStage={onStage} />
+              <section id="queue" aria-labelledby="queue-title" className="scroll-mt-4">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <h2 id="queue-title" className="text-sm font-semibold">
+                    Candidates
+                  </h2>
+                  <span className="flex items-center gap-1.5 text-xs text-muted">
+                    <CalendarClock size={14} className="text-indigo" aria-hidden />
+                    Next review slot <strong className="num font-semibold text-navy">{slot.time}</strong> {slot.day} · in {formatDuration(slot.at - now)}
+                  </span>
+                </div>
+                <div role="tablist" aria-label="Filter candidates" className="mb-3 flex gap-1 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                  {FILTERS.map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      role="tab"
+                      aria-selected={filter === f}
+                      onClick={() => pickFilter(f)}
+                      className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-semibold ${
+                        filter === f ? 'border-indigo bg-indigo text-white' : 'border-lavender bg-white text-navy hover:border-indigo'
+                      }`}
+                    >
+                      {QUEUE_FILTER_LABEL[f]}
+                      <span className={`num text-xs ${filter === f ? 'text-white/80' : 'text-muted'}`}>{counts[f]}</span>
+                    </button>
+                  ))}
+                </div>
+                {filter === 'all' ? (
+                  <AllApplicants apps={apps} now={now} filter={stageFilter} onFilter={setStageFilter} onOpen={setOpenId} />
                 ) : (
-                  <ReviewQueue apps={apps.filter((a) => deriveStage(a) === 'review')} now={now} onOpen={setOpenId} />
+                  <WorkQueue items={shownItems} filter={filter} onOpen={setOpenId} />
                 )}
-              </div>
-            </section>
-          </>
+              </section>
+            </>
+          ) : (
+            <LiveOps jobs={jobs} now={now} onJob={onJob} onViewChat={openDriverChat} selected={liveSel} onSelect={setLiveSel} threads={threads} waitingQuestions={questions} onThread={onThread} />
+          )}
+        </main>
+
+        {open && (
+          <ApplicantDrawer
+            applicant={open}
+            apps={apps}
+            gigs={gigs}
+            now={now}
+            next={openItem}
+            onClose={close}
+            onUpdate={update}
+            onResult={onResult}
+            onViewAsDriver={openAsDriver}
+          />
         )}
-      </main>
+        {showHubspot && <HubspotModal onClose={closeHubspot} />}
+        {showReport && <ReportModal apps={apps} threads={threads} jobs={jobs} gigs={gigs} now={now} onClose={closeReport} />}
+        <Toast message={toast.message} onDismiss={toast.dismiss} />
 
-      {open && <ApplicantDrawer applicant={open} now={now} onClose={close} onUpdate={update} onResult={onResult} />}
-      <Toast message={toast.message} onDismiss={toast.dismiss} />
-
-      <footer className="text-xs text-muted text-center px-4 py-6 border-t border-lavender">Prototype by Hjalmar Widlund · demo data, no real people</footer>
+        <footer className="border-t border-lavender px-4 py-6 text-center text-xs text-muted">
+          Driver Funnel builds a supply of qualified drivers. Live Ops keeps that supply delivering. · Prototype by Hjalmar Widlund · demo data, no real people
+        </footer>
+      </div>
+      {phoneOpen && (
+        <DriverPhone
+          applicantId={phoneId}
+          apps={apps}
+          gigs={gigs}
+          threads={threads}
+          jobs={jobs}
+          now={now}
+          chatRequest={chatRequest}
+          onSelect={setPhoneId}
+          onCreate={onDriverCreate}
+          onUpdate={onDriverUpdate}
+          onThread={onThread}
+          onJob={onDriverJob}
+          onJumpTo={(ts) => ts > now && onAdvance(ts - now)}
+          textsEnabled={textsEnabled}
+          onDecide={(id) => {
+            showPage('funnel');
+            setOpenId(id);
+          }}
+          onClose={() => setPhoneOpen(false)}
+        />
+      )}
     </div>
   );
 }

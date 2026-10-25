@@ -60,8 +60,8 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-0 sm:p-6">
-      <div className="anim-fade fixed inset-0 bg-navy/40" onClick={onClose} aria-hidden />
+    <div className="below-present fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-0 sm:p-6">
+      <div className="below-present anim-fade fixed inset-0 bg-navy/40" onClick={onClose} aria-hidden />
       <div role="dialog" aria-modal="true" aria-labelledby="hs-title" className="anim-rise relative w-full max-w-4xl bg-white sm:rounded-2xl shadow-2xl min-h-full sm:min-h-0">
         <header className="flex items-start gap-3 border-b border-lavender px-5 py-4">
           <div className="flex-1">
