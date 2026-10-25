@@ -1,14 +1,10 @@
 import { useState } from 'react';
-import { Bot, Car, Check, CircleCheck, Clock, Copy, KeyRound, MapPin, PhoneCall, Smartphone, TriangleAlert } from 'lucide-react';
+import { Bot, Car, Check, CircleCheck, Clock, Copy, KeyRound, MapPin, PhoneCall, TriangleAlert } from 'lucide-react';
 import {
-  assistantLog,
   CAUSE_LABEL,
   causeFromReason,
-  assistedJobs,
   assisting,
   closeIncident,
-  contactReplies,
-  escalate,
   closedIncidents,
   confirmByPhone,
   customerUpdate,
@@ -46,71 +42,72 @@ interface Props {
   jobs: Job[];
   now: number;
   onJob: (j: Job, message: string) => void;
-  onViewChat: (driverId: string) => void;
-  /** Opened from a Today item: show only the jobs it counts. */
-  only?: Set<string>;
-  /** Ops' switch for automated texts to customers. */
-  textsEnabled?: boolean;
-  onTexts?: (on: boolean) => void;
 }
 
 const hm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
-/** Live ops: a driver stuck at a pickup gets the playbook; every other pickup today shows its pre-pickup check. */
-export function LiveOps({ jobs, now, onJob, onViewChat, only, textsEnabled = true, onTexts }: Props) {
-  const shown = (j: Job) => !only || only.has(j.id);
-  const incidents = openIncidents(jobs, now).filter(shown);
-  const assisted = assistedJobs(jobs, now).filter(shown);
-  const closed = only ? [] : closedIncidents(jobs, now);
-  const today = todaysJobs(jobs, now).filter(shown);
+/** The pre-pickup check, as the case asks for it: what to confirm, by whom and when. */
+const CHECK: { when: string; who: string; what: string }[] = [
+  { when: 'At booking', who: 'Ops', what: 'A named contact, a backup contact and the exact key location, or no dispatch.' },
+  { when: 'T−24 h', who: 'Ops', what: 'Text the contact: time, key location, who is on site. New site or pilot customer: a person calls instead.' },
+  { when: 'T−60 min', who: 'Ops', what: 'Reconfirm. No reply: call the backup. Still nothing: warn the customer early.' },
+  { when: 'On arrival', who: 'Driver → Ops', what: 'The driver taps "I\'m here". No keys: ops knows at once, not after 25 minutes.' },
+];
+
+/** Part 1: the stuck pickup gets the playbook (handle it now); every pickup shows its pre-pickup check (prevent it). */
+export function LiveOps({ jobs, now, onJob }: Props) {
+  const incidents = openIncidents(jobs, now);
+  const closed = closedIncidents(jobs, now);
+  const today = todaysJobs(jobs, now);
+  const caseJob = jobs.find((j) => j.asInCase);
 
   return (
-    <div className="space-y-6 pt-4">
-      {onTexts && (
-        <label className="flex items-center justify-end gap-2 text-xs text-muted">
-          <input type="checkbox" checked={textsEnabled} onChange={(e) => onTexts(e.target.checked)} className="h-4 w-4 accent-indigo" />
-          Automated texts to customers (fixed templates)
-          <InfoTip label="About the automated texts">
-            <p>When a driver is stuck, the driver picks what is wrong and taps Send on a fixed message. It goes only to the contact and backup in the booking, once each.</p>
-            <p className="text-muted">Nothing the driver or the AI writes is sent. Switched off, every stuck pickup goes straight to a person.</p>
-          </InfoTip>
-        </label>
-      )}
-      {assisted.map((j) => (
-        <AssistCard key={j.id} j={j} now={now} onJob={onJob} onViewChat={onViewChat} />
-      ))}
-      {incidents.length === 0 ? (
-        <p className="flex items-center gap-2 rounded-xl bg-card p-4 text-sm text-muted">
-          <CircleCheck size={18} className="text-ok" aria-hidden /> {assisted.length ? 'Nothing for a person right now.' : 'No open incidents.'}
-        </p>
-      ) : (
-        incidents.map((j) => <IncidentCard key={j.id} j={j} now={now} onJob={onJob} onViewChat={onViewChat} />)
-      )}
-      {closed.length > 0 && (
-        <p className="-mt-3 text-xs text-muted">
-          Closed today:{' '}
-          {closed.map((j, i) => (
-            <span key={j.id}>
-              {i > 0 && ' · '}
-              <span className="num">{j.id}</span> {j.driverName.split(' ')[0]}, {j.incident!.by === 'assistant' ? 'solved by the assistant' : OUTCOME_LABEL[j.incident!.outcome!.type].toLowerCase()} at{' '}
-              <span className="num">{hm(j.incident!.closedAt!)}</span>
-            </span>
-          ))}
-        </p>
-      )}
+    <div className="space-y-8">
+      <section>
+        <SectionHeader title="1 · Handle it now: the playbook" />
+        {incidents.length === 0 ? (
+          <p className="flex items-center gap-2 rounded-xl bg-card p-4 text-sm text-muted">
+            <CircleCheck size={18} className="text-ok" aria-hidden /> No open incidents.
+          </p>
+        ) : (
+          incidents.map((j) => <IncidentCard key={j.id} j={j} now={now} onJob={onJob} />)
+        )}
+        {closed.length > 0 && (
+          <p className="mt-2 text-xs text-muted">
+            Closed:{' '}
+            {closed.map((j, i) => (
+              <span key={j.id}>
+                {i > 0 && ' · '}
+                <span className="num">{j.id}</span> {j.driverName.split(' ')[0]}, {j.incident!.by === 'assistant' ? 'keys found' : OUTCOME_LABEL[j.incident!.outcome!.type].toLowerCase()} at{' '}
+                <span className="num">{hm(j.incident!.closedAt!)}</span>
+              </span>
+            ))}
+          </p>
+        )}
+      </section>
 
       <section>
-        <SectionHeader
-          title={`Today's pickups · ${today.length}`}
-          info={
-            <>
-              <p>The pre-pickup check: the pickup contact gets a message 24 hours and 60 minutes before, to confirm the time, where the keys are and who is on site.</p>
-              <p>No reply within 2 hours (or 20 minutes) gives ops a task: call the backup contact. A missing key shows up the evening before, not at the gate.</p>
-              <p>The status comes from the driver's taps. Due soon means the pickup is within the hour and the driver hasn't tapped "I'm here" yet. Delivered pickups move to the bottom.</p>
-              <p className="text-muted">No keys 5 minutes after checking in: the assistant takes it by itself, and a person 5 minutes later if it isn't solved.</p>
-            </>
-          }
-        />
+        <SectionHeader title="2 · Prevent it: the pre-pickup check" />
+        <ol className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {CHECK.map((c, i) => (
+            <li key={c.when} className="rounded-xl bg-card px-3.5 py-3 text-sm">
+              <p className="flex items-baseline gap-2">
+                <span className="num flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo text-[11px] font-semibold text-white">{i + 1}</span>
+                <span className="font-semibold">{c.when}</span>
+                <span className="text-xs font-semibold text-indigo">{c.who}</span>
+              </p>
+              <p className="mt-1 text-muted">{c.what}</p>
+            </li>
+          ))}
+        </ol>
+        {caseJob && (
+          <p className="mb-3 rounded-xl border border-dashed border-lavender px-3.5 py-2.5 text-sm">
+            <strong>In the case, none of this was in place.</strong> With it, the {caseJob.contact.role.toLowerCase()} would have been asked yesterday and at{' '}
+            <span className="num">{hm(caseJob.pickupAt - CHECK_60_MS)}</span>, and no reply would have told ops to call the {caseJob.backup.role.toLowerCase()} by{' '}
+            <span className="num">{hm(caseJob.pickupAt - CHECK_60_MS + REPLY_WAIT_60_MS)}</span>, before {caseJob.driverName.split(' ')[0]} reached the gate.
+          </p>
+        )}
+        <h3 className="mb-1.5 text-sm font-semibold">Today's and tomorrow's pickups · {today.length}</h3>
         {today.length === 0 ? (
           <p className="rounded-xl bg-card p-4 text-sm text-muted">No pickups in the next 24 hours.</p>
         ) : (
@@ -235,95 +232,9 @@ function CheckPill({ c }: { c: PickupCheck }) {
   );
 }
 
-// ---------- The assistant's first minutes ----------
-
-const DEMO_REPLY = 'The keys are at reception today, ask for the car by its job number.';
-
-/** A stuck pickup the assistant has: what it did, when a person takes over, and a way to take over now. */
-function AssistCard({ j, now, onJob, onViewChat }: { j: Job; now: number; onJob: Props['onJob']; onViewChat: Props['onViewChat'] }) {
-  const a = assisting(j, now)!;
-  const left = a.until - now;
-  const first = j.driverName.split(' ')[0];
-  const sent = (j.texts ?? []).find((t) => t.at <= now);
-  const contact = j.contact.role.toLowerCase();
-  return (
-    <article className="rounded-2xl border border-indigo/30 bg-white">
-      <header className="flex flex-wrap items-start gap-3 border-b border-lavender bg-lavender/40 px-4 py-3 sm:px-5">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-md bg-indigo px-1.5 py-0.5 text-xs font-semibold text-white">
-              <Bot size={12} aria-hidden /> Assistant handling
-            </span>
-            <h3 className="font-bold">{j.driverName}: stuck at the pickup</h3>
-            {j.pilot && <span className="rounded bg-white px-1.5 py-0.5 text-xs font-semibold text-navy">Pilot customer</span>}
-          </div>
-          <p className="mt-0.5 text-xs text-muted">
-            <span className="num">{j.id}</span> · {j.from} → {j.to} · a person takes over at <span className="num font-semibold text-navy">{hm(a.until)}</span>
-            {left > 0 ? ` (in ${formatDuration(left)})` : ''} unless it is solved
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => onViewChat(j.driverId)}
-          className="flex items-center gap-1 rounded-md border border-lavender bg-white px-2 py-1 text-xs font-semibold text-indigo hover:border-indigo"
-        >
-          <Smartphone size={13} aria-hidden /> Driver's chat
-        </button>
-      </header>
-      <div className="space-y-3 px-4 py-4 sm:px-5">
-        <AssistantSteps j={j} now={now} />
-        {sent ? (
-          <blockquote className="rounded-lg border border-lavender bg-card/50 px-3 py-2 text-xs leading-relaxed">
-            <span className="font-semibold">Sent {hm(sent.at)}:</span> {sent.body}
-          </blockquote>
-        ) : (
-          <p className="text-sm text-muted">
-            {`${first} hasn't said what is wrong yet. Nothing has gone to the customer.`}
-          </p>
-        )}
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onJob(escalate(j, 'ops', now), `${j.id}: you took over from the assistant.`)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-1.5 text-sm font-semibold text-white hover:bg-navy"
-          >
-            Take over now
-          </button>
-          {sent && !j.contactReply && (
-            <button
-              type="button"
-              onClick={() => onJob(contactReplies(j, DEMO_REPLY, now), `${j.id}: the ${contact} replied, and the assistant passed it on to ${j.driverName.split(' ')[0]}.`)}
-              className="rounded-lg border border-dashed border-lavender px-3 py-1.5 text-xs font-semibold text-muted hover:border-indigo hover:text-indigo"
-            >
-              Demo: the {contact} replies
-            </button>
-          )}
-        </div>
-        <p className="text-xs text-muted">
-          The assistant only gathers facts. A text to the customer is a fixed message the driver sees and sends. Waiting longer, a new time or cancelling is decided by a person, with the customer.
-        </p>
-      </div>
-    </article>
-  );
-}
-
-/** The assistant's steps on this job, with times. */
-function AssistantSteps({ j, now }: { j: Job; now: number }) {
-  return (
-    <ol className="space-y-1 text-sm">
-      {assistantLog(j, now).map((e, i) => (
-        <li key={i} className="flex gap-3">
-          <span className="num w-12 shrink-0 pt-0.5 text-xs text-muted">{hm(e.at)}</span>
-          <span>{e.text}</span>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
 // ---------- The incident card ----------
 
-function IncidentCard({ j, now, onJob, onViewChat }: { j: Job; now: number; onJob: Props['onJob']; onViewChat: Props['onViewChat'] }) {
+function IncidentCard({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJob'] }) {
   const alert = jobAlert(j, now)!;
   const c = incidentClock(j, now);
   const steps = j.incident?.steps ?? {};
@@ -358,31 +269,9 @@ function IncidentCard({ j, now, onJob, onViewChat }: { j: Job; now: number; onJo
             <span className="num">{j.id}</span> · {j.from} → {j.to} · {j.km} km · {alert.text} at <span className="num">{hm(alert.at)}</span>
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => onViewChat(j.driverId)}
-          className="flex items-center gap-1 rounded-md border border-lavender bg-white px-2 py-1 text-xs font-semibold text-indigo hover:border-indigo"
-        >
-          <Smartphone size={13} aria-hidden /> Driver's chat
-        </button>
       </header>
 
       <div className="space-y-4 px-4 py-4 sm:px-5">
-        {assistantLog(j, now).length > 0 && !j.incident?.outcome && (
-          <div className="rounded-xl bg-lavender/40 px-3 py-2.5">
-            <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-indigo">
-              <Bot size={13} aria-hidden /> The assistant tried first
-            </p>
-            <AssistantSteps j={j} now={now} />
-          </div>
-        )}
-        {j.asInCase && !j.incident?.closedAt && (
-          <p className="rounded-xl border border-dashed border-lavender px-3 py-2 text-xs">
-            <strong>As in the case: no pre-pickup check was in place.</strong> With it, the {j.contact.role.toLowerCase()} would have been asked yesterday and at{' '}
-            <span className="num">{hm(j.pickupAt - CHECK_60_MS)}</span>, and no reply would have told ops to call the {j.backup.role.toLowerCase()} by{' '}
-            <span className="num">{hm(j.pickupAt - CHECK_60_MS + REPLY_WAIT_60_MS)}</span>, before {j.driverName.split(' ')[0]} reached the gate.
-          </p>
-        )}
         <ClockStrip j={j} now={now} />
 
         <ol className="divide-y divide-lavender rounded-xl border border-lavender">

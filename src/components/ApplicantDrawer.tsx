@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Smartphone, X } from 'lucide-react';
-import type { Applicant, Gig } from '../lib/types';
+import type { Applicant } from '../lib/types';
 import { DOC_KEYS } from '../lib/types';
 import { deriveStage, STAGE_LABEL } from '../lib/stage';
 import { slaStatus } from '../lib/sla';
@@ -17,9 +17,6 @@ import { CollapsibleSection, DrawerSection } from './ui';
 
 interface Props {
   applicant: Applicant;
-  /** Everyone and the open jobs: for the reason an accepted driver hasn't driven yet. */
-  apps: Applicant[];
-  gigs: Gig[];
   now: number;
   onClose: () => void;
   /** Apply a change. Results that end the task (a decision) close the drawer. */
@@ -28,7 +25,7 @@ interface Props {
   onViewAsDriver?: (id: string) => void;
 }
 
-export function ApplicantDrawer({ applicant: a, apps, gigs, now, onClose, onUpdate, onResult, onViewAsDriver }: Props) {
+export function ApplicantDrawer({ applicant: a, now, onClose, onUpdate, onResult, onViewAsDriver }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const stage = deriveStage(a);
 
@@ -82,7 +79,7 @@ export function ApplicantDrawer({ applicant: a, apps, gigs, now, onClose, onUpda
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
           <Facts a={a} now={now} />
           {stage === 'registered' && <MissingPanel a={a} now={now} onResult={onResult} />}
-          {stage === 'accepted' && <ActivationPanel key={a.id} a={a} apps={apps} gigs={gigs} now={now} onUpdate={onUpdate} onResult={onResult} />}
+          {stage === 'accepted' && <ActivationPanel key={a.id} a={a} now={now} onUpdate={onUpdate} onResult={onResult} />}
           {stage !== 'review' && <Documents a={a} />}
           {stage === 'review' && <ReviewPanel key={a.id} a={a} now={now} onUpdate={onUpdate} onResult={onResult} />}
           <Timeline a={a} now={now} />

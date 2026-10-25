@@ -47,7 +47,6 @@ export function ReviewQueue({ apps, now, onOpen }: Props) {
               <th className="px-4 py-2.5 font-semibold">Area</th>
               <th className="px-4 py-2.5 font-semibold">File complete</th>
               <th className="px-4 py-2.5 font-semibold">SLA</th>
-              <th className="px-4 py-2.5 font-semibold">Onboarding call</th>
               <th className="px-4 py-2.5 font-semibold">Flags</th>
             </tr>
           </thead>
@@ -69,7 +68,6 @@ export function ReviewQueue({ apps, now, onOpen }: Props) {
                 <td className="px-4 py-3">
                   <SlaChip bucket={sla.bucket} label={sla.label} />
                 </td>
-                <td className="px-4 py-3 text-xs">{a.callAt ? <span className="font-medium">{shortTime(a.callAt)}</span> : <span className="text-muted">Not booked</span>}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-1">
                     {chips.length ? chips.map((c) => <FlagChip key={c.label} chip={c} />) : <span className="text-xs text-muted">–</span>}

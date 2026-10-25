@@ -1,17 +1,18 @@
 import { ArrowRight, ChevronRight, TriangleAlert } from 'lucide-react';
 import type { ReactNode } from 'react';
-import type { Funnel, FunnelKey, FunnelLink, FunnelPart } from '../lib/kpis';
+import type { Funnel, FunnelLink, FunnelPart } from '../lib/kpis';
 import { SectionHeader } from './ui';
 
 export type { FunnelLink };
 
 interface Props {
   funnel: Funnel;
-  /** The number: everyone who reached the stage, the same number as on the tile. */
-  onSelect: (key: FunnelKey) => void;
-  /** A part under it: the people sitting there now, the same number as on the line. */
+  /** A part under a tile: the people sitting there now, the same number as on the line. */
   onLink: (to: FunnelLink) => void;
 }
+
+/** The parts with a work list in this version: the three lists under the funnel. */
+const LISTED: FunnelLink[] = ['missing', 'review', 'awaiting'];
 
 function StageLink({ to, onLink, children }: { to: FunnelLink; onLink: Props['onLink']; children: ReactNode }) {
   return (
@@ -29,7 +30,7 @@ function Parts({ parts, onLink }: { parts: FunnelPart[]; onLink: Props['onLink']
     <ul className="space-y-0.5">
       {parts.map((p) => (
         <li key={p.label}>
-          {p.to && !p.movedOn ? (
+          {p.to && !p.movedOn && LISTED.includes(p.to) ? (
             <StageLink to={p.to} onLink={onLink}>
               <span className="num">{p.count}</span> {p.label}
             </StageLink>
@@ -44,7 +45,7 @@ function Parts({ parts, onLink }: { parts: FunnelPart[]; onLink: Props['onLink']
   );
 }
 
-export function Scoreboard({ funnel, onSelect, onLink }: Props) {
+export function Scoreboard({ funnel, onLink }: Props) {
   const { tiles, edges } = funnel;
 
   return (
@@ -53,7 +54,7 @@ export function Scoreboard({ funnel, onSelect, onLink }: Props) {
         title="Funnel scoreboard"
         info={
           <>
-            <p>Everyone who has reached each stage, the same stages as the HubSpot pipeline. Click a number to see exactly those people.</p>
+            <p>Everyone who has reached each stage, the same stages as the HubSpot pipeline.</p>
             <p>The lines under a number always add up to it: who stopped at that stage (a link to their list) and who moved on to the next.</p>
             <p className="text-muted">The rates are in the metrics below. They only count people who have had time to move on, so they don't mix in someone who registered yesterday.</p>
           </>
@@ -68,7 +69,7 @@ export function Scoreboard({ funnel, onSelect, onLink }: Props) {
             <li
               key={t.key}
               className={`relative h-full rounded-xl border px-4 py-3 transition-colors ${
-                biggest ? 'bg-bad-bg/50 border-bad/40 hover:border-bad' : 'bg-card border-transparent hover:border-indigo/40'
+                biggest ? 'bg-bad-bg/50 border-bad/40' : 'bg-card border-transparent'
               }`}
             >
               {edge && (
@@ -79,15 +80,10 @@ export function Scoreboard({ funnel, onSelect, onLink }: Props) {
                   <ChevronRight size={14} />
                 </span>
               )}
-              <button
-                type="button"
-                onClick={() => onSelect(t.key)}
-                aria-label={`${t.reached} reached ${t.label}: show them`}
-                className="group flex w-full items-center justify-between gap-3 text-left sm:block"
-              >
+              <div className="flex w-full items-center justify-between gap-3 sm:block">
                 <span className="text-sm font-semibold leading-tight">{t.label}</span>
-                <span className="num block text-2xl font-semibold tracking-tight group-hover:text-indigo sm:mt-1 sm:text-3xl">{t.reached}</span>
-              </button>
+                <span className="num block text-2xl font-semibold tracking-tight sm:mt-1 sm:text-3xl">{t.reached}</span>
+              </div>
               {biggest && (
                 <div title={`${lost} fewer than the stage before`} className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-bad">
                   <TriangleAlert size={12} aria-hidden /> Biggest drop-off

@@ -12,12 +12,12 @@ export function KpiRow({ kpis, baseline }: { kpis: Kpi[]; baseline: Kpi[] }) {
   return (
     <section>
       <SectionHeader
-        title="Six metrics, reviewed weekly"
+        title="Four metrics, reviewed weekly"
         info={<p>Live from the data. Targets are a starting proposal, to be set with the team. After you click something, ▲▼ shows how a number moved since you opened the page.</p>}
         aside={anyChange ? '▲▼ since you opened the page' : undefined}
       />
       <NorthStar kpi={north} delta={delta(north)} />
-      <div className="mt-3 grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3 [&>*:last-child]:col-span-2 lg:[&>*:last-child]:col-span-1">
+      <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
         {rest.map((k) => (
           <KpiCard key={k.key} kpi={k} delta={delta(k)} />
         ))}
