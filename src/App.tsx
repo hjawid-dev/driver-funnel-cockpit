@@ -114,8 +114,9 @@ export default function App() {
   );
 
   // The demo always runs on the case. A first visit (or an old save) starts there; only on the first render.
+  // The case always moves the clock, so case data with an unmoved clock is a half-saved state: play it again.
   useEffect(() => {
-    if (!jobs.some((j) => j.asInCase)) playCase(true);
+    if (!jobs.some((j) => j.asInCase) || clock.offset === 0) playCase(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** A first drive booked or moved (by the driver, in the chat or by ops) becomes a job in Live Ops. */
