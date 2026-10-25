@@ -48,7 +48,7 @@ Underneath, **every action writes a timestamp or a reason code**, so the funnel 
   - **Back and Next**, and the step bar, open steps already done: change the answers, retake a photo, or move the call until two hours before. BankID, and everything once the file is complete, stays locked.
   - **The first drive** shows as today's job on the day, with the same taps as any drive; delivering it makes the driver active. *Demo: jump to the morning of the drive* moves the clock there.
 - **Messages and help:** one conversation with the AI assistant, the automatic reminders and status messages, and replies from ops. `#chat=DRV-1043` opens it directly.
-  - The assistant answers from 37 help articles and the driver's own status, in the driver's language, and shows its sources.
+  - The assistant answers from 40 help articles and the driver's own status, in the driver's language, and shows its sources.
   - It hands over to a person when the driver asks, when the articles don't cover the question, when it needs a person to act, when it is sensitive, or when something on a drive needs a person now (damage, safety, a car that won't start).
   - Stuck at a pickup (keys, car or contact missing), it keeps the first five minutes: it tells the driver to stay, that the waiting time is paid, to pick what is wrong so the pickup contact can get a fixed text, and when a person calls. It never contacts anyone itself, never passes on a message, and mentions 112 only if someone is hurt or in danger.
   - One-tap replies under a reminder: *I've ordered my extract*, *Remind me tomorrow*, *Stop reminders*, free call times or check times.
@@ -189,7 +189,7 @@ The driver's phone and the cockpit share the same browser data, so the demo runs
 ```
 api/              Vercel functions: chat.ts, report.ts (thin; logic in src/lib)
 evals/            The assistant's eval suite and its last result
-src/content/      help.ts: the 37 help articles behind the assistant
+src/content/      help.ts: the 40 help articles behind the assistant
 src/lib/          Business logic as pure functions, all unit-tested
   stage.ts        Stage derivation
   criteria.ts     Written criteria, borderline rules, decision validation
