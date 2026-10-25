@@ -6,6 +6,7 @@ import { restore, serialize, STORAGE_KEY, type DemoData } from './lib/persist';
 import { seedThreads } from './lib/chat/threads';
 import type { ChatThread } from './lib/chat/types';
 import { seedJobs, type Job } from './lib/liveOps';
+import { MIN } from './lib/time';
 
 export type TabKey = 'live' | 'review' | 'missing' | 'awaiting' | 'chat' | 'all';
 
@@ -13,8 +14,9 @@ const OFFSET_KEY = 'driver-funnel-cockpit-offset';
 
 function readOffset(): number {
   try {
+    // Negative when "Play the case" went back to Tuesday 09:30.
     const v = Number(localStorage.getItem(OFFSET_KEY));
-    return Number.isFinite(v) && v > 0 ? v : 0;
+    return Number.isFinite(v) ? v : 0;
   } catch {
     return 0;
   }
@@ -51,13 +53,19 @@ export function useClock(intervalMs = 30_000) {
     setOffset(0);
     setReal(Date.now());
   }, []);
-  return { now, offset, advance, resetTime };
+  /** Jump to a moment (the Part 1 case). Only on a fresh demo, so no automation window is skipped. */
+  const setTo = useCallback((ts: number) => {
+    const t = Date.now();
+    setOffset(ts - t);
+    setReal(t);
+  }, []);
+  return { now, offset, advance, resetTime, setTo };
 }
 
-function fresh(now: number): DemoData {
+function fresh(now: number, asInCase = false): DemoData {
   const apps = generateSeed(now);
   const gigs = generateGigs(now);
-  return { apps, gigs, threads: seedThreads(apps, now), jobs: seedJobs(apps, now) };
+  return { apps, gigs, threads: seedThreads(apps, now, asInCase ? null : 9 * MIN), jobs: seedJobs(apps, now, { asInCase }) };
 }
 
 function load(): DemoData {
@@ -125,8 +133,8 @@ export function useDemoData() {
   }, []);
 
   /** Fresh demo data; returns the applicants so callers can take a new baseline. */
-  const reset = useCallback((): Applicant[] => {
-    const next = fresh(Date.now());
+  const reset = useCallback((at = Date.now(), asInCase = false): Applicant[] => {
+    const next = fresh(at, asInCase);
     setData(next);
     return next.apps;
   }, []);

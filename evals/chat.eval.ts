@@ -111,6 +111,8 @@ const NO_IDS = /\b(S\d{1,2}|G\d|K\d|X\d|LATER_1D|LATER_3D|ORDERED|ARRIVED|STOP)\
 const CASES: Case[] = [
   // ---- Answers from the help articles (no person needed) ----
   { id: 'waiting-paid', cat: 'answer', who: 'active', q: 'Do I get paid if I have to wait at the pickup?', handover: null, sources: ['waiting-pickup'], must: [/paid/i] },
+  { id: 'cancelled-paid', cat: 'answer', who: 'active', q: 'If the customer cancels while I am waiting at the pickup, do I get anything?', handover: null, sources: ['waiting-pickup', 'cancel-job'], must: [/half/i, /waiting/i] },
+  { id: 'cancelled-paid-sv', cat: 'answer', who: 'active', q: 'Får jag betalt om kunden ställer in körningen medan jag väntar?', lang: 'sv', handover: null, sources: ['waiting-pickup', 'cancel-job'], must: [/hälften|halva/i] },
   { id: 'pay', cat: 'answer', who: 'visitor', q: 'What does a job pay?', handover: null, sources: ['pay'], must: [/300|350/] },
   { id: 'payouts', cat: 'answer', who: 'active', q: 'When do I get paid?', handover: null, sources: ['payouts'], must: [/10/, /25/] },
   { id: 'company', cat: 'answer', who: 'visitor', q: 'Do I need my own company to drive with you?', handover: null, sources: ['payouts'] },

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, FastForward, History, RotateCcw, Smartphone } from 'lucide-react';
+import { ChevronDown, FastForward, History, KeyRound, RotateCcw, Smartphone } from 'lucide-react';
 import type { AutoEvent } from '../lib/automation';
 import { summarize } from '../lib/automation';
 import { formatDateTime, formatDuration } from '../lib/time';
@@ -11,6 +11,9 @@ interface Props {
   onTogglePhone: () => void;
   onAdvance: (ms: number) => void;
   onReset: () => void;
+  /** Start over on the Part 1 case: Tuesday 09:30. */
+  onCase: () => void;
+  inCase: boolean;
   lastRun: { from: number; to: number; events: AutoEvent[] } | null;
 }
 
@@ -22,7 +25,7 @@ const STEPS: [string, number][] = [
 ];
 
 /** Demo controls: open the driver's phone and move time forward to watch automation run. */
-export function DemoBar({ now, offset, phoneOpen, onTogglePhone, onAdvance, onReset, lastRun }: Props) {
+export function DemoBar({ now, offset, phoneOpen, onTogglePhone, onAdvance, onReset, onCase, inCase, lastRun }: Props) {
   const [showLog, setShowLog] = useState(false);
   const ops = lastRun?.events.filter((e) => e.audience === 'ops') ?? [];
 
@@ -54,7 +57,11 @@ export function DemoBar({ now, offset, phoneOpen, onTogglePhone, onAdvance, onRe
         ))}
         <span className="text-xs text-muted">
           <span className="num">{formatDateTime(now)}</span>
-          {offset > 0 && <span className="ml-1 rounded-full bg-warn-bg px-1.5 py-0.5 font-semibold text-warn">simulated +{formatDuration(offset)}</span>}
+          {inCase ? (
+            <span className="ml-1 rounded-full bg-lavender px-1.5 py-0.5 font-semibold text-navy">the Part 1 case</span>
+          ) : (
+            offset > 0 && <span className="ml-1 rounded-full bg-warn-bg px-1.5 py-0.5 font-semibold text-warn">simulated +{formatDuration(offset)}</span>
+          )}
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-1">
           {lastRun && (
@@ -68,6 +75,14 @@ export function DemoBar({ now, offset, phoneOpen, onTogglePhone, onAdvance, onRe
               <ChevronDown size={14} className={showLog ? 'rotate-180' : ''} aria-hidden />
             </button>
           )}
+          <button
+            type="button"
+            onClick={onCase}
+            title="Starts the demo over on Tuesday 09:30, with the Part 1 case as the brief gives it"
+            className="flex items-center gap-1 rounded-lg border border-lavender bg-white px-2 py-1.5 text-xs font-semibold text-indigo hover:border-indigo"
+          >
+            <KeyRound size={14} aria-hidden /> Play the case: Tue 09:30
+          </button>
           <button type="button" onClick={onReset} className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-muted hover:bg-white hover:text-navy">
             <RotateCcw size={14} aria-hidden /> Reset demo
           </button>

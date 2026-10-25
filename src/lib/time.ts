@@ -34,6 +34,14 @@ export function formatDateTime(ts: number): string {
   return `${date}, ${time}`;
 }
 
+/** The Part 1 case's moment: the latest Tuesday 09:30, local time, at or before `now`. */
+export function caseTime(now: number): number {
+  const d = new Date(now);
+  d.setHours(9, 30, 0, 0);
+  while (d.getDay() !== 2 || d.getTime() > now) d.setDate(d.getDate() - 1);
+  return d.getTime();
+}
+
 /** Local wall-clock time `days` calendar days from `now` (safe across daylight-saving changes). */
 export function atLocal(now: number, days: number, hour: number, minute = 0): number {
   const d = new Date(now);

@@ -335,11 +335,11 @@ In an emergency or if anyone is hurt, call 112 first.`,
     id: 'waiting-pickup',
     title: 'Waiting at the pickup: keys or contact missing',
     category: 'On a drive',
-    tags: ['waiting', 'väntar', 'vänta', 'keys', 'nycklar', 'no keys', 'key box', 'nyckelbox', 'contact', 'nobody there', 'should I leave', 'ska jag åka', 'waiting time', 'väntetid', 'pickup'],
+    tags: ['waiting', 'väntar', 'vänta', 'keys', 'nycklar', 'no keys', 'key box', 'nyckelbox', 'contact', 'nobody there', 'should I leave', 'ska jag åka', 'waiting time', 'väntetid', 'pickup', 'cancelled', 'inställd', 'paid if cancelled'],
     body: `At the pickup, tap "I'm here" in today's job, and "Got the keys" when you have them. If something is wrong, tap "Problem at pickup" and pick what it is, or write here.
 Keys missing, nobody there, or the car isn't there: that one tap sends a fixed, pre-approved message to the pickup contact and the backup in the booking, and you see what was sent. It can't be changed, and nothing you or the assistant write is sent to the customer.
 Damage, an accident or feeling unsafe goes straight to a person. If anyone is hurt or you are in danger, call 112 first.
-Stay at the pickup. Your waiting time is paid from the agreed pickup time, whatever happens with the job.
+Stay at the pickup. Your waiting time is paid from the agreed pickup time, whatever happens with the job. If the customer cancels the drive or moves it to another day while you wait, you also get half the job's pay.
 If it isn't solved within 5 minutes, a person from ops calls you and agrees the next step with the customer, so you never have to cancel or decide anything yourself.`,
   },
   {

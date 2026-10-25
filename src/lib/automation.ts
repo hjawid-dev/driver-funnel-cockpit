@@ -4,7 +4,7 @@ import { NUDGE_OFFSETS, NO_RESPONSE_MS, nudgeMessage, reminderSilenced } from '.
 import { DAY, HOUR, atLocal, formatDateTime } from './time';
 import type { ChatThread } from './chat/types';
 import { slaFor } from './chat/threads';
-import { assistStart, jobAlert, pickupChecks, REPLY_WAIT_24_MS, REPLY_WAIT_60_MS, type Job } from './liveOps';
+import { assistStart, jobAlert, needsSiteCall, pickupChecks, REPLY_WAIT_24_MS, REPLY_WAIT_60_MS, SITE_CALL_LEAD_MS, type Job } from './liveOps';
 import { SHOW_BY_MS } from './extract';
 
 /**
@@ -212,6 +212,11 @@ export function liveOpsEvents(jobs: Job[], from: number, to: number): AutoEvent[
       if (inWindow(deadline) && atDeadline.state === 'no_reply') {
         out.push({ ...base, at: deadline, kind: 'pickup_task', title: `Task: no reply to the ${c.label} message for ${j.id}. Call the ${j.backup.role.toLowerCase()}.` });
       }
+    }
+    // A new address or a pilot customer: a person calls the site the day before.
+    const siteAt = j.pickupAt - SITE_CALL_LEAD_MS;
+    if (needsSiteCall(j) && inWindow(siteAt) && !(j.siteCalledAt !== undefined && j.siteCalledAt <= siteAt)) {
+      out.push({ ...base, at: siteAt, kind: 'pickup_task', title: `Task: call the site for ${j.id} (${j.newSite ? 'new address' : 'pilot customer'}): who hands over the keys tomorrow, and where.` });
     }
     // The assistant takes a missing key by itself; a person comes in when its minutes run out (taps and chat are logged where they happen).
     const start = assistStart(j, to);

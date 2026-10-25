@@ -4,7 +4,7 @@ import { useClock, useDemoData, type TabKey } from './state';
 import { computeFunnel, computeKpis, reachedStage, type FunnelKey } from './lib/kpis';
 import { deriveStage } from './lib/stage';
 import { nextReviewSlot } from './lib/sla';
-import { formatDuration } from './lib/time';
+import { caseTime, formatDuration } from './lib/time';
 import { Scoreboard, type FunnelLink } from './components/Scoreboard';
 import { KpiRow } from './components/KpiRow';
 import { Tabs } from './components/Tabs';
@@ -351,6 +351,35 @@ export default function App() {
     toast.notify('Demo reset with fresh data.');
   };
 
+  /** Part 1 as the brief gives it: a fresh demo on Tuesday 09:30, Julia 25 minutes at the gate, opened on Live ops. */
+  const playCase = useCallback(() => {
+    const at = caseTime(Date.now());
+    const fresh = reset(at, true);
+    clock.setTo(at);
+    setLastRun(null);
+    setPhoneId(null);
+    setBaseline(computeKpis(fresh, at));
+    setOpenId(null);
+    setStageFilter('all');
+    setFocus(null);
+    setPage('live');
+    setTab('live');
+    window.scrollTo({ top: 0 });
+    toast.notify('The Part 1 case, Tuesday 09:30: Julia calls. She has waited 25 minutes at the pickup. Work through the playbook below.');
+  }, [reset, clock, toast.notify]);
+
+  // ?case=1 opens the demo on the case (once per visit, so a reload keeps what you did).
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has('case')) return;
+    try {
+      if (sessionStorage.getItem('driver-funnel-cockpit-case')) return;
+      sessionStorage.setItem('driver-funnel-cockpit-case', '1');
+    } catch {
+      /* storage blocked: play it anyway */
+    }
+    playCase();
+  }, [playCase]);
+
   const toWorklists = () => setTimeout(() => document.getElementById('worklists')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   const openToday = (i: TodayItem) => {
     setPage(LIVE_TABS.includes(i.tab) ? 'live' : 'funnel');
@@ -450,6 +479,8 @@ export default function App() {
         onTogglePhone={() => setPhoneOpen((v) => !v)}
         onAdvance={onAdvance}
         onReset={resetDemo}
+        onCase={playCase}
+        inCase={jobs.some((j) => j.asInCase)}
         lastRun={lastRun}
       />
 

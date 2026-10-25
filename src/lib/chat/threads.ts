@@ -270,7 +270,8 @@ export function shiftThread(t: ChatThread, delta: number): ChatThread {
 type Line = [from: ChatMsg['from'], text: string, minutesAfterStart: number, extra?: Partial<ChatMsg>];
 
 /** Past conversations, so the queue, the AI metric and the gap list have something to show. */
-const HISTORY: { name: string; daysAgo: number; lines: Line[]; waiting?: HandoverReason }[] = [
+/** problemLine: the minute of the line where a stuck pickup starts, so it can be lined up with the job's problem time. */
+const HISTORY: { name: string; daysAgo: number; lines: Line[]; waiting?: HandoverReason; problemLine?: number }[] = [
   { name: 'Lucas Andersson', daysAgo: 0.05, lines: [
     ['driver', 'Do I need my own company to drive with you?', 0],
     ['ai', "No, you don't. Pay goes through our payroll partner, which deducts tax, and you get a payslip each time. If you already have a company with F-tax, you can invoice instead.", 0.2, { sources: ['payouts'] }],
@@ -361,7 +362,7 @@ const HISTORY: { name: string; daysAgo: number; lines: Line[]; waiting?: Handove
     ['driver', 'And the congestion charge?', 2],
     ['ai', 'Congestion charges and bridge tolls are billed to the car owner, so you pay nothing.', 2.2, { sources: ['fuel-tolls'] }],
   ] },
-  { name: 'Julia Lindgren', daysAgo: 0.9, lines: [
+  { name: 'Julia Lindgren', daysAgo: 0.9, problemLine: 1287, lines: [
     ['driver', 'The customer is not home, what do I do?', 0],
     ['ai', 'Wait 15 minutes and message ops here in the chat. Never leave the keys anywhere the job doesn\'t say.', 0.2, { sources: ['delivery'] }],
     // Today, 9 minutes ago (when her job's problemAt is): stuck at the pickup. She picked the reason, the fixed text went out, then a person.
@@ -410,15 +411,20 @@ const HISTORY: { name: string; daysAgo: number; lines: Line[]; waiting?: Handove
   ] },
 ];
 
-/** Demo conversations for applicants in the seed (matched by name). */
-export function seedThreads(apps: Applicant[], now: number): ChatThread[] {
+/**
+ * Demo conversations for applicants in the seed (matched by name). problemAgo: how long ago the stuck
+ * pickup was told to the assistant (9 min in the demo day), or null in the Part 1 case, where the driver
+ * phoned ops instead and the chat has none of it.
+ */
+export function seedThreads(apps: Applicant[], now: number, problemAgo: number | null = 9 * MIN): ChatThread[] {
   const out: ChatThread[] = [];
   for (const h of HISTORY) {
     const a = apps.find((x) => x.name === h.name);
     if (!a) continue;
-    const start = now - h.daysAgo * DAY;
+    const start = h.problemLine !== undefined && problemAgo !== null ? now - problemAgo - h.problemLine * MIN : now - h.daysAgo * DAY;
+    const lines = h.problemLine !== undefined && problemAgo === null ? h.lines.filter((l) => l[2] < h.problemLine!) : h.lines;
     let t: ChatThread = { ...emptyThread(a), messages: [] };
-    for (const [from, text, mins, extra] of h.lines) t = add(t, { from, text, at: Math.round(start + mins * MIN), ...extra });
+    for (const [from, text, mins, extra] of lines) t = add(t, { from, text, at: Math.round(start + mins * MIN), ...extra });
     if (h.waiting) {
       const last = t.messages[t.messages.length - 1];
       t = { ...t, status: 'waiting', waitingSince: last.at, reason: h.waiting };

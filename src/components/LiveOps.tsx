@@ -21,6 +21,13 @@ import {
   OUTCOME_LABEL,
   openIncidents,
   PLAYBOOK,
+  callSite,
+  cancelPayFor,
+  needsSiteCall,
+  siteCallDue,
+  tellAccountOwner,
+  CHECK_60_MS,
+  REPLY_WAIT_60_MS,
   pickupChecks,
   setOutcome,
   todaysJobs,
@@ -124,6 +131,7 @@ function PickupRow({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJob
   const alert = jobAlert(j, now);
   const assist = assisting(j, now);
   const call = needsConfirmation(j, now) && !alert && !assist;
+  const siteCall = siteCallDue(j, now) && !alert && !assist;
   const past = status === 'driving' || status === 'delivered';
   return (
     <li className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-sm ${alert ? 'bg-bad-bg/30' : status === 'delivered' ? 'bg-card/40 text-muted' : ''}`}>
@@ -137,10 +145,13 @@ function PickupRow({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJob
           {j.from} → {j.to}
           {j.pilot && <span className="ml-1.5 rounded bg-lavender px-1 py-px text-[11px] font-semibold text-navy">Pilot</span>}
           {j.firstDrive && <span className="ml-1.5 rounded bg-ok-bg px-1 py-px text-[11px] font-semibold text-ok">First drive · ops on standby</span>}
+          {j.newSite && <span className="ml-1.5 rounded bg-warn-bg px-1 py-px text-[11px] font-semibold text-warn">New site</span>}
         </div>
       </div>
       <div className="flex gap-1.5">
         {!past && checks.map((c) => <CheckPill key={c.key} c={c} />)}
+        {!past && j.asInCase && <span className="rounded-full bg-card px-2 py-0.5 text-xs font-semibold text-muted">No check, as in the case</span>}
+        {!past && needsSiteCall(j) && j.siteCalledAt !== undefined && <span className="rounded-full bg-ok-bg px-2 py-0.5 text-xs font-semibold text-ok">Site called</span>}
       </div>
       <div className="w-40 text-xs">
         {alert ? (
@@ -155,7 +166,17 @@ function PickupRow({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJob
           <StatusPill status={status} at={status === 'delivered' ? j.deliveredAt : undefined} />
         )}
       </div>
-      <div className="w-40 text-right">
+      <div className="w-40 space-y-1 text-right">
+        {siteCall && (
+          <button
+            type="button"
+            title="New address or pilot customer: agree who hands over the keys, and where"
+            onClick={() => onJob(callSite(j, now), `${j.id}: site called, the key handover is agreed.`)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-indigo px-2.5 py-1 text-xs font-semibold text-indigo hover:bg-indigo hover:text-white"
+          >
+            <PhoneCall size={13} aria-hidden /> Called the site
+          </button>
+        )}
         {call && (
           <button
             type="button"
@@ -355,6 +376,13 @@ function IncidentCard({ j, now, onJob, onViewChat }: { j: Job; now: number; onJo
             <AssistantSteps j={j} now={now} />
           </div>
         )}
+        {j.asInCase && !j.incident?.closedAt && (
+          <p className="rounded-xl border border-dashed border-lavender px-3 py-2 text-xs">
+            <strong>As in the case: no pre-pickup check was in place.</strong> With it, the {j.contact.role.toLowerCase()} would have been asked yesterday and at{' '}
+            <span className="num">{hm(j.pickupAt - CHECK_60_MS)}</span>, and no reply would have told ops to call the {j.backup.role.toLowerCase()} by{' '}
+            <span className="num">{hm(j.pickupAt - CHECK_60_MS + REPLY_WAIT_60_MS)}</span>, before {j.driverName.split(' ')[0]} reached the gate.
+          </p>
+        )}
         <ClockStrip j={j} now={now} />
 
         <ol className="divide-y divide-lavender rounded-xl border border-lavender">
@@ -448,6 +476,7 @@ function StepDetail({ step, j, now, onJob, done, first }: { step: StepKey; j: Jo
   const [copied, setCopied] = useState(false);
   const [waitPaid, setWaitPaid] = useState(false);
   const [feeWaived, setFeeWaived] = useState(j.pilot);
+  const [reviewBooked, setReviewBooked] = useState(false);
   // The likely cause from what the driver reported; ops confirms or changes it.
   const [cause, setCause] = useState<IncidentCause>(causeFromReason(j.problemReason));
   const [causeNote, setCauseNote] = useState('');
@@ -475,9 +504,7 @@ function StepDetail({ step, j, now, onJob, done, first }: { step: StepKey; j: Jo
             <dd>{j.keyLocation}</dd>
             <dt className="text-muted">Confirmations</dt>
             <dd className="flex flex-wrap gap-1.5">
-              {checks.map((c) => (
-                <CheckPill key={c.key} c={c} />
-              ))}
+              {j.asInCase ? <span className="text-muted">None: no pre-pickup check was in place</span> : checks.map((c) => <CheckPill key={c.key} c={c} />)}
             </dd>
           </dl>
           {checks.some((c) => c.state === 'no_reply') && (
@@ -534,6 +561,18 @@ function StepDetail({ step, j, now, onJob, done, first }: { step: StepKey; j: Jo
             </button>
           </div>
           <p className="text-xs text-muted">A template filled from the job, not AI. You send it yourself.</p>
+          {j.pilot && (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={j.incident?.accountOwnerAt !== undefined}
+                disabled={j.incident?.accountOwnerAt !== undefined}
+                onChange={() => onJob(tellAccountOwner(j, now), `${j.id}: account owner told.`)}
+                className="h-4 w-4 accent-indigo"
+              />
+              Pilot customer: the account owner at our side is told now, not on Monday
+            </label>
+          )}
         </>
       );
     }
@@ -563,7 +602,14 @@ function StepDetail({ step, j, now, onJob, done, first }: { step: StepKey; j: Jo
         <>
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={waitPaid} onChange={(e) => setWaitPaid(e.target.checked)} className="h-4 w-4 accent-indigo" />
-            {first}'s waiting time is paid from {hm(Math.max(j.pickupAt, j.arrivedAt ?? j.pickupAt))}
+            <span>
+              {first}'s waiting time is paid from {hm(Math.max(j.pickupAt, j.arrivedAt ?? j.pickupAt))}
+              {cancelPayFor(j) > 0 ? `, plus ${cancelPayFor(j)} SEK (half the reward: the drive didn't happen)` : ''}
+            </span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={reviewBooked} onChange={(e) => setReviewBooked(e.target.checked)} className="h-4 w-4 accent-indigo" />
+            15 minutes booked with the booker: what went wrong on site, and the fix
           </label>
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={feeWaived} onChange={(e) => setFeeWaived(e.target.checked)} className="h-4 w-4 accent-indigo" />
@@ -596,7 +642,7 @@ function StepDetail({ step, j, now, onJob, done, first }: { step: StepKey; j: Jo
           <button
             type="button"
             onClick={() => {
-              const r = closeIncident(j, { waitPaid, feeWaived, cause, note: causeNote }, now);
+              const r = closeIncident(j, { waitPaid, feeWaived, cause, note: causeNote, reviewBooked }, now);
               if (!r.ok) return setError(r.error);
               setError(null);
               onJob(r.job, `${j.id}: incident closed and logged.`);

@@ -50,11 +50,17 @@ export interface Job {
   /** The automated texts sent to the pickup contacts (fixed templates, see sms.ts). */
   texts?: SentText[];
   /** A person was asked for before the assistant's minutes ran out. */
-  escalation?: { at: number; why: 'driver' | 'ops' | 'safety' | 'text_failed' };
+  escalation?: { at: number; why: 'driver' | 'ops' | 'safety' | 'text_failed' | 'phoned' };
   /** The pickup contact answered the assistant's text (in the demo: a button). */
   contactReply?: { at: number; text: string };
   /** A new driver's first drive: ops is on standby, and delivering it makes the driver active. */
   firstDrive?: boolean;
+  /** The Part 1 case as given: no pre-pickup check was in place for this drive. */
+  asInCase?: boolean;
+  /** Our first drive from this address. With a pilot customer, the same: a person calls the site the day before. */
+  newSite?: boolean;
+  /** When ops called the site and agreed who hands over the keys, and where. */
+  siteCalledAt?: number;
   incident?: Incident;
 }
 
@@ -88,6 +94,12 @@ export interface Incident {
   cause?: IncidentCause;
   /** In ops' words, required when the cause is "other". */
   causeNote?: string;
+  /** A pilot customer: the account owner at our side was told while it happened. */
+  accountOwnerAt?: number;
+  /** What the driver got for the drive that didn't happen (half the reward), on top of the waiting time. */
+  cancelPay?: number;
+  /** A 15-minute review with the customer's booker is booked: what went wrong on site, and the fix. */
+  reviewBooked?: boolean;
   log: { at: number; text: string }[];
 }
 
@@ -154,10 +166,33 @@ function check(key: Check['key'], sentAt: number, wait: number, repliedAt: numbe
 
 /** The two messages to the pickup contact: confirm the time, where the keys are, and who is on site. */
 export function pickupChecks(j: Job, now: number): Check[] {
+  // As in the case: nobody confirmed anything before the pickup.
+  if (j.asInCase) return [];
   return [
     check('24h', j.pickupAt - CHECK_24_MS, REPLY_WAIT_24_MS, j.confirmed24At, j, now),
     check('60min', j.pickupAt - CHECK_60_MS, REPLY_WAIT_60_MS, j.confirmed60At, j, now),
   ];
+}
+
+// ---------- A new site or a pilot customer: a person calls the day before ----------
+
+/**
+ * Texts reach a contact, not the customer's own routine. "Nobody on site knows about the transport"
+ * is that routine failing, so for a new address or a pilot customer a person calls the site the day
+ * before: who hands over the keys, and where. Due from 24 hours before the pickup.
+ */
+export const SITE_CALL_LEAD_MS = 24 * HOUR;
+
+export function needsSiteCall(j: Job): boolean {
+  return !j.asInCase && !j.firstDrive && (j.pilot || !!j.newSite);
+}
+
+export function siteCallDue(j: Job, now: number): boolean {
+  return needsSiteCall(j) && j.siteCalledAt === undefined && now >= j.pickupAt - SITE_CALL_LEAD_MS && now < j.pickupAt && !done(j.arrivedAt, now);
+}
+
+export function callSite(j: Job, now: number): Job {
+  return { ...j, siteCalledAt: now };
 }
 
 /** A pickup nobody has confirmed: ops calls the backup contact now, before the driver is at the gate. */
@@ -168,7 +203,7 @@ export function needsConfirmation(j: Job, now: number): boolean {
 
 // ---------- Incidents ----------
 
-export type EscalationWhy = 'time' | 'deadline' | 'driver' | 'ops' | 'safety' | 'text_failed';
+export type EscalationWhy = 'time' | 'deadline' | 'driver' | 'ops' | 'safety' | 'text_failed' | 'phoned';
 
 /** Why a person took over from the assistant, in ops' words. */
 export const ESCALATION_LABEL: Record<EscalationWhy, string> = {
@@ -178,6 +213,7 @@ export const ESCALATION_LABEL: Record<EscalationWhy, string> = {
   ops: 'ops took over',
   safety: 'the driver reported something a person must handle',
   text_failed: "the automated text couldn't be sent",
+  phoned: 'the driver called ops',
 };
 
 export interface Alert {
@@ -191,6 +227,8 @@ const closed = (j: Job, now: number) => j.incident?.closedAt !== undefined && j.
 
 /** When the assistant took the problem: the driver reported it, or the keys were missing 5 minutes after check-in. */
 export function assistStart(j: Job, now: number): number | null {
+  // As in the case: today's process, no assistant. The driver calls ops.
+  if (j.asInCase) return null;
   const at: number[] = [];
   if (done(j.problemAt, now)) at.push(j.problemAt!);
   if (done(j.arrivedAt, now)) {
@@ -222,7 +260,7 @@ export function jobAlert(j: Job, now: number): Alert | null {
   if (done(j.keysAt, now) && !j.incident) return null;
   const alerts: Alert[] = [];
   const e = escalation(j, now);
-  if (e) alerts.push({ at: e.at, kind: 'escalated', why: e.why, text: `Handed to a person: ${ESCALATION_LABEL[e.why]}` });
+  if (e) alerts.push({ at: e.at, kind: 'escalated', why: e.why, text: e.why === 'phoned' ? `${first(j)} called ops` : `Handed to a person: ${ESCALATION_LABEL[e.why]}` });
   if (!done(j.arrivedAt, now) && !done(j.problemAt, now)) {
     const at = j.pickupAt + NOT_ARRIVED_ALERT_MS;
     if (at <= now) alerts.push({ at, kind: 'not_arrived', text: `${first(j)} hasn't checked in ${NOT_ARRIVED_ALERT_MS / MIN} min after pickup time` });
@@ -306,12 +344,12 @@ export interface PlaybookStep {
 
 /** The real-time playbook from the deck: six moves, decision before the last departure. */
 export const PLAYBOOK: PlaybookStep[] = [
-  { key: 'keep_driver', title: 'Keep the driver', what: 'Call the driver: stay, I\'m on it, your waiting time is paid. If they leave, the delivery is lost for certain.' },
+  { key: 'keep_driver', title: 'Keep the driver', what: 'Call the driver: stay until the decision point, I\'m on it. Your waiting time is paid, also if the drive is cancelled. If they leave, the delivery is lost for certain.' },
   { key: 'own_error', title: 'Rule out our own error', what: 'Check address, time, contact and that the confirmations went out. It decides who to call.' },
   { key: 'escalate', title: 'Call the contact, then the backup', what: 'The next rung after a text: a call. The driver asks anyone on site (reception, workshop, key box) meanwhile.' },
-  { key: 'customer', title: 'Customer hears it from us', what: 'Send an update before they ask: what happened, what we are doing, when they hear from us next.' },
+  { key: 'customer', title: 'Customer hears it from us', what: 'Send an update before they ask: what happened, what we are doing, when they hear from us next. A pilot customer: tell the account owner too.' },
   { key: 'decide', title: 'Decision point', what: 'No keys by then? The customer picks: later today, a new date or cancel. They decide, we bring the options.' },
-  { key: 'close', title: 'Close the loop', what: 'Pay the waiting time regardless, log what happened, waive the fee in the pilot.' },
+  { key: 'close', title: 'Close the loop', what: 'Pay the waiting time regardless (and half the reward if the drive didn\'t happen), log the cause, waive the fee in the pilot, book 15 minutes with the booker.' },
 ];
 
 export const OUTCOME_LABEL: Record<Outcome, string> = {
@@ -344,18 +382,42 @@ export function setOutcome(j: Job, outcome: Outcome, now: number): Job {
 export type CloseResult = { ok: true; job: Job } | { ok: false; error: string };
 
 /** Close only once there is a decision and the driver's waiting time is paid: the driver never carries the cost. */
-export function closeIncident(j: Job, opts: { waitPaid: boolean; feeWaived: boolean; cause?: IncidentCause; note?: string }, now: number): CloseResult {
+/** The driver came and waited, and the drive didn't happen (cancelled or another day): half the reward on top of the waiting time. A proposal, to set with the team. */
+export const CANCEL_SHARE = 0.5;
+
+export function cancelPayFor(j: Job): number {
+  const o = j.incident?.outcome?.type;
+  return o === 'cancelled' || o === 'new_date' ? Math.round(j.reward * CANCEL_SHARE) : 0;
+}
+
+/** A pilot customer: the account owner hears it while it happens, not from the weekly report. */
+export function tellAccountOwner(j: Job, now: number): Job {
+  return withIncident(j, now, (i) => ({ ...i, accountOwnerAt: now }), `Account owner told: pilot customer, ${j.customer} (${REVIEWER})`);
+}
+
+export function closeIncident(j: Job, opts: { waitPaid: boolean; feeWaived: boolean; cause?: IncidentCause; note?: string; reviewBooked?: boolean }, now: number): CloseResult {
   if (!j.incident?.outcome) return { ok: false, error: 'Record the decision first.' };
   if (!opts.waitPaid) return { ok: false, error: "Pay the driver's waiting time before closing: it is paid regardless." };
   if (!opts.cause) return { ok: false, error: 'Pick the cause: it is what prevention learns from.' };
   const cause = opts.cause;
   const note = cleanNote(opts.note ?? '');
   if (cause === 'other' && !note) return { ok: false, error: 'Say what happened: "other" needs a few words.' };
+  const pay = cancelPayFor(j);
   const job = withIncident(
     j,
     now,
-    (i) => ({ ...i, waitPaid: true, feeWaived: opts.feeWaived, cause, ...(note ? { causeNote: note } : {}), closedAt: now, steps: { ...i.steps, close: now } }),
-    `Closed: waiting time paid${opts.feeWaived ? ', fee waived (pilot)' : ''}, cause: ${CAUSE_LABEL[cause].toLowerCase()}${note ? ` ("${note}")` : ''} (${REVIEWER})`,
+    (i) => ({
+      ...i,
+      waitPaid: true,
+      feeWaived: opts.feeWaived,
+      cause,
+      ...(note ? { causeNote: note } : {}),
+      ...(pay ? { cancelPay: pay } : {}),
+      ...(opts.reviewBooked ? { reviewBooked: true } : {}),
+      closedAt: now,
+      steps: { ...i.steps, close: now },
+    }),
+    `Closed: waiting time paid${pay ? ` plus ${pay} SEK for the drive that didn't happen` : ''}${opts.feeWaived ? ', fee waived (pilot)' : ''}, cause: ${CAUSE_LABEL[cause].toLowerCase()}${note ? ` ("${note}")` : ''}${opts.reviewBooked ? ', review with the booker booked' : ''} (${REVIEWER})`,
   );
   return { ok: true, job };
 }
@@ -373,7 +435,8 @@ export function driverUpdate(j: Job, outcome: Outcome, now: number): string {
     return `Keys found, thanks for waiting! You can head off: leave by ${hm(c.lastDeparture)} to make ${hm(j.deadline)}. Your waiting time from ${waitFrom} is paid.`;
   }
   const what = outcome === 'later_today' ? 'to move the pickup to later today, and we\'ll come back to you about it' : outcome === 'new_date' ? 'a new date for this drive' : 'to cancel this drive';
-  return `The customer chose ${what}. You don't need to wait any longer and can leave the pickup. Your waiting time from ${waitFrom} is paid. Thanks for staying!`;
+  const extra = outcome === 'later_today' ? '' : `, plus ${Math.round(j.reward * CANCEL_SHARE)} SEK, half the job's pay, since the drive didn't happen`;
+  return `The customer chose ${what}. You don't need to wait any longer and can leave the pickup. Your waiting time from ${waitFrom} is paid${extra}. Thanks for staying!`;
 }
 
 /** Incidents closed in the last 12 hours, newest first. */
@@ -570,6 +633,8 @@ type JobSeed = {
   depart?: number;
   deliver?: number;
   problem?: number;
+  asInCase?: boolean;
+  newSite?: boolean;
 };
 
 /**
@@ -583,13 +648,24 @@ const JOBS: JobSeed[] = [
   { name: 'Julia Lindgren', pickupInMin: -12, hours: 3, from: 'Dealership, Solna', to: 'Customer, Upplands Väsby', area: 'Solna', km: 35, driveMin: 50, reward: 500, price: 780, customer: 'Solna Bilcenter', pilot: true, arrive: -2, problem: 3 },
   { name: 'Isak Bergström', pickupInMin: 45, hours: 2, from: 'Leasing depot, Bromma', to: 'Customer, Kungsholmen', area: 'Bromma', km: 11, driveMin: 30, reward: 340, price: 560, customer: 'Bromma Leasing', confirm24: -22 * 60, confirm60: -55, arrive: -6, keys: 2, depart: 8, deliver: 45 },
   { name: 'Agnes Ekström', pickupInMin: 180, hours: 3, from: 'Rental hub, Södermalm', to: 'Workshop, Huddinge', area: 'Södermalm', km: 16, driveMin: 30, reward: 350, price: 580, customer: 'City Rental Stockholm', confirm24: -21 * 60, confirm60: -50, arrive: -4, keys: 3, depart: 9, deliver: 45 },
+  // Our first drive from this address, tomorrow morning: a person calls the site today.
+  { name: 'Linnea Björk', pickupInMin: 20 * 60, hours: 3, from: 'Leasing depot, Täby', to: 'Customer, Danderyd', area: 'Täby', km: 12, driveMin: 25, reward: 330, price: 540, customer: 'Täby Leasing', confirm24: -23 * 60, confirm60: -50, newSite: true, arrive: -4, keys: 3, depart: 9, deliver: 40 },
   { name: 'Omar Khalil', pickupInMin: 330, hours: 3, from: 'Dealership, Sundbyberg', to: 'Customer, Täby', area: 'Sundbyberg', km: 18, driveMin: 35, reward: 360, price: 600, customer: 'Sundbyberg Motor', confirm60: -45, arrive: -3, keys: 4, depart: 10, deliver: 50 },
 ];
 
-/** Demo jobs for active drivers in the seed (matched by name). */
-export function seedJobs(apps: Applicant[], now: number): Job[] {
+/**
+ * The Part 1 case exactly as the brief gives it, for "Play the case" (Tuesday 09:30): pickup agreed
+ * for 09:00, the driver at the gate since 09:05, so 25 minutes of waiting, no pre-pickup check, the
+ * contact not answering, and no assistant: today's process. At 09:30 she calls ops, and the playbook
+ * starts. The rest of the demo shows how the check and the assistant would have caught it earlier.
+ */
+const CASE_JULIA: JobSeed = { ...JOBS[1], pickupInMin: -30, arrive: 5, problem: 30, asInCase: true };
+
+/** Demo jobs for active drivers in the seed (matched by name). With asInCase, Julia's drive is the Part 1 case at 09:30. */
+export function seedJobs(apps: Applicant[], now: number, opts: { asInCase?: boolean } = {}): Job[] {
   const out: Job[] = [];
-  JOBS.forEach((s, i) => {
+  const seeds = opts.asInCase ? JOBS.map((s) => (s.name === CASE_JULIA.name ? CASE_JULIA : s)) : JOBS;
+  seeds.forEach((s, i) => {
     const a = apps.find((x) => x.name === s.name);
     if (!a) return;
     const pickupAt = Math.round((now + s.pickupInMin * MIN) / MIN) * MIN;
@@ -612,6 +688,8 @@ export function seedJobs(apps: Applicant[], now: number): Job[] {
       contact: { role: 'Service desk', phone: '08-123 45 00' },
       backup: { role: 'Site manager', phone: '070-123 45 67' },
       keyLocation: 'Key box by the service entrance',
+      ...(s.asInCase ? { asInCase: true } : {}),
+      ...(s.newSite ? { newSite: true } : {}),
     };
     const set = (k: 'confirmed24At' | 'confirmed60At' | 'arrivedAt' | 'keysAt' | 'departedAt' | 'deliveredAt' | 'problemAt', m: number | undefined) => {
       const t = rel(m);
@@ -624,11 +702,15 @@ export function seedJobs(apps: Applicant[], now: number): Job[] {
     set('departedAt', s.depart);
     set('deliveredAt', s.deliver);
     set('problemAt', s.problem);
-    // Julia picked "keys missing" and tapped Send: the texts went out from the booking's template.
+    // Julia picked "keys missing" with one tap: the fixed texts went out from the booking's template.
+    // In the case she phoned ops instead: no texts, and a person has it from her call.
     if (s.problem !== undefined) {
       job.problemReason = 'keys_missing';
-      const r = prepareTexts(job, 'keys_missing', job.problemAt!, true);
-      if (r.ok) job.texts = r.texts;
+      if (s.asInCase) job.escalation = { at: job.problemAt!, why: 'phoned' };
+      else {
+        const r = prepareTexts(job, 'keys_missing', job.problemAt!, true);
+        if (r.ok) job.texts = r.texts;
+      }
     }
     out.push(job);
   });
@@ -697,7 +779,7 @@ export function firstDriveResult(j: Job): { onTime: boolean; ok: boolean; issue?
 /** Move every timestamp of a job by `delta` ms (an old save, rebased to now). */
 export function shiftJob(j: Job, delta: number): Job {
   const s = (t: number | undefined) => (t === undefined ? undefined : t + delta);
-  const keys = ['confirmed24At', 'confirmed60At', 'checkedByOpsAt', 'arrivedAt', 'keysAt', 'departedAt', 'deliveredAt', 'problemAt'] as const;
+  const keys = ['confirmed24At', 'confirmed60At', 'checkedByOpsAt', 'siteCalledAt', 'arrivedAt', 'keysAt', 'departedAt', 'deliveredAt', 'problemAt'] as const;
   const moved: Job = { ...j, pickupAt: j.pickupAt + delta, deadline: j.deadline + delta };
   for (const k of keys) if (j[k] !== undefined) moved[k] = s(j[k]);
   if (j.escalation) moved.escalation = { ...j.escalation, at: j.escalation.at + delta };
@@ -710,6 +792,7 @@ export function shiftJob(j: Job, delta: number): Job {
       steps: Object.fromEntries(Object.entries(i.steps).map(([k, t]) => [k, t! + delta])) as Incident['steps'],
       ...(i.outcome ? { outcome: { ...i.outcome, at: i.outcome.at + delta } } : {}),
       ...(i.closedAt !== undefined ? { closedAt: i.closedAt + delta } : {}),
+      ...(i.accountOwnerAt !== undefined ? { accountOwnerAt: i.accountOwnerAt + delta } : {}),
       log: i.log.map((e) => ({ ...e, at: e.at + delta })),
     };
   }
