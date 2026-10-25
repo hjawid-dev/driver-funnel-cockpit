@@ -5,6 +5,7 @@ import { DAY, HOUR, atLocal, formatDateTime } from './time';
 import type { ChatThread } from './chat/types';
 import { slaFor } from './chat/threads';
 import { assistStart, jobAlert, pickupChecks, REPLY_WAIT_24_MS, REPLY_WAIT_60_MS, type Job } from './liveOps';
+import { SHOW_BY_MS } from './extract';
 
 /**
  * The automation layer: what runs by itself (HubSpot workflows and the driver chat in
@@ -30,7 +31,10 @@ export type AutoKind =
   | 'pickup_check'
   | 'pickup_task'
   | 'live_assist'
-  | 'live_alert';
+  | 'live_alert'
+  | 'extract_check'
+  | 'extract_due'
+  | 'released';
 
 export interface AutoEvent {
   at: number;
@@ -107,11 +111,40 @@ export function automationEvents(apps: Applicant[], from: number, to: number): A
       continue;
     }
 
-    // Accepted
-    push(d.at, 'driver', 'decision', 'Welcome aboard!', `Hi ${first(a)}, you're accepted. Pick your first drive below: short, easy jobs with ops on standby.`);
+    // Accepted. Without the extract shown yet, the one condition is said up front.
+    const shownBy = (t: number) => a.extractShownAt !== undefined && a.extractShownAt <= t;
+    push(
+      d.at,
+      'driver',
+      'decision',
+      'Welcome aboard!',
+      shownBy(d.at)
+        ? `Hi ${first(a)}, you're accepted. Pick your first drive below: short, easy jobs with ops on standby.`
+        : `Hi ${first(a)}, you're accepted! One thing before your first drive: show us your criminal-record extract in a 5-minute video check when it arrives. Pick your first drive below; it starts at least 5 days from now so the extract has time to arrive.`,
+    );
     push(d.at, 'driver', 'offers', 'First-gig offers ready', 'Three easy jobs near you. Pick one and it is booked.');
     // The first drive is normally booked in the onboarding call; only if it wasn't does ops call within 24 h.
     if (!a.firstGig?.bookedFor) push(d.at + HOUR, 'ops', 'welcome_task', `Task: no first drive booked in the call. Welcome call to ${a.name}, due within 24 h`);
+
+    // The 5-minute extract check, when the extract arrived after the decision.
+    if (a.extractCheckAt) {
+      push(a.extractCheckAt - HOUR, 'driver', 'extract_check', 'Your extract check is in 1 hour', `5 minutes on video at ${time(a.extractCheckAt)}. Have your extract at hand; we only look at it and never keep a copy.`);
+      push(a.extractCheckAt - HOUR, 'ops', 'extract_check', `Extract check with ${a.name} at ${time(a.extractCheckAt)} (5 min)`);
+    }
+    // A booked first drive needs the extract shown the day before: a reminder a day ahead of that, then the drive is released.
+    const booking = a.firstGig?.bookedFor ?? a.firstGig?.released?.bookedFor;
+    if (booking) {
+      const by = booking - SHOW_BY_MS;
+      if (!shownBy(by - DAY) && d.at < by - DAY) {
+        push(by - DAY, 'driver', 'extract_due', 'Show your extract by tomorrow', `Your first drive is ${time(booking)}. Show your extract by ${time(by)} in a 5-minute check, or the drive goes to another driver. Your acceptance stays.`);
+        push(by - DAY, 'ops', 'extract_due', `Task: ${a.name} must show the extract by ${time(by)}, or the first drive is released`);
+      }
+    }
+    const released = a.firstGig?.released;
+    if (released) {
+      push(released.at, 'driver', 'released', 'Your first drive went to another driver', `The extract wasn't shown by the day before, so the drive ${time(released.bookedFor)} went to another driver. You're still accepted: show your extract and pick a new drive.`);
+      push(released.at, 'ops', 'released', `First drive released: ${a.name} hadn't shown the extract (${time(released.bookedFor)})`);
+    }
 
     const gig = a.firstGig;
     const reminderAt = gig?.bookedFor ? gig.bookedFor - 12 * HOUR : 0;
@@ -213,7 +246,9 @@ export function summarize(events: AutoEvent[]): string {
     [n(['pickup_check']), 'pre-pickup message'],
     [n(['weekly_report']), 'weekly report'],
     [n(['call_reminder']), 'call reminder'],
-    [n(['welcome_task', 'book_task', 'call_task', 'close_task', 'pickup_task']), 'task'],
+    [n(['welcome_task', 'book_task', 'call_task', 'close_task', 'pickup_task', 'extract_due']), 'task'],
+    [n(['extract_check']), 'extract check'],
+    [n(['released']), 'first drive released'],
     [events.filter((e) => e.audience === 'driver' && e.kind === 'decision').length, 'decision message'],
   ] as const;
   const text = parts.filter(([c]) => c > 0).map(([c, label]) => `${c} ${label}${c === 1 ? '' : 's'}`);

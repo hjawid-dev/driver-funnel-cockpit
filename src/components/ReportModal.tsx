@@ -1,7 +1,7 @@
 import type { Job } from '../lib/liveOps';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bot, Copy, FileText, RefreshCw, ShieldCheck, TriangleAlert, X } from 'lucide-react';
-import type { Applicant } from '../lib/types';
+import type { Applicant, Gig } from '../lib/types';
 import type { ChatThread } from '../lib/chat/types';
 import { weeklyFacts, formatFact, type WeeklyFacts } from '../lib/report/facts';
 import { reportToSlack, type ChangeItem } from '../lib/report/check';
@@ -14,6 +14,8 @@ interface Props {
   apps: Applicant[];
   threads: ChatThread[];
   jobs?: Job[];
+  /** Open jobs: for supply against demand. */
+  gigs?: Gig[];
   now: number;
   onClose: () => void;
   onOpened?: () => void;
@@ -32,9 +34,9 @@ const REASON = {
 };
 
 /** The weekly report: numbers from code, text from AI, and a check that the two agree. */
-export function ReportModal({ apps, threads, jobs = [], now, onClose, onOpened }: Props) {
+export function ReportModal({ apps, threads, jobs = [], gigs = [], now, onClose, onOpened }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
-  const [wf, setWf] = useState<WeeklyFacts>(() => weeklyFacts(apps, threads, now, jobs));
+  const [wf, setWf] = useState<WeeklyFacts>(() => weeklyFacts(apps, threads, now, jobs, gigs));
   const [reply, setReply] = useState<ReportReply | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -190,7 +192,7 @@ export function ReportModal({ apps, threads, jobs = [], now, onClose, onOpened }
           <button
             type="button"
             onClick={() => {
-              const next = weeklyFacts(apps, threads, now, jobs);
+              const next = weeklyFacts(apps, threads, now, jobs, gigs);
               setWf(next);
               generate(next);
             }}

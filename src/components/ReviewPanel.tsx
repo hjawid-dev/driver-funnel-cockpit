@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Camera, CircleAlert, CircleCheck, CircleX, Scale, ShieldCheck, Square, SquareCheck } from 'lucide-react';
+import { Camera, CircleAlert, CircleCheck, CircleX, Clock, Scale, ShieldCheck, Square, SquareCheck } from 'lucide-react';
 import type { Applicant, RejectReason } from '../lib/types';
 import { REJECT_REASONS } from '../lib/types';
 import { CALL_AGENDA, DECISION_LABEL, evaluate, NEEDS_SECOND_REVIEWER, noteLooksSensitive, type CheckResult } from '../lib/criteria';
@@ -53,10 +53,17 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
     <>
       <DrawerSection
         title="Criteria"
-        info={<p>Thresholds are a starting proposal, to be set with the team. The extract is only viewed in the onboarding call: no copy, no notes about its content.</p>}
+        info={
+          <>
+            <p>Thresholds are a starting proposal, to be set with the team.</p>
+            <p className="text-muted">
+              The extract comes by post and can take two weeks, so it doesn't hold up the decision: it is shown, voluntarily, before the first drive. In this call if it has arrived, otherwise in a 5-minute check. We only look at it: no copy, no notes about its content.
+            </p>
+          </>
+        }
       >
         <div className="rounded-lg border border-lavender">
-          <div className="border-b border-lavender px-3 py-2 text-xs font-semibold text-navy">Must-have · all required</div>
+          <div className="border-b border-lavender px-3 py-2 text-xs font-semibold text-navy">Must-have · all required (the extract before the first drive)</div>
           <ul className="divide-y divide-lavender">
             {ev.mustHaves.map((m) => (
               <li key={m.key} className="flex items-start gap-2.5 px-3 py-2 text-sm">
@@ -243,5 +250,6 @@ function ResultIcon({ result }: { result: CheckResult }) {
   if (result === 'pass') return <CircleCheck size={18} className={`${cls} text-ok`} aria-label="Pass" />;
   if (result === 'fail') return <CircleX size={18} className={`${cls} text-bad`} aria-label="Fail" />;
   if (result === 'borderline') return <CircleAlert size={18} className={`${cls} text-warn`} aria-label="Borderline" />;
+  if (result === 'later') return <Clock size={18} className={`${cls} text-indigo`} aria-label="Before the first drive" />;
   return <CircleAlert size={18} className={`${cls} text-muted`} aria-label="Needs manual check" />;
 }

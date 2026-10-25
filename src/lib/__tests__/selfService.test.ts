@@ -22,7 +22,7 @@ const docs = (over: Partial<Applicant['docs']>): Applicant['docs'] => ({ licence
 
 // Applicants at each step of the flow.
 const atExtract = mk({ id: 'DRV-2001', registeredAt: NOW - 3 * HOUR, docs: docs({ extract: 'missing' }) });
-const extractOrdered = mk({ id: 'DRV-2002', registeredAt: NOW - 3 * HOUR, docs: docs({ extract: 'pending' }) });
+const extractOrdered = mk({ id: 'DRV-2002', registeredAt: NOW - 3 * HOUR, docs: docs({ extract: 'pending' }), docsCompleteAt: NOW - 3 * HOUR });
 const atCall = mk({ id: 'DRV-2003', docs: docs({ extract: 'ready' }), docsCompleteAt: NOW - HOUR });
 const callBooked = { ...atCall, id: 'DRV-2004', callAt: NOW + 2 * DAY };
 const accepted = mk({ id: 'DRV-2005', docs: docs({ extract: 'ready' }), docsCompleteAt: NOW - 3 * DAY, extractShown: true, decision: { type: 'accepted', at: NOW - DAY, by: 'Hjalmar' } });
@@ -32,7 +32,8 @@ describe('action options', () => {
   it('offers only what fits the driver’s step', () => {
     const ids = (a: Applicant) => actionOptions(a, apps, gigs, NOW).map((o) => o.id);
     expect(ids(atExtract)).toEqual(['ORDERED', 'ARRIVED', 'LATER_1D', 'LATER_3D', 'STOP']);
-    expect(ids(extractOrdered)).toEqual(['ARRIVED', 'LATER_1D', 'LATER_3D', 'STOP']);
+    // Ordered is enough to book the call; "arrived" lets the driver show it in the call.
+    expect(ids(extractOrdered)).toEqual(['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'ARRIVED']);
     expect(ids(atCall)).toEqual(['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10']);
     // Spread out: at most two times per review slot, over at least three days.
     const days = new Set(actionOptions(atCall, apps, gigs, NOW).map((o) => new Date((o.action as { at: number }).at).toDateString()));
@@ -84,12 +85,14 @@ describe('carrying out a confirmed action', () => {
     expect(applyChatAction(atExtract, { type: 'book_call', at: NOW + DAY }, apps, gigs, NOW).ok).toBe(false);
     expect(applyChatAction(atCall, { type: 'pick_gig', gigId: gigs[0].id }, apps, gigs, NOW).ok).toBe(false);
   });
-  it('marks the extract as ordered and then arrived, which completes the file', () => {
+  it('marks the extract as ordered, which completes the file; arriving later changes nothing in the queue', () => {
     const o = applyChatAction(atExtract, { type: 'extract_ordered' }, apps, gigs, NOW);
     expect(o.ok && o.applicant.docs.extract).toBe('pending');
+    expect(o.ok && o.applicant.docsCompleteAt).toBe(NOW);
     if (!o.ok) return;
     const r = applyChatAction(o.applicant, { type: 'extract_arrived' }, apps, gigs, NOW + MIN);
-    expect(r.ok && r.applicant.docsCompleteAt).toBe(NOW + MIN);
+    expect(r.ok && r.applicant.docs.extract).toBe('ready');
+    expect(r.ok && r.applicant.docsCompleteAt).toBe(NOW);
   });
   it('picks a first drive from the offers', () => {
     const g1 = actionOptions(accepted, apps, gigs, NOW)[0];

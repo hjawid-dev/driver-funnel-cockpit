@@ -1,5 +1,6 @@
 import type { Applicant, Gig } from './types';
-import { DAY, HOUR, atLocal } from './time';
+import { DAY, atLocal } from './time';
+import { earliestFirstDrive } from './extract';
 
 /** Rough geography for matching: same area first, then the same part of Stockholm. */
 const REGION: Record<string, 'north' | 'central' | 'south'> = {
@@ -74,15 +75,17 @@ export function generateGigs(now: number): Gig[] {
 export const OFFER_COUNT = 3;
 
 /**
- * First-gig offers for an accepted driver: easy jobs only, not taken by someone else, from
- * 12 hours to 10 days ahead, matching limited availability, nearest first, then soonest.
+ * First-gig offers for an accepted driver: easy jobs only, not taken by someone else, in their part
+ * of Stockholm, from 12 hours to 10 days ahead (5 days ahead until the extract is shown), matching
+ * limited availability, nearest first, then soonest.
  */
 export function firstGigOffers(a: Applicant, gigs: Gig[], apps: Applicant[], now: number): Gig[] {
   const taken = new Set(apps.filter((x) => x.id !== a.id).map((x) => x.firstGig?.gigId).filter(Boolean));
   return gigs
     .filter((g) => !taken.has(g.id))
-    .filter((g) => g.at >= now + 12 * HOUR && g.at <= now + 10 * DAY)
+    .filter((g) => g.at >= earliestFirstDrive(a, now) && g.at <= now + 10 * DAY)
     .filter(isEasy)
+    .filter((g) => distanceScore(a.area, g.area) <= 1)
     .filter((g) => a.availability === 'full' || isWeekendOrEvening(g.at))
     .sort((x, y) => distanceScore(a.area, x.area) - distanceScore(a.area, y.area) || x.at - y.at)
     .slice(0, OFFER_COUNT);

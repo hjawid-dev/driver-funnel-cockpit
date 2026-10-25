@@ -96,7 +96,7 @@ describe('driver context', () => {
     const a = mk({ name: 'Sara Lindqvist', docs: { licence: 'verified', id: 'verified', extract: 'pending', photo: 'uploaded' } });
     const ctx = driverContext(a, [], NOW);
     expect(ctx.firstName).toBe('Sara');
-    expect(ctx.status).toContain('waiting for it to arrive');
+    expect(ctx.status).toContain('ordered, not arrived yet (no need to wait)');
     expect(JSON.stringify(ctx)).not.toContain('DRV-');
     expect(driverContext(null, [], NOW)).toEqual({});
   });

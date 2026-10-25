@@ -51,8 +51,8 @@ export function guideSteps(apps: Applicant[], progress: GuideProgress): GuideSte
       key: 'accept',
       title: 'Decide',
       hint: applied
-        ? `Open ${firstSelf.name} or Elin Johansson, tick the photo and the extract (shown in the onboarding call), then Accept. Watch the phone and the numbers.`
-        : 'Elin Johansson: tick the photo and the extract (shown in the onboarding call), then Accept. Watch the numbers move.',
+        ? `Open ${firstSelf.name} or Elin Johansson, tick the photo (and the extract, if it was shown in the call), then Accept. Watch the phone and the numbers.`
+        : 'Elin Johansson: tick the photo (and the extract, if it was shown in the call), then Accept. Watch the numbers move.',
       action: 'open',
       targetId: firstSelf?.docsCompleteAt && !firstSelf.decision ? firstSelf.id : (elin?.id ?? null),
       done: apps.some((a) => byMe(a) && a.decision?.type !== 'rejected'),

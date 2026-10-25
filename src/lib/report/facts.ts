@@ -1,5 +1,6 @@
 import type { Job } from '../liveOps';
-import type { Applicant } from '../types';
+import type { Applicant, Gig } from '../types';
+import { activationReasons, supplyDemand } from '../activation';
 import type { ChatThread } from '../chat/types';
 import { computeFunnel, computeKpis, isReviewDecision, median } from '../kpis';
 import { deriveStage, isAccepted } from '../stage';
@@ -79,7 +80,7 @@ function weekFlows(apps: Applicant[], to: number) {
   };
 }
 
-export function weeklyFacts(apps: Applicant[], threads: ChatThread[], now: number, jobs: Job[] = []): WeeklyFacts {
+export function weeklyFacts(apps: Applicant[], threads: ChatThread[], now: number, jobs: Job[] = [], gigs: Gig[] = []): WeeklyFacts {
   // Stuck pickups closed this week, by who solved them and why: what prevention learns from.
   const closedWeek = jobs.filter((j) => j.incident?.closedAt !== undefined && j.incident.closedAt > now - WEEK && j.incident.closedAt <= now);
   const cur = weekFlows(apps, now);
@@ -93,6 +94,10 @@ export function weeklyFacts(apps: Applicant[], threads: ChatThread[], now: numbe
   const dropIdx = funnel.edges.findIndex((e) => e.biggestDrop);
   const review = apps.filter((a) => deriveStage(a) === 'review');
   const awaiting = apps.filter((a) => deriveStage(a) === 'accepted');
+  // Why the accepted drivers haven't driven, and whether there is work for them: demand, not only drivers.
+  const why = activationReasons(awaiting, apps, gigs, now);
+  const whyCount = (r: string) => why.find((x) => x.reason === r)?.count ?? 0;
+  const supply = supplyDemand(apps, gigs, now);
 
   const facts = [
     // This week against last week
@@ -121,6 +126,15 @@ export function weeklyFacts(apps: Applicant[], threads: ChatThread[], now: numbe
     { id: 'review_overdue', label: 'Files waiting more than 48 h (overdue)', value: review.filter((a) => now - a.docsCompleteAt! > 48 * HOUR).length, unit: '', good: null },
     { id: 'awaiting_first_drive', label: 'Accepted drivers without a first drive', value: awaiting.length, unit: '', good: null },
     { id: 'awaiting_over_7_days', label: 'Accepted 7+ days ago without a first drive booked', value: awaiting.filter((a) => now - a.decision!.at > 7 * DAY && !a.firstGig?.bookedFor).length, unit: '', good: null },
+    { id: 'awaiting_no_fit', label: 'Accepted drivers with no first drive that fits their area or times (demand, not the driver)', value: whyCount('no_fit'), unit: '', good: null },
+    { id: 'awaiting_extract', label: 'Accepted drivers who have not shown their extract yet (shown on video before the first drive)', value: whyCount('extract'), unit: '', good: null },
+    ...(gigs.length
+      ? [
+          { id: 'open_jobs_14d', label: 'Open jobs in the next 14 days', value: supply.openJobs, unit: '' as const, good: null },
+          { id: 'drivers_for_open_jobs', label: 'Drivers the open jobs in the next 14 days keep busy (assumed jobs per driver)', value: supply.driversNeeded, unit: '' as const, good: null },
+          { id: 'drivers_active_and_waiting', label: 'Active drivers plus accepted drivers waiting for a first drive', value: supply.active + supply.waiting, unit: '' as const, good: null },
+        ]
+      : []),
     { id: 'pickup_incidents', label: 'Stuck pickups closed this week', value: closedWeek.length, unit: '', good: null },
     { id: 'pickup_solved_by_assistant', label: 'Stuck pickups solved by the assistant, no person needed', value: closedWeek.filter((j) => j.incident!.by === 'assistant').length, unit: '', good: null },
     { id: 'pickup_our_error', label: 'Stuck pickups caused by our own error (address, time, booking)', value: closedWeek.filter((j) => j.incident!.cause === 'our_error').length, unit: '', good: null },

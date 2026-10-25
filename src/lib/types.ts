@@ -1,6 +1,7 @@
 /**
- * 'ready' is used only for the criminal-record extract: the applicant has it and will show it in a call.
+ * 'ready' is used only for the criminal-record extract: the applicant has it and can show it.
  * The extract itself is never uploaded or stored: criminal-record data may not be kept (GDPR art. 10).
+ * Ordered ('pending') is enough for a complete file: the decision doesn't wait for Polisen's post.
  */
 export type DocStatus = 'verified' | 'uploaded' | 'missing' | 'pending' | 'ready' | 'failed' | 'remark';
 export type DocKey = 'licence' | 'id' | 'extract' | 'photo';
@@ -39,7 +40,12 @@ export interface FirstGig {
   ok?: boolean; // no incident, customer happy
   /** What went wrong, when it wasn't ok: a cause and a short note about the drive, never about the person. */
   issue?: { cause: FirstGigIssue; note: string };
+  /** A booked first drive given back because the extract wasn't shown by the day before. */
+  released?: { at: number; bookedFor: number };
 }
+
+/** What ops learned on a call with an accepted driver who hasn't driven. The other reasons are worked out from the data. */
+export type OpsActivationReason = 'declined' | 'unreachable' | 'not_interested';
 
 export type FirstGigIssue = 'customer_keys' | 'contact_absent' | 'car_not_ready' | 'late' | 'damage' | 'our_error' | 'other';
 
@@ -72,6 +78,12 @@ export interface Applicant {
   photoApproved?: boolean; // reviewer tick
   /** Reviewer tick: the extract was shown in a call. Nothing from its content is ever recorded. */
   extractShown?: boolean;
+  /** When it was shown (in the onboarding call or the short check before the first drive). */
+  extractShownAt?: number;
+  /** The 5-minute check the driver booked to show the extract, when it arrived after the decision. */
+  extractCheckAt?: number;
+  /** Why an accepted driver hasn't driven yet, when only a call can tell (set by ops). */
+  activationReason?: { reason: OpsActivationReason; at: number };
   /** Applied through the driver view (not demo seed data). */
   source?: 'self';
   /** A pre-qualifying requirement is not met. Nobody is rejected automatically: a person closes the file. */

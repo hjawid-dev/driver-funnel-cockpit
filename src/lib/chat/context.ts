@@ -3,6 +3,7 @@ import { driverStep } from '../driverFlow';
 import { HOUR, formatDateTime } from '../time';
 import type { DriverContext } from './types';
 import { currentJob, jobFact, type Job } from '../liveOps';
+import { extractState, needsExtract, showBy } from '../extract';
 
 /**
  * What the assistant gets to know about the driver: first name and where they are in the flow.
@@ -16,7 +17,7 @@ export function driverContext(a: Applicant | null, gigs: Gig[], now: number, job
   const facts: string[] = [];
   const missing = (Object.keys(DOC_LABEL) as (keyof typeof DOC_LABEL)[]).filter((k) => {
     const s = a.docs[k];
-    return k === 'extract' ? s !== 'ready' : s === 'missing' || s === 'failed' || s === 'pending';
+    return k === 'extract' ? s === 'missing' : s === 'missing' || s === 'failed' || s === 'pending';
   });
 
   const status: Record<typeof step, string> = {
@@ -24,8 +25,8 @@ export function driverContext(a: Applicant | null, gigs: Gig[], now: number, job
     id: 'Applying: next step is BankID',
     licence: 'Applying: next step is the licence photo',
     photo: 'Applying: next step is the profile photo',
-    extract: a.docs.extract === 'pending' ? 'Applying: has ordered the criminal-record extract, waiting for it to arrive' : 'Applying: next step is ordering the criminal-record extract',
-    call: 'Applying: extract has arrived, next step is booking the onboarding call',
+    extract: 'Applying: next step is ordering the criminal-record extract',
+    call: `Applying: extract ${a.docs.extract === 'ready' ? 'has arrived' : 'ordered, not arrived yet (no need to wait)'}, next step is booking the onboarding call`,
     decision: 'Applying: onboarding call booked, decision is made in the call',
     first_gig: 'Accepted as a driver: can pick a first drive in the app',
     booked: 'Accepted as a driver: first drive booked',
@@ -35,6 +36,13 @@ export function driverContext(a: Applicant | null, gigs: Gig[], now: number, job
 
   if (['id', 'licence', 'photo', 'extract'].includes(step) && missing.length) facts.push(`Still missing: ${missing.map((k) => DOC_LABEL[k]).join(', ')}`);
   if (a.callAt && a.callAt > now) facts.push(`Onboarding call booked: ${formatDateTime(a.callAt)}`);
+  if (!a.decision && a.docs.extract === 'pending' && step !== 'extract') facts.push('Extract ordered, not arrived: shown before the first drive, not needed for the call');
+  if (needsExtract(a)) {
+    const st = extractState(a, now);
+    const by = showBy(a);
+    const where = st === 'check_booked' ? `5-minute check booked ${formatDateTime(a.extractCheckAt!)}` : st === 'ready' ? 'arrived, 5-minute check not booked yet' : 'ordered, not arrived yet';
+    facts.push(`Extract not shown yet (${where}). No drive until it is shown${by ? `, by ${formatDateTime(by)}` : ''}; a first drive can be booked before`);
+  }
   if (a.decision?.type === 'accepted_simple') facts.push('Accepted for simple drives first (licence held 1–2 years)');
   if (a.availability === 'limited') facts.push(`Availability: ${a.availabilityNote ?? 'limited'}`);
   const g = a.firstGig?.gigId ? gigs.find((x) => x.id === a.firstGig?.gigId) : undefined;

@@ -1,7 +1,9 @@
 import type { Applicant, DocKey } from './types';
 import { DECISION_LABEL, validateDecision, type DecisionInput } from './criteria';
-import { cleanNote, FIRST_GIG_ISSUE_LABEL, REJECT_REASONS, REVIEWER, type FirstGigIssue } from './types';
+import { cleanNote, FIRST_GIG_ISSUE_LABEL, REJECT_REASONS, REVIEWER, type FirstGigIssue, type OpsActivationReason } from './types';
 import { allDocsSubmitted, deriveStage, isSubmitted } from './stage';
+import { markExtractShown, needsExtract, SHOW_BY_MS } from './extract';
+import { formatDateTime } from './time';
 
 /**
  * Every action is a pure function: old applicant in, new applicant out.
@@ -35,8 +37,10 @@ export function applyDecision(a: Applicant, input: DecisionInput, now: number, b
     text = `Rejected: ${label}${decision.note ? ` (${decision.note})` : ''}${decision.secondReviewer ? `, confirmed by ${decision.secondReviewer}` : ''}`;
     message = `Rejected: ${a.name}. Reason: ${label}.`;
   } else {
-    text = `${DECISION_LABEL[input.type]}${decision.secondReviewer ? `, confirmed by ${decision.secondReviewer}` : ''}`;
-    message = `Accepted: ${a.name}. Moved to Awaiting first gig.`;
+    // Accepted with a condition when the extract hasn't been shown: it is shown before the first drive.
+    const pending = !a.extractShown;
+    text = `${DECISION_LABEL[input.type]}${pending ? ', extract to show before the first drive' : ''}${decision.secondReviewer ? `, confirmed by ${decision.secondReviewer}` : ''}`;
+    message = `Accepted: ${a.name}. Moved to Awaiting first gig${pending ? '; the extract is shown before the first drive' : ''}.`;
   }
 
   return { ok: true, applicant: withLog({ ...a, decision }, now, `${text} · by ${by}`), message };
@@ -48,7 +52,7 @@ export function setPhotoApproved(a: Applicant, approved: boolean, now: number): 
 
 /** Only the fact that the extract was shown is recorded, never what it said. */
 export function setExtractShown(a: Applicant, shown: boolean, now: number): Applicant {
-  return withLog({ ...a, extractShown: shown }, now, shown ? `Extract shown in call, seen by ${REVIEWER} (nothing stored)` : 'Extract tick removed');
+  return markExtractShown(a, shown, now);
 }
 
 /** Sends the applicant back to Missing documents with photo = missing. */
@@ -114,6 +118,7 @@ export function logWelcomeCall(a: Applicant, now: number): ActionResult {
 export function bookFirstGig(a: Applicant, bookedFor: number, now: number): ActionResult {
   const error = requireAccepted(a);
   if (error) return { ok: false, error };
+  if (needsExtract(a) && bookedFor - SHOW_BY_MS <= now) return { ok: false, error: 'The extract must be shown the day before the first drive. Pick a later date, or tick the extract first.' };
   const date = new Date(bookedFor).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   return {
     ok: true,
@@ -125,6 +130,7 @@ export function bookFirstGig(a: Applicant, bookedFor: number, now: number): Acti
 export function completeFirstGig(a: Applicant, result: { onTime: boolean; ok: boolean; issue?: { cause: FirstGigIssue; note: string } }, now: number): ActionResult {
   const error = requireAccepted(a);
   if (error) return { ok: false, error };
+  if (needsExtract(a)) return { ok: false, error: 'The extract must be shown before the first drive.' };
   // An incident needs a cause and a few words on what happened: that is what anyone reading it later can act on.
   const note = result.issue ? cleanNote(result.issue.note) : '';
   if (!result.ok && (!result.issue || !note)) return { ok: false, error: 'Say what happened: pick a cause and write a short note about the drive.' };
@@ -134,5 +140,26 @@ export function completeFirstGig(a: Applicant, result: { onTime: boolean; ok: bo
     ok: true,
     applicant: withLog({ ...a, firstGig: { ...a.firstGig, doneAt: now, onTime: result.onTime, ok: result.ok, ...(issue ? { issue } : {}) } }, now, `First gig completed (${quality})`),
     message: `${a.name} is now an active driver.`,
+  };
+}
+
+export const OPS_ACTIVATION_LABEL: Record<OpsActivationReason, string> = {
+  declined: 'Declined the drives offered',
+  unreachable: "Can't reach them",
+  not_interested: 'No longer interested',
+};
+
+/** What ops learned on the call: why this driver hasn't driven. Clearing it lets the data speak again. */
+export function setActivationReason(a: Applicant, reason: OpsActivationReason | null, now: number): ActionResult {
+  const error = requireAccepted(a);
+  if (error) return { ok: false, error };
+  if (!reason) {
+    const { activationReason: _r, ...rest } = a;
+    return { ok: true, applicant: withLog(rest, now, `Activation reason cleared by ${REVIEWER}`), message: `Reason cleared: ${a.name}.` };
+  }
+  return {
+    ok: true,
+    applicant: withLog({ ...a, activationReason: { reason, at: now } }, now, `Why no first drive yet: ${OPS_ACTIVATION_LABEL[reason].toLowerCase()} (${REVIEWER}, ${formatDateTime(now)})`),
+    message: `Noted for ${a.name}: ${OPS_ACTIVATION_LABEL[reason].toLowerCase()}.`,
   };
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateSeed } from '../seed';
+import { deriveStage } from '../stage';
 import { retention } from '../retention';
 import { REJECT_REASONS } from '../types';
 import { DAY } from '../time';
@@ -25,11 +26,13 @@ describe('privacy by design', () => {
     for (const r of REJECT_REASONS) expect(r.label).not.toMatch(OFFENCE_WORDS);
   });
 
-  it('every decided file only records that the extract was shown', () => {
+  it('every decided file only records whether the extract was shown, and every active driver showed it', () => {
     for (const a of seed.filter((x) => x.docsCompleteAt && x.decision)) {
-      expect(a.extractShown).toBe(true);
-      expect(a.docs.extract).toBe('ready');
+      expect(a.extractShown === true || deriveStage(a) === 'accepted').toBe(true);
+      if (a.extractShown) expect(a.docs.extract).toBe('ready');
+      expect(Object.keys(a).filter((k) => /extract/i.test(k)).every((k) => ['extractShown', 'extractShownAt', 'extractCheckAt'].includes(k))).toBe(true);
     }
+    for (const a of seed.filter((x) => x.firstGig?.doneAt)) expect(a.extractShown).toBe(true);
   });
 
   it('retention: rejected after 2 years, incomplete after 6 months', () => {

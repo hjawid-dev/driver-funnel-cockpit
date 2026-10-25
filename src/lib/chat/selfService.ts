@@ -7,6 +7,7 @@ import { firstGigOffers } from '../gigs';
 import { deriveStage } from '../stage';
 import { HOUR, atLocal, formatDateTime } from '../time';
 import { driverIncidentState, driverStatus, type Job } from '../liveOps';
+import { bookExtractCheck, extractState, needsExtract, showBy } from '../extract';
 export { reminderSilenced } from '../nudges';
 
 /**
@@ -18,6 +19,7 @@ export type ChatAction =
   | { type: 'book_call'; at: number }
   | { type: 'extract_ordered' }
   | { type: 'extract_arrived' }
+  | { type: 'book_check'; at: number }
   | { type: 'pick_gig'; gigId: string }
   | { type: 'remind_later'; until: number }
   | { type: 'stop_reminders' }
@@ -83,8 +85,22 @@ export function actionOptions(a: Applicant | null, apps: Applicant[], gigs: Gig[
     spreadSlots(callSlots(now, others, 60).filter((t) => t !== a.callAt)).forEach((t, i) => out.push({ id: `S${i + 1}`, label: `${moving ? 'Move your call to' : 'Book your call for'} ${formatDateTime(t)}`, action: { type: 'book_call', at: t } }));
   }
   if (step === 'extract') {
-    if (a.docs.extract === 'missing') out.push({ id: 'ORDERED', label: "Mark your extract as ordered", action: { type: 'extract_ordered' } });
-    out.push({ id: 'ARRIVED', label: 'Mark your extract as arrived, then book your call', action: { type: 'extract_arrived' } });
+    out.push({ id: 'ORDERED', label: 'Mark your extract as ordered, then book your call (no need to wait for it)', action: { type: 'extract_ordered' } });
+    out.push({ id: 'ARRIVED', label: 'Mark that you already have your extract, then book your call', action: { type: 'extract_arrived' } });
+  } else if (a.docs.extract === 'pending' && !a.decision) {
+    out.push({ id: 'ARRIVED', label: 'Mark your extract as arrived, so you can show it in your call', action: { type: 'extract_arrived' } });
+  }
+  // Accepted before the extract arrived: it is shown in a 5-minute check before the first drive.
+  if (needsExtract(a)) {
+    const state = extractState(a, now);
+    if (state === 'ordered') out.push({ id: 'ARRIVED', label: 'Mark your extract as arrived, then book the 5-minute check', action: { type: 'extract_arrived' } });
+    if (state === 'ready' || state === 'check_booked') {
+      const by = showBy(a);
+      // Six times at most, so the first-drive options still fit in what the assistant is given.
+      spreadSlots(callSlots(now, others, 60).filter((t) => t !== a.extractCheckAt && (by === null || t <= by))).slice(0, 6).forEach((t, i) =>
+        out.push({ id: `X${i + 1}`, label: `${state === 'check_booked' ? 'Move your extract check to' : 'Book your 5-minute extract check for'} ${formatDateTime(t)}`, action: { type: 'book_check', at: t } }),
+      );
+    }
   }
   if (step === 'first_gig') {
     firstGigOffers(a, gigs, apps, now).forEach((g, i) =>
@@ -121,9 +137,22 @@ export function applyChatAction(a: Applicant, action: ChatAction, apps: Applican
       return { ok: true, applicant: log(next), done: `${moved ? 'Your call is moved to' : 'Your call is booked for'} ${formatDateTime(action.at)}. You'll get a reminder 1 hour before.` };
     }
     case 'extract_ordered':
-      return { ok: true, applicant: log(receiveDocument(a, 'extract', 'pending', now)), done: "Noted: your extract is ordered. Tell me when it arrives and we'll book your call." };
+      return { ok: true, applicant: log(receiveDocument(a, 'extract', 'pending', now)), done: "Noted: your extract is ordered. You don't have to wait for it: pick a time for your onboarding call below or in the app. You show the extract before your first drive." };
     case 'extract_arrived':
-      return { ok: true, applicant: log(receiveDocument(a, 'extract', 'ready', now)), done: 'Great, your extract has arrived. Pick a time for your call below or in the app.' };
+      return {
+        ok: true,
+        applicant: log(receiveDocument(a, 'extract', 'ready', now)),
+        done: needsExtract(a)
+          ? 'Great, your extract has arrived. Pick a time for the 5-minute check below or in the app.'
+          : a.callAt
+            ? 'Great, your extract has arrived. Have it at hand in your call and you can show it there.'
+            : 'Great, you have your extract. Pick a time for your call below or in the app.',
+      };
+    case 'book_check': {
+      const r = bookExtractCheck(a, action.at, now);
+      if (!r.ok) return { ok: false, reason: r.error };
+      return { ok: true, applicant: log(r.applicant), done: `Your extract check is booked for ${formatDateTime(action.at)}: 5 minutes on video. We only look at the extract and never keep a copy.` };
+    }
     case 'pick_gig': {
       const g = gigs.find((x) => x.id === action.gigId)!;
       return { ok: true, applicant: log(bookOffer(a, g, now)), done: `Your first drive is booked: ${g.from} to ${g.to}, ${formatDateTime(g.at)}. Ops calls you before it.` };
@@ -194,6 +223,13 @@ export function quickReplies(last: ChatMsg | undefined, a: Applicant | null, opt
               { kind: 'ask', label: 'Which one is easiest?', text: 'Which of my first drives is the easiest?' },
             ]
           : [];
+      case 'extract_due':
+      case 'extract_check':
+      case 'released':
+        return [...act('ARRIVED', 'My extract has arrived'), ...options.filter((o) => o.action.type === 'book_check').slice(0, 3).map((o): QuickReply => {
+          const t = formatDateTime((o.action as { at: number }).at);
+          return { kind: 'action', label: t, option: o, driverText: `Book my extract check ${t}` };
+        })];
       case 'gig_reminder':
         return [
           { kind: 'ask', label: 'What should I bring?', text: 'What should I bring on my first drive?' },
@@ -203,7 +239,16 @@ export function quickReplies(last: ChatMsg | undefined, a: Applicant | null, opt
         return [];
     }
   }
-  // Right after the extract arrived: offer the first free call times.
+  // Right after the extract arrived after the decision: offer the first free check times.
+  if (last.from === 'note' && last.actionDone && needsExtract(a)) {
+    const slots = options.filter((o) => o.action.type === 'book_check').slice(0, 3);
+    if (slots.length)
+      return slots.map((o): QuickReply => {
+        const t = formatDateTime((o.action as { at: number }).at);
+        return { kind: 'action', label: t, option: o, driverText: `Book my extract check ${t}` };
+      });
+  }
+  // Right after the extract was ordered or arrived: offer the first free call times.
   if (last.from === 'note' && last.actionDone && step === 'call') {
     const slots = options.filter((o) => o.action.type === 'book_call').slice(0, 3);
     return [

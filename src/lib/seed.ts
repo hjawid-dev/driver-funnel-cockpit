@@ -3,6 +3,7 @@ import { DOC_KEYS } from './types';
 import { DAY, HOUR, MIN } from './time';
 import { DECISION_LABEL } from './criteria';
 import { REJECT_REASONS } from './types';
+import { callSlots } from './booking';
 
 /**
  * 44 demo applicants over the last ~40 days, all relative to `now`,
@@ -12,6 +13,10 @@ import { REJECT_REASONS } from './types';
  * document completion ≈ 70%, application → active ≈ 21%,
  * time to decision ≈ 3 days from complete file (≈ 6 days from registration),
  * activation gap visible (≈ 60% within 14 days).
+ *
+ * Most files went through the old process (the extract before the decision). A few show the new one:
+ * Hugo is in review with his extract only ordered, Viktor was accepted with his extract still on its
+ * way, and Mohammed's arrived after his decision, so he has a 5-minute check booked.
  */
 
 type Docs = Record<DocKey, DocStatus>;
@@ -38,6 +43,10 @@ function build(
     onTime?: boolean;
     ok?: boolean;
     nudges?: number[];
+    /** Decided before the extract was shown (the new process): it is shown before the first drive. */
+    extractLater?: boolean;
+    extractCheckAt?: number;
+    activationReason?: Applicant['activationReason'];
   },
   now: number,
 ): Omit<Applicant, 'id'> {
@@ -51,7 +60,7 @@ function build(
   const share: Record<DocKey, number> = { id: 0.05, licence: 0.15, photo: 0.4, extract: 1 };
   for (const k of DOC_KEYS) {
     if (docs[k] === 'missing' || docs[k] === 'pending') continue;
-    const at = t.complete && k === 'extract' ? t.complete : t.reg + span * Math.min(share[k], 0.9);
+    const at = t.complete && k === 'extract' ? (t.extractLater ? now - DAY : t.complete) : t.reg + span * Math.min(share[k], 0.9);
     docTimes[k] = Math.min(at, now - MIN);
   }
   for (const k of DOC_KEYS) if (docTimes[k]) log.push({ at: docTimes[k]!, text: k === 'extract' ? 'Extract ready to show (nothing uploaded)' : `Document received: ${k}` });
@@ -73,6 +82,8 @@ function build(
   }
   if (t.welcome) log.push({ at: t.welcome, text: 'Welcome call logged' });
   if (t.booked) log.push({ at: (t.welcome ?? decision!.at) + HOUR, text: 'First gig booked' });
+  if (t.extractCheckAt) log.push({ at: now - 20 * HOUR, text: 'Extract check booked for the next free time (5 min, video)' });
+  if (t.activationReason) log.push({ at: t.activationReason.at, text: 'Why no first drive yet: noted by ops after a call' });
   if (t.done) log.push({ at: t.done, text: `First gig completed (${t.onTime === false ? 'late' : 'on time, no incident'})` });
   for (const n of t.nudges ?? []) log.push({ at: n, text: 'Manual nudge logged' });
   log.sort((x, y) => x.at - y.at);
@@ -90,7 +101,9 @@ function build(
     // Historical decisions were accepted, so their photos were approved.
     ...(decision && decision.type !== 'rejected' ? { photoApproved: true } : {}),
     // Decided files went through the extract call; only the tick is kept, never the content.
-    ...(decision && t.complete ? { extractShown: true } : {}),
+    ...(decision && t.complete && !t.extractLater ? { extractShown: true, extractShownAt: decision.at } : {}),
+    ...(t.extractCheckAt ? { extractCheckAt: t.extractCheckAt } : {}),
+    ...(t.activationReason ? { activationReason: t.activationReason } : {}),
     nudges: t.nudges ?? [],
     ...(t.complete ? { docsCompleteAt: t.complete } : {}),
     ...(decision ? { decision } : {}),
@@ -111,7 +124,7 @@ export function generateSeed(now: number): Applicant[] {
   const ago = (ms: number) => now - ms;
   const out: Omit<Applicant, 'id'>[] = [];
 
-  // ---------- Review queue: 8 hand-crafted cases ----------
+  // ---------- Review queue: 9 hand-crafted cases ----------
   const review: [Base, number /* docs complete h ago */, number /* reg→complete days */][] = [
     [{ name: 'Elin Johansson', area: 'Solna', lic: 6 }, 3, 2],
     [{ name: 'Ahmed Hassan', area: 'Sundbyberg', lic: 1.5 }, 9, 4],
@@ -132,25 +145,26 @@ export function generateSeed(now: number): Applicant[] {
     ],
     [{ name: 'Fatima Ali', area: 'Järfälla', lic: 12 }, 51, 5],
     [{ name: 'Erik Svensson', area: 'Täby', lic: 0.8 }, 76, 7],
+    // The new process: complete once the extract is ordered, so the call doesn't wait for Polisen's post.
+    [{ name: 'Hugo Larsson', area: 'Sollentuna', lic: 6, docs: { extract: 'pending' } }, 13, 1 / 24],
   ];
   for (const [b, hAgo, regDays] of review) {
     const complete = ago(hAgo * HOUR);
     out.push(build(b, { reg: complete - regDays * DAY, complete }, now));
   }
 
-  // ---------- Missing documents: 15 ----------
+  // ---------- Missing documents: 14 ----------
   const P = 'pending' as const;
   const M = 'missing' as const;
   const U = 'uploaded' as const;
   const missing: [Base, number /* registered ago ms */, number[] /* manual nudges, days after reg */][] = [
     [{ name: 'Lucas Andersson', area: 'Haninge', lic: 3, docs: { licence: U, id: M, extract: M, photo: M } }, 2 * HOUR, []],
     [{ name: 'Wilma Eriksson', area: 'Södermalm', lic: 8, docs: { licence: U, extract: P, photo: M } }, 6 * HOUR, []],
-    [{ name: 'Hugo Larsson', area: 'Sollentuna', lic: 6, docs: { licence: U, extract: P } }, 14 * HOUR, []],
     [{ name: 'Alva Olsson', area: 'Lidingö', lic: 20, docs: { licence: M, extract: M } }, 1 * DAY, []],
-    [{ name: 'Liam Persson', area: 'Solna', lic: 2.5, docs: { licence: U, extract: P } }, 2 * DAY, []],
+    [{ name: 'Liam Persson', area: 'Solna', lic: 2.5, docs: { licence: U, extract: P, photo: M } }, 2 * DAY, []],
     [{ name: 'Ebba Gustafsson', area: 'Nacka', lic: 15, docs: { licence: U, id: M, extract: P } }, 3 * DAY, []],
     [{ name: 'Noah Pettersson', area: 'Huddinge', lic: 4, docs: { licence: U, extract: P, photo: M } }, 5 * DAY, []],
-    [{ name: 'Astrid Jonsson', area: 'Bromma', lic: 18, docs: { licence: U, extract: P } }, 8 * DAY, [5]],
+    [{ name: 'Astrid Jonsson', area: 'Bromma', lic: 18, docs: { licence: U, extract: P, photo: M } }, 8 * DAY, [5]],
     [{ name: 'Ali Mohammed', area: 'Järfälla', lic: 9, docs: { licence: U, extract: M, photo: M } }, 9 * DAY, []],
     [{ name: 'Freja Lundberg', area: 'Täby', lic: 5, docs: { licence: U, id: M, extract: P } }, 11 * DAY, []],
     [{ name: 'William Lindström', area: 'Sundbyberg', lic: 30, docs: { licence: U, extract: M } }, 12 * DAY, [6]],
@@ -165,13 +179,17 @@ export function generateSeed(now: number): Applicant[] {
   }
 
   // ---------- Awaiting first gig: 6 (accepted ~1, 4, 9, 12, 18, 34 days ago) ----------
-  const awaiting: [Base, number /* accepted d ago */, number /* decision h */, number /* reg→complete d */, Partial<{ welcome: boolean; bookedTomorrow: boolean; type: Decision['type'] }>][] = [
-    [{ name: 'Viktor Engström', area: 'Solna', lic: 10 }, 20 / 24, 30, 3, {}], // accepted 20 h ago: welcome call still due
+  type AwaitOpts = Partial<{ welcome: boolean; bookedTomorrow: boolean; type: Decision['type']; extractLater: boolean; check: boolean; unreachable: boolean }>;
+  const awaiting: [Base, number /* accepted d ago */, number /* decision h */, number /* reg→complete d */, AwaitOpts][] = [
+    // Accepted 20 h ago, 44 h after registering: his extract is still in the post. Welcome call still due.
+    [{ name: 'Viktor Engström', area: 'Solna', lic: 10, docs: { extract: 'pending' } }, 20 / 24, 20, 1, { extractLater: true }],
     [{ name: 'Klara Forsberg', area: 'Nacka', lic: 6 }, 4, 80, 3, { welcome: true, bookedTomorrow: true }],
-    [{ name: 'Mohammed Yusuf', area: 'Sundbyberg', lic: 1.4 }, 9, 72, 2, { welcome: true, type: 'accepted_simple' }],
+    // His extract arrived after the decision: a 5-minute check is booked.
+    [{ name: 'Mohammed Yusuf', area: 'Sundbyberg', lic: 1.4 }, 9, 30, 1, { welcome: true, type: 'accepted_simple', extractLater: true, check: true }],
     [{ name: 'Ida Sjöberg', area: 'Lidingö', lic: 19, limited: 'Evenings and weekends' }, 12, 90, 4, { welcome: true, type: 'accepted_flagged' }],
-    [{ name: 'Anton Wallin', area: 'Bromma', lic: 14 }, 18, 96, 3, { welcome: true }],
-    [{ name: 'Lova Hedlund', area: 'Huddinge', lic: 4 }, 34, 120, 3, {}],
+    // Lives outside the areas we have jobs in: the gap here is demand, not the driver.
+    [{ name: 'Anton Wallin', area: 'Södertälje', lic: 14 }, 18, 96, 3, { welcome: true }],
+    [{ name: 'Lova Hedlund', area: 'Huddinge', lic: 4 }, 34, 120, 3, { unreachable: true }],
   ];
   for (const [b, accAgo, decH, regDays, o] of awaiting) {
     const at = ago(accAgo * DAY);
@@ -185,6 +203,9 @@ export function generateSeed(now: number): Applicant[] {
           decision: { type: o.type ?? 'accepted', at },
           ...(o.welcome ? { welcome: at + 6 * HOUR } : {}),
           ...(o.bookedTomorrow ? { booked: startOfDay(now + DAY) + 9 * HOUR } : {}),
+          ...(o.extractLater ? { extractLater: true } : {}),
+          ...(o.check ? { extractCheckAt: callSlots(now, [])[0] } : {}),
+          ...(o.unreachable ? { activationReason: { reason: 'unreachable' as const, at: at + 15 * DAY } } : {}),
         },
         now,
       ),

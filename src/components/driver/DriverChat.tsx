@@ -55,10 +55,10 @@ const SUGGEST: Partial<Record<DriverStep | 'visitor', string[]>> = {
   licence: ['Can I use a digital licence?', 'What does a job pay?'],
   photo: ['What photo works?', 'Can I wear a headscarf in the photo?'],
   extract: ['How do I order the extract?', "I've ordered my extract", 'Hur lång tid tar utdraget?'],
-  call: ['Book my call for tomorrow morning', 'What happens in the call?'],
+  call: ['Book my call for tomorrow morning', 'Do I need my extract for the call?'],
   decision: ['Can I move my call?', 'What happens in the call?'],
-  first_gig: ['Which first drive is closest to me?', 'What should I bring on my first drive?'],
-  booked: ['What should I bring on my first drive?', 'What if I am running late?'],
+  first_gig: ['Which first drive is closest to me?', 'When do I show my extract?'],
+  booked: ['What should I bring on my first drive?', 'When do I show my extract?'],
   active: ['When do I get paid?', 'Are SL tickets refunded?', 'Can I cancel a job?'],
   closed: ['Why was I not accepted?', 'Can I apply again?'],
 };

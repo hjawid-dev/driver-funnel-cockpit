@@ -10,14 +10,19 @@ describe('evaluate: must-haves', () => {
     expect(ev.acceptBlockedBy).toEqual([]);
     expect(ev.acceptType).toBe('accepted');
   });
-  it('photo and extract need a manual tick before accepting', () => {
+  it('the photo needs a manual tick; the extract is for before the first drive and does not block', () => {
     const ev = evaluate(inReview({ photoApproved: undefined, extractShown: undefined }));
     expect(ev.mustHaves.find((m) => m.key === 'photo')!.result).toBe('manual');
-    expect(ev.mustHaves.find((m) => m.key === 'extract')!.result).toBe('manual');
-    expect(ev.acceptBlockedBy).toHaveLength(2);
+    expect(ev.mustHaves.find((m) => m.key === 'extract')!.result).toBe('later');
+    expect(ev.acceptBlockedBy).toHaveLength(1);
   });
-  it('an extract that is only ordered blocks review decisions', () => {
+  it('an extract that is only ordered does not hold up the decision', () => {
     const ev = evaluate(inReview({ extractShown: undefined, docs: { licence: 'verified', id: 'verified', extract: 'pending', photo: 'uploaded' } }));
+    expect(ev.mustHaves.find((m) => m.key === 'extract')!.result).toBe('later');
+    expect(ev.acceptBlockedBy).toEqual([]);
+  });
+  it('an extract that is not even ordered fails', () => {
+    const ev = evaluate(inReview({ extractShown: undefined, docs: { licence: 'verified', id: 'verified', extract: 'missing', photo: 'uploaded' } }));
     expect(ev.mustHaves.find((m) => m.key === 'extract')!.result).toBe('fail');
   });
   it('licence < 1 year fails and suggests the licence reason', () => {

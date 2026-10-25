@@ -277,12 +277,12 @@ const HISTORY: { name: string; daysAgo: number; lines: Line[]; waiting?: Handove
   ] },
   { name: 'Wilma Eriksson', daysAgo: 0.04, lines: [
     ['driver', 'hur lång tid tar det att få utdraget?', 0],
-    ['ai', 'Det brukar ta några dagar, ibland upp till två veckor. Säg till här när du har beställt det, så påminner vi dig att boka samtalet när det har kommit.', 0.2, { sources: ['extract-order', 'extract-delay'] }],
+    ['ai', 'Det kommer med posten och kan ta upp till två veckor. Du behöver inte vänta på det: när du har beställt det kan du boka samtalet direkt, och utdraget visar du före din första körning.', 0.2, { sources: ['extract-order', 'extract-delay'] }],
     ['driver', 'jag har beställt det nu', 1],
-    ['ai', 'Toppen! Bekräfta med knappen nedan så noterar jag att utdraget är beställt.', 1.2, { proposal: { optionId: 'ORDERED', label: 'Mark your extract as ordered', action: { type: 'extract_ordered' }, status: 'done' } }],
-    ['note', "Noted: your extract is ordered. Tell me when it arrives and we'll book your call.", 1.4, { actionDone: 'Mark your extract as ordered' }],
+    ['ai', 'Toppen! Bekräfta med knappen nedan så noterar jag att utdraget är beställt.', 1.2, { proposal: { optionId: 'ORDERED', label: 'Mark your extract as ordered, then book your call (no need to wait for it)', action: { type: 'extract_ordered' }, status: 'done' } }],
+    ['note', "Noted: your extract is ordered. You don't have to wait for it: pick a time for your onboarding call below or in the app. You show the extract before your first drive.", 1.4, { actionDone: 'Mark your extract as ordered' }],
     ['driver', 'Can I do the other steps while I wait?', 3],
-    ['ai', 'Yes. BankID, the licence photo and the profile photo can all be done while you wait for the extract.', 3.2, { sources: ['extract-delay'] }],
+    ['ai', 'Yes. BankID, the licence photo and the profile photo can all be done now, and you can book your call without waiting for the extract.', 3.2, { sources: ['extract-delay'] }],
   ] },
   { name: 'Hugo Larsson', daysAgo: 0.008, waiting: 'unsure', lines: [
     ['driver', 'Do you also have jobs driving vans or cars with a trailer?', 0],
@@ -297,7 +297,7 @@ const HISTORY: { name: string; daysAgo: number; lines: Line[]; waiting?: Handove
     ['driver', 'what do you pay per job', 0],
     ['ai', 'Every job shows its pay before you accept it. Short city drives pay around 300–350 SEK and longer ones like Stockholm–Uppsala around 650–700 SEK. Public transport to and from the job is refunded on top.', 0.2, { sources: ['pay', 'travel-costs'] }],
     ['driver', "I've ordered it", 30],
-    ['note', "Noted: your extract is ordered. Tell me when it arrives and we'll book your call.", 30, { actionDone: 'Mark your extract as ordered' }],
+    ['note', "Noted: your extract is ordered. You don't have to wait for it: pick a time for your onboarding call below or in the app. You show the extract before your first drive.", 30, { actionDone: 'Mark your extract as ordered' }],
   ] },
   { name: 'Ebba Gustafsson', daysAgo: 1.6, lines: [
     ['driver', 'Is there a bonus if I refer a friend?', 0],

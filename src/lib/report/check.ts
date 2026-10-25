@@ -100,6 +100,8 @@ export interface CheckResult {
   errors: string[];
 }
 
+const EXTRACT_SENT = /(?<!\b(?:never|not|n't)\s)\b(send|email|upload|attach|forward|submit|keep|store|copy)\b[^.]{0,40}\bextracts?\b/i;
+
 /**
  * The number check. Every number in a sentence must be one of the numbers of the facts that
  * sentence cites, every cited fact must exist, and the tone of a change must match the data.
@@ -128,6 +130,8 @@ export function checkReport(r: WeeklyReport, wf: WeeklyFacts): CheckResult {
       numbers++;
       if (!allowed.has(n)) errors.push(`${where} says ${n}, which is not in the facts it cites (${it.facts.join(', ')}).`);
     }
+    // The extract is only shown on video: a report must never tell anyone to send, upload or keep it.
+    if (EXTRACT_SENT.test(it.text)) errors.push(`${where} suggests sending or keeping the extract; it is only shown, never sent or stored.`);
     if ('tone' in it) {
       const tone = (it as ChangeItem).tone;
       const good = cited.some((f) => f.good === true);

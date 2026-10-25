@@ -50,16 +50,13 @@ describe('persist', () => {
     expect(out.threads.find((t) => t.id === waiting.id)!.waitingSince).toBe(waiting.waitingSince! + 5 * DAY);
     expect(out.jobs[0].pickupAt).toBe(jobs[0].pickupAt + 5 * DAY);
   });
-  it.each([4, 5, 6])('keeps the applicants of a v%i save and gives it the demo day with the assistant at the pickup', (version) => {
-    const out = restore(JSON.stringify({ version, savedAt: NOW, apps: seed, gigs, threads, jobs: [] }), NOW + HOUR)!;
-    expect(out.apps).toEqual(seed);
-    expect(out.jobs).toEqual(jobs);
-    expect(out.threads.map((t) => t.messages.map((m) => m.text))).toEqual(threads.map((t) => t.messages.map((m) => m.text)));
+  it.each([3, 4, 5, 6, 7])('starts fresh instead of a v%i save: before v8 the decision waited for the extract', (version) => {
+    expect(restore(JSON.stringify({ version, savedAt: NOW, apps: seed, gigs, threads, jobs }), NOW + HOUR)).toBeNull();
   });
-  it('keeps a save from the previous version (v3) and adds the demo conversations', () => {
-    const out = restore(JSON.stringify({ version: 3, savedAt: NOW, apps: seed, gigs }), NOW + HOUR)!;
-    expect(out.apps).toEqual(seed);
-    expect(out.threads.length).toBe(threads.length);
+  it('moves the extract check, when it was shown and a released drive forward with the rest', () => {
+    const a = mk({ extractShownAt: NOW, extractCheckAt: NOW + DAY, activationReason: { reason: 'unreachable', at: NOW }, firstGig: { released: { at: NOW, bookedFor: NOW + DAY } } });
+    const s = shiftApplicant(a, HOUR);
+    expect([s.extractShownAt, s.extractCheckAt, s.activationReason!.at, s.firstGig!.released!.at, s.firstGig!.released!.bookedFor]).toEqual([NOW + HOUR, NOW + DAY + HOUR, NOW + HOUR, NOW + HOUR, NOW + DAY + HOUR]);
   });
   it('discards saves from an older version of the app', () => {
     const old = seed.map((x) => {
@@ -70,7 +67,7 @@ describe('persist', () => {
     expect(restore(JSON.stringify({ savedAt: NOW, apps: old }), NOW)).toBeNull();
     // Same version number but an unknown reason code from an older model.
     const badReason = seed.map((x) => (x.decision?.type === 'rejected' ? { ...x, decision: { ...x.decision, reason: 'background_failed' } } : x));
-    expect(restore(JSON.stringify({ version: 3, savedAt: NOW, apps: badReason, gigs }), NOW)).toBeNull();
+    expect(restore(JSON.stringify({ version: 8, savedAt: NOW, apps: badReason, gigs, threads, jobs }), NOW)).toBeNull();
     // Version 2 (no jobs) is discarded too.
     expect(restore(JSON.stringify({ version: 2, savedAt: NOW, apps: seed }), NOW)).toBeNull();
   });

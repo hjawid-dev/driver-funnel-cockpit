@@ -672,11 +672,12 @@ export function firstDriveJob(a: Applicant, gig: Gig | undefined): Job | null {
   };
 }
 
-/** Keep the jobs in step with an applicant's first drive: add it when booked, move it when rebooked (until it starts). */
+/** Keep the jobs in step with an applicant's first drive: add it when booked, move it when rebooked, drop it when released (until it starts). */
 export function syncFirstDrive(jobs: Job[], a: Applicant, gigs: Gig[]): Job[] {
   const job = firstDriveJob(a, gigs.find((g) => g.id === a.firstGig?.gigId));
-  if (!job) return jobs;
   const existing = jobs.find((j) => j.driverId === a.id && j.firstDrive);
+  // Released (the extract wasn't shown): the job goes back, unless the drive has already started.
+  if (!job) return existing && existing.arrivedAt === undefined && !a.firstGig?.doneAt ? jobs.filter((j) => j !== existing) : jobs;
   if (!existing) return [...jobs, job];
   if (existing.arrivedAt !== undefined || (existing.pickupAt === job.pickupAt && existing.id === job.id)) return jobs;
   return jobs.map((j) => (j === existing ? job : j));

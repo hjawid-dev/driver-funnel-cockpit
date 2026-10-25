@@ -93,6 +93,13 @@ describe('the number check', () => {
     // The number exists in the data, but not in the fact this sentence cites.
     if (fact('new_applications').value !== fact('first_drive_quality').value) expect(checkReport(r2, wf).ok).toBe(false);
   });
+  it('rejects a suggestion to send or keep the extract: it is only shown', () => {
+    const r = goodReport();
+    r.actions[2] = { text: 'Ask the accepted drivers to send their criminal-record extract before the first drive.', facts: ['awaiting_over_7_days'] };
+    expect(checkReport(r, wf).errors.some((e) => e.includes('extract'))).toBe(true);
+    r.actions[2] = { text: 'Book a short video check so the accepted drivers can show their extract; we never keep the extract.', facts: ['awaiting_over_7_days'] };
+    expect(checkReport(r, wf).errors).toEqual([]);
+  });
   it('catches the wrong tone and facts that do not exist', () => {
     const r = goodReport();
     r.changes[2].tone = 'good'; // activation is below target

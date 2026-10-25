@@ -40,7 +40,7 @@ export function docStatusText(key: DocKey, s: DocStatus, extractShown = false): 
   if (key === 'id' && s === 'uploaded') return 'Scan only, not BankID';
   if (key === 'extract') {
     if (extractShown) return 'Shown, nothing stored';
-    return s === 'ready' ? 'Ready to show in call' : s === 'pending' ? 'Ordered from Polisen' : 'Not ordered';
+    return s === 'ready' ? 'Arrived, to show before the first drive' : s === 'pending' ? 'Ordered, shown before the first drive' : 'Not ordered';
   }
   if (key === 'licence' && s === 'failed') return 'Not valid';
   return { verified: 'Verified', uploaded: 'Uploaded', missing: 'Missing', pending: 'Pending', ready: 'Ready', failed: 'Failed', remark: 'Has remark' }[s];
@@ -69,7 +69,8 @@ export function DocChecklist({ docs }: { docs: Record<DocKey, DocStatus> }) {
     <ul className="flex flex-wrap gap-1" aria-label="Documents">
       {(['licence', 'id', 'extract', 'photo'] as DocKey[]).map((k) => {
         const s = docs[k];
-        const state = s === 'missing' ? 'missing' : s === 'pending' ? 'pending' : 'done';
+        // An ordered extract is enough for a complete file: it is shown before the first drive.
+        const state = s === 'missing' ? 'missing' : s === 'pending' && k !== 'extract' ? 'pending' : 'done';
         const style = { done: 'bg-ok-bg text-ok', pending: 'bg-warn-bg text-warn', missing: 'bg-bad-bg text-bad' }[state];
         const Icon = { done: Check, pending: Hourglass, missing: X }[state];
         return (

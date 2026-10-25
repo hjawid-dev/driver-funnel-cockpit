@@ -2,12 +2,15 @@ import type { Applicant, Gig } from './types';
 import { DOC_KEYS, REJECT_REASONS } from './types';
 import { HOUR } from './time';
 import type { ChatThread } from './chat/types';
-import { isThread, seedThreads, shiftThread } from './chat/threads';
-import { isJob, seedJobs, shiftJob, type Job } from './liveOps';
+import { isThread, shiftThread } from './chat/threads';
+import { isJob, shiftJob, type Job } from './liveOps';
 
 export const STORAGE_KEY = 'driver-funnel-cockpit-v1';
-/** Bump when the data model changes. Saves from older versions are discarded, except v3 (no chat), v4 (no live jobs), v5 (no assistant at the pickup) and v6 (texts sent without the driver's Send). */
-export const DATA_VERSION = 7;
+/**
+ * Bump when the data model changes. Saves from older versions are discarded and the demo starts fresh:
+ * v8 decides without waiting for the extract, so an older save's files would sit in the wrong stage.
+ */
+export const DATA_VERSION = 8;
 /** If the saved demo is older than this, move every timestamp forward so clocks still look live. */
 export const REBASE_AFTER_MS = 12 * HOUR;
 
@@ -59,6 +62,9 @@ export function shiftApplicant(a: Applicant, delta: number): Applicant {
     ...(a.decision ? { decision: { ...a.decision, at: a.decision.at + delta } } : {}),
     ...(a.welcomeCallAt !== undefined ? { welcomeCallAt: s(a.welcomeCallAt) } : {}),
     ...(a.callAt !== undefined ? { callAt: s(a.callAt) } : {}),
+    ...(a.extractShownAt !== undefined ? { extractShownAt: s(a.extractShownAt) } : {}),
+    ...(a.extractCheckAt !== undefined ? { extractCheckAt: s(a.extractCheckAt) } : {}),
+    ...(a.activationReason ? { activationReason: { ...a.activationReason, at: a.activationReason.at + delta } } : {}),
     ...(a.reminders
       ? {
           reminders: {
@@ -73,6 +79,7 @@ export function shiftApplicant(a: Applicant, delta: number): Applicant {
             ...a.firstGig,
             ...(a.firstGig.bookedFor !== undefined ? { bookedFor: s(a.firstGig.bookedFor) } : {}),
             ...(a.firstGig.doneAt !== undefined ? { doneAt: s(a.firstGig.doneAt) } : {}),
+            ...(a.firstGig.released ? { released: { at: a.firstGig.released.at + delta, bookedFor: a.firstGig.released.bookedFor + delta } } : {}),
           },
         }
       : {}),
@@ -85,13 +92,10 @@ export function restore(raw: string | null, now: number): DemoData | null {
   if (!raw) return null;
   try {
     const saved = JSON.parse(raw) as Saved;
-    if (![3, 4, 5, 6, DATA_VERSION].includes(saved?.version) || !Array.isArray(saved.apps) || typeof saved.savedAt !== 'number') return null;
+    if (saved?.version !== DATA_VERSION || !Array.isArray(saved.apps) || typeof saved.savedAt !== 'number') return null;
     if (!saved.apps.every(isCurrentShape) || !Array.isArray(saved.gigs) || !saved.gigs.every(isGig)) return null;
-    // v3 had no chat, and before v6 Julia's chat went straight to a person: the demo conversations as of that save.
-    const threads = saved.version < 6 ? seedThreads(saved.apps, saved.savedAt) : saved.threads;
+    const { threads, jobs } = saved;
     if (!Array.isArray(threads) || !threads.every(isThread)) return null;
-    // v3 and v4 had no live jobs, v5 no assistant at the pickup, v6 no reason or Send: today's demo drives as of that save.
-    const jobs = saved.version < 7 ? seedJobs(saved.apps, saved.savedAt) : saved.jobs;
     if (!Array.isArray(jobs) || !jobs.every(isJob)) return null;
     const gap = now - saved.savedAt;
     if (gap <= REBASE_AFTER_MS) return { apps: saved.apps, gigs: saved.gigs, threads, jobs };

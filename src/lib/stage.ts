@@ -16,8 +16,16 @@ export function isSubmitted(s: DocStatus): boolean {
   return s !== 'missing' && s !== 'pending';
 }
 
+/**
+ * A complete file: licence, BankID and photo in, and the extract ordered. The extract comes by post
+ * and can take two weeks, so it is shown before the first drive, not before the decision.
+ */
+export function docDone(a: Applicant, k: (typeof DOC_KEYS)[number]): boolean {
+  return k === 'extract' ? a.docs.extract !== 'missing' : isSubmitted(a.docs[k]);
+}
+
 export function allDocsSubmitted(a: Applicant): boolean {
-  return DOC_KEYS.every((k) => isSubmitted(a.docs[k]));
+  return DOC_KEYS.every((k) => docDone(a, k));
 }
 
 export function isAccepted(a: Applicant): boolean {

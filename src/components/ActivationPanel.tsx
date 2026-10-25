@@ -1,17 +1,23 @@
 import { useState } from 'react';
-import { CalendarCheck, Car, Flag, PhoneCall } from 'lucide-react';
-import { FIRST_GIG_ISSUE_LABEL, type Applicant, type FirstGigIssue } from '../lib/types';
-import { ACTIVATION_RULE, activationBucket, activationFlags, welcomeCallState } from '../lib/activation';
-import { bookFirstGig, completeFirstGig, logWelcomeCall, type ActionResult } from '../lib/actions';
+import { CalendarCheck, Car, Flag, Lock, PhoneCall } from 'lucide-react';
+import { FIRST_GIG_ISSUE_LABEL, type Applicant, type FirstGigIssue, type Gig, type OpsActivationReason } from '../lib/types';
+import { ACTIVATION_REASON_LABEL, ACTIVATION_RULE, activationBucket, activationFlags, activationReason, welcomeCallState } from '../lib/activation';
+import { bookFirstGig, completeFirstGig, logWelcomeCall, OPS_ACTIVATION_LABEL, setActivationReason, type ActionResult } from '../lib/actions';
+import { EXTRACT_STATE_LABEL, extractState, markExtractShown, needsExtract, showBy } from '../lib/extract';
 import { DAY, formatDateTime } from '../lib/time';
 import { ActivationChip } from './Activation';
 import { DrawerSection } from './ui';
 
 interface Props {
   a: Applicant;
+  apps: Applicant[];
+  gigs: Gig[];
   now: number;
+  onUpdate: (next: Applicant) => void;
   onResult: (r: ActionResult, close?: boolean) => void;
 }
+
+const OPS_REASONS: OpsActivationReason[] = ['declined', 'unreachable', 'not_interested'];
 
 const toInputDate = (ts: number) => {
   const d = new Date(ts);
@@ -23,7 +29,7 @@ const fromInputDate = (v: string) => {
   return new Date(y, m - 1, d, 9, 0).getTime();
 };
 
-export function ActivationPanel({ a, now, onResult }: Props) {
+export function ActivationPanel({ a, apps, gigs, now, onUpdate, onResult }: Props) {
   const bucket = activationBucket(a.decision!.at, now);
   const flags = activationFlags(a);
   const call = welcomeCallState(a, now);
@@ -35,6 +41,9 @@ export function ActivationPanel({ a, now, onResult }: Props) {
   const [cause, setCause] = useState<FirstGigIssue>('customer_keys');
   const [note, setNote] = useState('');
 
+  const reason = activationReason(a, apps, gigs, now);
+  const extract = extractState(a, now);
+  const by = showBy(a);
   const outcome = onTime && ok ? 'on time, no incident' : [!onTime && 'late', !ok && 'incident or unhappy customer'].filter(Boolean).join(' + ');
 
   return (
@@ -71,6 +80,53 @@ export function ActivationPanel({ a, now, onResult }: Props) {
           </ul>
         )}
       </DrawerSection>
+
+      <DrawerSection title="Why no first drive yet" aside={<span className="text-xs text-muted">one reason, so the list adds up</span>}>
+        <p className="text-sm font-semibold">{ACTIVATION_REASON_LABEL[reason]}</p>
+        <p className="mt-0.5 text-xs text-muted">
+          {reason === 'no_fit'
+            ? 'No easy job in their part of Stockholm at a time they can drive: a demand gap, not the driver.'
+            : a.activationReason
+              ? 'Noted by ops after a call. Clear it when it changes.'
+              : 'Worked out from the data. After a call, note what you learned:'}
+        </p>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {OPS_REASONS.map((r) => (
+            <button
+              key={r}
+              type="button"
+              aria-pressed={a.activationReason?.reason === r}
+              onClick={() => onResult(setActivationReason(a, a.activationReason?.reason === r ? null : r, now))}
+              className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${a.activationReason?.reason === r ? 'border-indigo bg-indigo text-white' : 'border-lavender hover:border-indigo hover:text-indigo'}`}
+            >
+              {OPS_ACTIVATION_LABEL[r]}
+            </button>
+          ))}
+        </div>
+      </DrawerSection>
+
+      {needsExtract(a) && (
+        <DrawerSection title="Before the first drive · extract" aside={<span className="text-xs text-muted">voluntary, nothing stored</span>}>
+          <div className="rounded-lg border border-lavender p-3 text-sm">
+            <p className="flex items-center gap-1.5 font-semibold">
+              <Lock size={15} aria-hidden /> {EXTRACT_STATE_LABEL[extract]}
+              {extract === 'check_booked' && <span className="num font-normal">· {formatDateTime(a.extractCheckAt!)}</span>}
+            </p>
+            <p className="mt-0.5 text-xs text-muted">
+              Accepted before the extract arrived. It is shown in a 5-minute video check{by ? `, by ${formatDateTime(by)} (the day before the drive), or the drive goes to another driver` : ', at the latest the day before the first drive'}.
+            </p>
+            {a.docs.extract === 'ready' && (
+              <button
+                type="button"
+                onClick={() => onUpdate(markExtractShown(a, true, now))}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-indigo px-3 py-1.5 text-sm font-semibold text-indigo hover:bg-indigo hover:text-white"
+              >
+                Extract shown (nothing stored)
+              </button>
+            )}
+          </div>
+        </DrawerSection>
+      )}
 
       <DrawerSection title="1 · Welcome call" aside={<span className="text-xs text-muted">within 24 h of acceptance</span>}>
         {call.state === 'done' ? (

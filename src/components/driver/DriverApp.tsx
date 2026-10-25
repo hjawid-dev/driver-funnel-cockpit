@@ -15,6 +15,7 @@ import { firstGigOffers } from '../../lib/gigs';
 import { driverInbox } from '../../lib/automation';
 import { CALL_AGENDA, PHOTO_STANDARD } from '../../lib/criteria';
 import { formatDateTime } from '../../lib/time';
+import { bookExtractCheck, checkMissed, extractState, needsExtract, showBy } from '../../lib/extract';
 
 const AREAS = ['Bromma', 'Haninge', 'Huddinge', 'Järfälla', 'Kungsholmen', 'Lidingö', 'Nacka', 'Sollentuna', 'Solna', 'Sundbyberg', 'Södermalm', 'Täby'];
 
@@ -206,8 +207,8 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
           <ul className="mt-1.5 space-y-1 text-sm text-muted">
             <li>1. Verify your ID with BankID</li>
             <li>2. Photo of your licence and a profile photo</li>
-            <li>3. Order your criminal-record extract</li>
-            <li>4. Book a 15-minute onboarding call. We decide in the call.</li>
+            <li>3. Order your criminal-record extract (it comes by post)</li>
+            <li>4. Book a 15-minute onboarding call. We decide in the call, without waiting for the extract.</li>
           </ul>
         </Card>
         <PrivacyNotice />
@@ -316,7 +317,7 @@ function PrivacyNotice() {
       <ul className="mt-2 space-y-1.5 text-xs text-muted">
         <li>We use your details only to assess your application and, if accepted, to offer you jobs.</li>
         <li>
-          <strong>Your criminal-record extract is only shown in the onboarding call.</strong> We never keep a copy or write down what it says.
+          <strong>You show your criminal-record extract on video before your first drive.</strong> We only look at it: we never keep a copy or write down what it says.
         </li>
         <li>A person makes every decision. You can ask why and ask for a review; you get the result of the review within two weeks.</li>
         <li>
@@ -356,14 +357,14 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump, onDecide }: { a: 
     case 'extract':
       return (
         <div className="space-y-3">
-          <Title icon={<Lock size={16} />} sub="We move customers' cars and keys, so we ask everyone for an extract from the criminal record.">
+          <Title icon={<Lock size={16} />} sub="We move customers' cars and keys, so we ask everyone to show an extract from the criminal record before their first drive.">
             Your criminal-record extract
           </Title>
           <Card tone="soft">
             <ol className="space-y-1.5 text-sm">
-              <li>1. Order your own extract at polisen.se. It usually takes a few days.</li>
-              <li>2. When it arrives, book your 15-minute onboarding call (video).</li>
-              <li>3. In the call you also show it to us. <strong>We never keep a copy or write down what it says.</strong></li>
+              <li>1. Order your own extract at polisen.se today. It comes by post and can take up to two weeks.</li>
+              <li>2. You don't have to wait for it: book your onboarding call right away. We decide in the call.</li>
+              <li>3. Show it to us on video before your first drive. <strong>We never keep a copy or write down what it says.</strong></li>
             </ol>
           </Card>
           <a
@@ -374,18 +375,10 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump, onDecide }: { a: 
           >
             Order at polisen.se <ExternalLink size={14} aria-hidden />
           </a>
-          {a.docs.extract === 'missing' ? (
-            <Primary onClick={() => onUpdate(receiveDocument(a, 'extract', 'pending', now))}>I've ordered it</Primary>
-          ) : (
-            <>
-              <Card tone="ok">
-                <p className="flex items-center gap-1.5 text-sm font-semibold text-ok">
-                  <Check size={15} aria-hidden /> Ordered. We'll remind you to book the onboarding call.
-                </p>
-              </Card>
-              <Primary onClick={() => onUpdate(receiveDocument(a, 'extract', 'ready', now))}>It has arrived</Primary>
-            </>
-          )}
+          <Primary onClick={() => onUpdate(receiveDocument(a, 'extract', 'pending', now))}>I've ordered it</Primary>
+          <button type="button" onClick={() => onUpdate(receiveDocument(a, 'extract', 'ready', now))} className="w-full text-center text-sm font-semibold text-indigo hover:underline">
+            I already have a recent one
+          </button>
         </div>
       );
     case 'call':
@@ -398,7 +391,15 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump, onDecide }: { a: 
             <p className="text-sm">
               Your call: <strong>{formatDateTime(a.callAt!)}</strong>
             </p>
-            <p className="mt-1 text-xs text-muted">15 minutes, video. Have your extract ready.</p>
+            <p className="mt-1 text-xs text-muted">
+              15 minutes, video.{' '}
+              {a.docs.extract === 'ready' ? 'Have your extract at hand: you can show it in the call.' : 'Your extract is on its way: you show it before your first drive, not in the call.'}
+            </p>
+            {a.docs.extract === 'pending' && (
+              <button type="button" onClick={() => onUpdate(receiveDocument(a, 'extract', 'ready', now))} className="mt-1.5 text-xs font-semibold text-indigo hover:underline">
+                My extract has arrived
+              </button>
+            )}
           </Card>
           <Card tone="soft">
             <p className="text-sm font-semibold">Your onboarding call, 15 minutes</p>
@@ -421,12 +422,18 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump, onDecide }: { a: 
         </div>
       );
     case 'first_gig':
-      return <OffersStep a={a} apps={apps} gigs={gigs} now={now} onPick={(g) => onUpdate(bookOffer(a, g, now))} />;
+      return (
+        <div className="space-y-3">
+          <ExtractCard a={a} apps={apps} now={now} onUpdate={onUpdate} />
+          <OffersStep a={a} apps={apps} gigs={gigs} now={now} onPick={(g) => onUpdate(bookOffer(a, g, now))} />
+        </div>
+      );
     case 'booked': {
       const g = gigs.find((x) => x.id === a.firstGig?.gigId);
       return (
         <div className="space-y-3">
           <Title icon={<Car size={16} />}>Your first drive is booked</Title>
+          <ExtractCard a={a} apps={apps} now={now} onUpdate={onUpdate} />
           <Card tone="ok">
             <p className="text-sm font-semibold">{g ? `${g.from} → ${g.to}` : 'First drive'}</p>
             <p className="mt-0.5 text-sm">{formatDateTime(a.firstGig!.bookedFor!)}</p>
@@ -435,7 +442,7 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump, onDecide }: { a: 
           <Card tone="soft">
             <p className="text-sm">Ops is on standby during the whole drive. On the day, this screen shows the job: tap "I'm here" at the pickup.</p>
           </Card>
-          {onJump && (
+          {onJump && !needsExtract(a) && (
             <button type="button" onClick={onJump} className="w-full rounded-xl border border-dashed border-lavender px-4 py-2 text-xs font-semibold text-muted hover:border-indigo hover:text-indigo">
               Demo: jump to the morning of the drive
             </button>
@@ -553,7 +560,7 @@ function CallStep({ a, apps, now, onBook }: { a: Applicant; apps: Applicant[]; n
   }
   return (
     <div className="space-y-3">
-      <Title icon={<CalendarCheck size={16} />} sub="15 minutes on video: how jobs work, a few questions, and you show your extract. We decide in the call.">
+      <Title icon={<CalendarCheck size={16} />} sub="15 minutes on video: how jobs work, a few questions, and the decision. If your extract has arrived you can show it too; if not, you show it before your first drive.">
         Book your onboarding call
       </Title>
       {[...byDay.entries()].map(([day, ts]) => (
@@ -577,16 +584,92 @@ function CallStep({ a, apps, now, onBook }: { a: Applicant; apps: Applicant[]; n
   );
 }
 
+/**
+ * After a decision with a condition: the extract is the one thing left before the first drive.
+ * Ordered → tell us when it arrives; arrived → book a 5-minute check; booked → when it is.
+ */
+function ExtractCard({ a, apps, now, onUpdate }: { a: Applicant; apps: Applicant[]; now: number; onUpdate: (a: Applicant) => void }) {
+  const released = a.firstGig?.released && !a.firstGig.bookedFor ? a.firstGig.released : null;
+  if (!needsExtract(a)) return null;
+  const state = extractState(a, now);
+  const by = showBy(a);
+  const missed = checkMissed(a, now);
+  return (
+    <Card tone={by ? 'warn' : 'soft'}>
+      <p className="flex items-center gap-1.5 text-sm font-semibold">
+        <Lock size={15} aria-hidden /> Before your first drive: show your extract
+      </p>
+      {released && <p className="mt-1 text-sm">Your drive {formatDateTime(released.bookedFor)} went to another driver because the extract wasn't shown in time. You're still accepted.</p>}
+      {state === 'ordered' && (
+        <>
+          <p className="mt-1 text-sm text-muted">Ordered from Polisen. When it arrives, book a 5-minute video check. We only look at it and never keep a copy.</p>
+          <button type="button" onClick={() => onUpdate(receiveDocument(a, 'extract', 'ready', now))} className="mt-2 w-full rounded-lg bg-indigo py-2 text-sm font-semibold text-white hover:bg-navy">
+            My extract has arrived
+          </button>
+        </>
+      )}
+      {state === 'ready' && (
+        <>
+          <p className="mt-1 text-sm text-muted">
+            {missed ? `Your check ${formatDateTime(a.extractCheckAt!)} didn't happen. Pick a new time:` : 'Pick a time for a 5-minute video check:'}
+          </p>
+          <SlotGrid
+            slots={callSlots(now, apps.filter((x) => x.id !== a.id), 8).filter((t) => by === null || t <= by)}
+            onPick={(t) => {
+              const r = bookExtractCheck(a, t, now);
+              if (r.ok) onUpdate(r.applicant);
+            }}
+          />
+        </>
+      )}
+      {state === 'check_booked' && (
+        <p className="mt-1 text-sm">
+          Extract check booked: <strong>{formatDateTime(a.extractCheckAt!)}</strong>, 5 minutes on video.
+        </p>
+      )}
+      {by && <p className="mt-1.5 text-xs font-semibold">Show it by {formatDateTime(by)}, or the drive goes to another driver.</p>}
+    </Card>
+  );
+}
+
+function SlotGrid({ slots, onPick }: { slots: number[]; onPick: (t: number) => void }) {
+  const byDay = new Map<string, number[]>();
+  for (const t of slots) {
+    const day = new Date(t).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    byDay.set(day, [...(byDay.get(day) ?? []), t]);
+  }
+  if (!slots.length) return <p className="mt-1.5 text-sm">No free time before the drive. Ask in Messages and we'll find one.</p>;
+  return (
+    <div className="mt-1.5 space-y-2">
+      {[...byDay.entries()].map(([day, ts]) => (
+        <div key={day}>
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">{day}</p>
+          <div className="grid grid-cols-4 gap-1.5">
+            {ts.map((t) => (
+              <button key={t} type="button" onClick={() => onPick(t)} className="num rounded-lg border border-lavender bg-white py-1.5 text-sm font-semibold hover:border-indigo hover:bg-lavender">
+                {new Date(t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function OffersStep({ a, apps, gigs, now, onPick }: { a: Applicant; apps: Applicant[]; gigs: Gig[]; now: number; onPick: (g: Gig) => void }) {
   const offers = firstGigOffers(a, gigs, apps, now);
   return (
     <div className="space-y-3">
-      <Title icon={<Sparkles size={16} />} sub="Pick your first drive. All three are short and easy, with ops on standby.">
+      <Title
+        icon={<Sparkles size={16} />}
+        sub={needsExtract(a) ? 'Pick your first drive. Short and easy, with ops on standby, from 5 days ahead so your extract has time to arrive.' : 'Pick your first drive. All three are short and easy, with ops on standby.'}
+      >
         Welcome aboard, {a.name.split(' ')[0]}!
       </Title>
       {offers.length === 0 ? (
         <Card tone="soft">
-          <p className="text-sm">No easy jobs near you right now. New jobs are posted every day; we'll message you.</p>
+          <p className="text-sm">No easy jobs near you right now. New jobs are posted every day; we'll message you when one fits.</p>
         </Card>
       ) : (
         offers.map((g) => (
@@ -811,7 +894,7 @@ function Review({ k, a, apps, now, onUpdate }: { k: ReviewKey; a: Applicant; app
       return (
         <div className="space-y-3">
           <Title icon={<Lock size={16} />}>Your criminal-record extract</Title>
-          {doneCard(a.docs.extract === 'ready' ? 'Ready to show in the onboarding call' : 'Ordered')}
+          {doneCard(a.extractShown ? 'Shown, nothing stored' : a.docs.extract === 'ready' ? 'Arrived: show it in the call or before your first drive' : 'Ordered: show it before your first drive')}
           <p className="text-xs text-muted">We never keep a copy or write down what it says.</p>
         </div>
       );

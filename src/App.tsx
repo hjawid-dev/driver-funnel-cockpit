@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarClock, Compass, FileText, Network } from 'lucide-react';
 import { useClock, useDemoData, type TabKey } from './state';
 import { computeFunnel, computeKpis, reachedStage, type FunnelKey } from './lib/kpis';
@@ -31,6 +31,7 @@ import { ChatQueue } from './components/ChatQueue';
 import { formatDateTime } from './lib/time';
 import { todayItems, type TodayItem } from './lib/today';
 import { liveOpsEvents } from './lib/automation';
+import { releaseDue } from './lib/extract';
 import { assistedJobs, assisting, currentJob, driverUpdate, escalate, firstDriveResult, jobAlert, openIncidents, reportProblem, syncFirstDrive, type Job } from './lib/liveOps';
 import { completeFirstGig } from './lib/actions';
 import { backToAi, callRequested, emptyThread, keysFoundByDriver, opsReply, pickupReported, relayContactReply, solvedNote, textsSentNote, threadIdFor } from './lib/chat/threads';
@@ -135,6 +136,17 @@ export default function App() {
     },
     [updateJobs, gigs],
   );
+
+  // A first drive whose extract wasn't shown by the day before goes back to the pool (checked as the clock moves).
+  useEffect(() => {
+    const due = releaseDue(apps, now);
+    if (!due.length) return;
+    for (const next of due) {
+      update(next);
+      updateJobs((js) => syncFirstDrive(js, next, gigs));
+    }
+    toast.notify(`${due.map((a) => a.name.split(' ')[0]).join(', ')}: first drive released, the extract wasn't shown by the day before.`);
+  }, [apps, now, gigs, update, updateJobs, toast.notify]);
 
   const onResult = useCallback(
     (r: ActionResult, closeDrawer = false) => {
@@ -527,7 +539,7 @@ export default function App() {
             ) : tab === 'missing' ? (
               <MissingDocs apps={apps.filter((a) => deriveStage(a) === 'registered' && inFocus(a.id))} now={now} onOpen={setOpenId} onResult={onResult} />
             ) : tab === 'awaiting' ? (
-              <Activation apps={apps.filter((a) => deriveStage(a) === 'accepted' && inFocus(a.id))} now={now} onOpen={setOpenId} />
+              <Activation apps={apps.filter((a) => deriveStage(a) === 'accepted' && inFocus(a.id))} all={apps} gigs={gigs} now={now} onOpen={setOpenId} />
             ) : tab === 'chat' ? (
               <ChatQueue threads={threads} now={now} onThread={onThread} onViewChat={openDriverChat} only={focused?.ids} />
             ) : (
@@ -537,9 +549,9 @@ export default function App() {
         </section>
       </main>
 
-      {open && <ApplicantDrawer applicant={open} now={now} onClose={close} onUpdate={update} onResult={onResult} onViewAsDriver={openAsDriver} />}
+      {open && <ApplicantDrawer applicant={open} apps={apps} gigs={gigs} now={now} onClose={close} onUpdate={update} onResult={onResult} onViewAsDriver={openAsDriver} />}
       {showHubspot && <HubspotModal onClose={closeHubspot} />}
-      {showReport && <ReportModal onOpened={() => setReportOpened(true)} apps={apps} threads={threads} jobs={jobs} now={now} onClose={closeReport} />}
+      {showReport && <ReportModal onOpened={() => setReportOpened(true)} apps={apps} threads={threads} jobs={jobs} gigs={gigs} now={now} onClose={closeReport} />}
       <Toast message={toast.message} onDismiss={toast.dismiss} />
 
       <footer className="text-xs text-muted text-center px-4 py-6 border-t border-lavender">

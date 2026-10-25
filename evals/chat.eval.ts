@@ -48,7 +48,13 @@ function bookedCallTime(): number {
 const PEOPLE = {
   visitor: null,
   extractMissing: person({ id: 'DRV-9001', name: 'Sara Lindqvist' }),
-  extractOrdered: person({ id: 'DRV-9002', name: 'Wilma Eriksson', docs: { licence: 'verified', id: 'verified', extract: 'pending', photo: 'uploaded' } }),
+  // Ordered the extract, profile photo still missing (an ordered extract with everything else in would complete the file).
+  extractOrdered: person({ id: 'DRV-9002', name: 'Wilma Eriksson', docs: { licence: 'verified', id: 'verified', extract: 'pending', photo: 'missing' } }),
+  // Complete with the extract only ordered: the call doesn't wait for it.
+  orderedAtCall: person({ id: 'DRV-9010', name: 'Hugo Larsson', area: 'Sollentuna', docs: { licence: 'verified', id: 'verified', extract: 'pending', photo: 'uploaded' }, docsCompleteAt: NOW - HOUR }),
+  // Accepted before the extract arrived: shown in a 5-minute check before the first drive.
+  acceptedExtract: person({ id: 'DRV-9011', name: 'Klara Forsberg', docs: { licence: 'verified', id: 'verified', extract: 'pending', photo: 'uploaded' }, docsCompleteAt: NOW - 2 * DAY, decision: { type: 'accepted', at: NOW - DAY, by: 'Hjalmar' } }),
+  acceptedArrived: person({ id: 'DRV-9012', name: 'Anton Wallin', area: 'Bromma', docs: { licence: 'verified', id: 'verified', extract: 'ready', photo: 'uploaded' }, docsCompleteAt: NOW - 4 * DAY, decision: { type: 'accepted', at: NOW - 3 * DAY, by: 'Hjalmar' } }),
   atCall: person({ id: 'DRV-9003', name: 'Elin Johansson', docs: { licence: 'verified', id: 'verified', extract: 'ready', photo: 'uploaded' }, docsCompleteAt: NOW - HOUR }),
   callBooked: person({ id: 'DRV-9004', name: 'Ahmed Hassan', area: 'Sundbyberg', docs: { licence: 'verified', id: 'verified', extract: 'ready', photo: 'uploaded' }, docsCompleteAt: NOW - DAY, callAt: bookedCallTime() }),
   accepted: person({ id: 'DRV-9005', name: 'Viktor Engström', docs: { licence: 'verified', id: 'verified', extract: 'ready', photo: 'uploaded' }, docsCompleteAt: NOW - 3 * DAY, extractShown: true, decision: { type: 'accepted', at: NOW - 5 * HOUR, by: 'Hjalmar' } }),
@@ -100,7 +106,7 @@ interface Case {
 }
 
 const hourOf = (a: ChatAction) => (a.type === 'book_call' ? new Date(a.at).getHours() : -1);
-const NO_IDS = /\b(S\d{1,2}|G\d|K\d|LATER_1D|LATER_3D|ORDERED|ARRIVED|STOP)\b/;
+const NO_IDS = /\b(S\d{1,2}|G\d|K\d|X\d|LATER_1D|LATER_3D|ORDERED|ARRIVED|STOP)\b/;
 
 const CASES: Case[] = [
   // ---- Answers from the help articles (no person needed) ----
@@ -117,6 +123,11 @@ const CASES: Case[] = [
   { id: 'extract-how-sv', cat: 'answer', who: 'extractMissing', q: 'Hur beställer jag utdraget från belastningsregistret?', lang: 'sv', handover: null, sources: ['extract-order'], must: [/polisen/i] },
   { id: 'extract-kept', cat: 'answer', who: 'extractOrdered', q: 'Do you keep a copy of my criminal record extract?', handover: null, sources: ['extract-privacy', 'extract-order'], mustNot: [/\bwe (do )?keep a copy\b/i] },
   { id: 'extract-late', cat: 'answer', who: 'extractOrdered', q: "It's been ten days and my extract hasn't arrived", handover: null, sources: ['extract-delay'] },
+  // The extract after a decision with a condition: shown before the first drive, never needed for the call.
+  { id: 'call-without-extract-sv', cat: 'answer', who: 'orderedAtCall', q: 'Måste jag vänta på att utdraget kommer innan jag bokar samtalet?', lang: 'sv', handover: null, sources: ['call-booking', 'extract-delay', 'application-time', 'extract-order', 'how-to-apply'], must: [/inte/i] },
+  { id: 'drive-before-extract', cat: 'answer', who: 'acceptedExtract', q: 'Can I do my first drive before my extract arrives?', handover: null, sources: ['first-drive', 'extract-order', 'extract-delay'], must: [/show/i], mustNot: [/\byes,? you can (do|drive|take)\b/i, /doesn't have to (arrive|be shown) before you can (take|do|drive)/i] },
+  { id: 'accepted-without-extract', cat: 'answer', who: 'acceptedExtract', q: "Am I really accepted even though my extract hasn't come yet?", handover: null, must: [/accepted/i], mustNot: [/not (yet )?accepted|aren't accepted/i, /doesn't have to (arrive|be shown) before you can (take|do|drive)/i] },
+  { id: 'extract-late-accepted', cat: 'answer', who: 'acceptedExtract', q: "My extract still hasn't come and my first drive is next week. What happens?", handover: null, sources: ['extract-delay', 'first-drive'], must: [/day before|another driver/i] },
   { id: 'call-what', cat: 'answer', who: 'callBooked', q: 'What happens in the call?', handover: null, sources: ['call-content'], must: [/15/] },
   { id: 'call-when-sv', cat: 'answer', who: 'callBooked', q: 'När är mitt samtal?', lang: 'sv', handover: null, must: [/09[:.]15/] },
   { id: 'first-drive-bring', cat: 'answer', who: 'accepted', q: 'What should I bring on my first drive?', handover: null, sources: ['first-drive'] },
@@ -168,6 +179,8 @@ const CASES: Case[] = [
   // ---- Actions the driver confirms ----
   { id: 'ordered-sv', cat: 'action', who: 'extractMissing', q: 'Jag har beställt utdraget nu', lang: 'sv', action: 'extract_ordered', handover: null, mustNot: [NO_IDS] },
   { id: 'arrived', cat: 'action', who: 'extractOrdered', q: 'My extract came in the post today', action: 'extract_arrived', handover: null, mustNot: [NO_IDS] },
+  { id: 'arrived-accepted-sv', cat: 'action', who: 'acceptedExtract', q: 'Utdraget kom med posten idag!', lang: 'sv', action: 'extract_arrived', handover: null, mustNot: [NO_IDS] },
+  { id: 'book-check', cat: 'action', who: 'acceptedArrived', q: 'I have my extract now. When can I show it?', action: 'book_check', handover: null, mustNot: [NO_IDS] },
   { id: 'remind-3d', cat: 'action', who: 'extractMissing', q: "I'm away this week, remind me in a few days", action: 'remind_later', handover: null },
   { id: 'remind-tomorrow', cat: 'action', who: 'extractOrdered', q: 'Can you remind me tomorrow instead?', action: 'remind_later', handover: null },
   { id: 'stop', cat: 'action', who: 'extractMissing', q: 'stop', action: 'stop_reminders', handover: null },

@@ -42,7 +42,7 @@ export const HELP: HelpArticle[] = [
 - The right to work in Sweden.
 - A smartphone with mobile data.
 - To speak Swedish or English well enough to talk with customers and ops.
-You also show a criminal-record extract in the onboarding call (we never keep it), because we handle customers' cars and keys.`,
+Before your first drive you also show a criminal-record extract on video (we only look at it and never keep it), because we handle customers' cars and keys.`,
   },
   {
     id: 'how-to-apply',
@@ -54,8 +54,9 @@ You also show a criminal-record extract in the onboarding call (we never keep it
 2. Verify your ID with BankID.
 3. Take a photo of your driving licence, front and back.
 4. Add a profile photo.
-5. Order your criminal-record extract at polisen.se.
-6. When it has arrived, book your 15-minute onboarding call (video). We go through how jobs work, you show the extract, and we decide in the call.
+5. Order your criminal-record extract at polisen.se. It comes by post, so you don't wait for it.
+6. Book your 15-minute onboarding call (video) right away. We go through how jobs work and decide in the call.
+7. Before your first drive, show us the extract on video: in the call if it has arrived, otherwise in a 5-minute check.
 The progress bar at the top shows where you are. You can stop and continue later; we keep your progress.`,
   },
   {
@@ -63,9 +64,9 @@ The progress bar at the top shows where you are. You can stop and continue later
     title: 'How long until I can start driving?',
     category: 'Applying',
     tags: ['how long', 'hur lång tid', 'when', 'start', 'waiting', 'time'],
-    body: `Most of the wait is for the criminal-record extract, which usually arrives within a few days and sometimes takes up to two weeks. Everything else takes about 10 minutes.
-Once the extract has arrived you book your onboarding call yourself, often the same or next day. We decide in the call, and at the latest within 48 hours.
-If you're accepted you can pick your first drive straight away. Many new drivers do their first drive within a week of applying.`,
+    body: `Applying takes about 10 minutes. You book your onboarding call yourself as soon as your extract is ordered, often for the same or next day, and we decide in the call, at the latest within 48 hours.
+The criminal-record extract comes by post and can take up to two weeks, so we don't wait for it to decide. You show it before your first drive.
+If you're accepted you pick your first drive straight away. Until your extract is shown, first drives start at least 5 days ahead so it has time to arrive.`,
   },
   {
     id: 'licence-years',
@@ -133,19 +134,19 @@ The app checks the photo instantly and tells you if something needs fixing. A pe
     title: 'How to order your criminal-record extract',
     category: 'Documents',
     tags: ['extract', 'utdrag', 'belastningsregistret', 'criminal record', 'polisen', 'police', 'record', 'order'],
-    body: `We move customers' cars and keys, so we ask everyone for an extract from the criminal record (belastningsregistret).
-1. Go to polisen.se and order an extract of your own data from the criminal record. It is free.
-2. It is sent to you, usually within a few days, sometimes up to two weeks.
-3. In the app, tap "I've ordered it", or just tell the assistant in the chat. We'll remind you.
-4. When it arrives, tap "It has arrived" and book your onboarding call.
-You show the extract in the call. We never keep a copy and never write down what it says.`,
+    body: `We move customers' cars and keys, so we ask everyone to show an extract from the criminal record (belastningsregistret) before their first drive.
+1. Go to polisen.se and order an extract of your own data from the criminal record (kontroll av egna uppgifter). It is free.
+2. It comes by post, often within a week, sometimes up to two weeks.
+3. In the app, tap "I've ordered it", or tell the assistant in the chat. Then book your onboarding call right away: you don't have to wait for the extract.
+4. When it arrives, tap "My extract has arrived". If your call is still ahead, show it there. If you're already accepted, book a 5-minute video check.
+Show it at the latest the day before your first drive. We never keep a copy and never write down what it says.`,
   },
   {
     id: 'extract-privacy',
     title: 'What happens with my criminal-record extract?',
     category: 'Documents',
     tags: ['extract', 'utdrag', 'privacy', 'stored', 'sparas', 'copy', 'record', 'gdpr'],
-    body: `Nothing is stored. You hold up the extract in the onboarding call and we look at it together. We don't take a copy, a photo or notes about what it says.
+    body: `Nothing is stored. You hold up the extract on video, in the onboarding call or a 5-minute check before your first drive, and we look at it together. We don't take a copy, a photo or notes about what it says.
 The only thing we record is that the extract was shown.
 Please don't send the extract or details from it in the chat or by email. If you have questions about how an entry affects your application, ask in the call.`,
   },
@@ -154,9 +155,9 @@ Please don't send the extract or details from it in the chat or by email. If you
     title: "My extract hasn't arrived",
     category: 'Documents',
     tags: ['extract late', 'not arrived', 'inte kommit', 'delay', 'post', 'waiting'],
-    body: `It usually takes a few days, sometimes up to two weeks. If two weeks have passed, check your order at polisen.se or order it again.
-Your application stays open while you wait; we send a few reminders. If it hasn't arrived after 14 days, a person on our team contacts you before anything is closed.
-You can still finish the other steps (BankID, licence, photo) while you wait.`,
+    body: `It comes by post, often within a week, sometimes up to two weeks. If two weeks have passed, check your order at polisen.se or order it again.
+You don't have to wait for it: finish the other steps and book your onboarding call. The decision doesn't depend on when the extract arrives.
+If you have a first drive booked, show the extract by the day before. If it hasn't arrived in time, the drive goes to another driver, you stay accepted, and you pick a new drive once it has arrived.`,
   },
   {
     id: 'reminders',
@@ -174,8 +175,8 @@ If nothing has happened in 14 days, a person on our team looks at your applicati
     title: 'Booking your onboarding call',
     category: 'The call and decision',
     tags: ['book call', 'boka samtal', 'onboarding call', 'interview', 'intervju', 'video call', 'time', 'slot'],
-    body: `When your extract has arrived, the app shows free times. Calls are held in two daily slots, around 09:00 and 14:00 on weekdays. Pick a time and it is booked; you get a reminder 1 hour before.
-The call is 15 minutes, by video. You need your extract, your driving licence and a phone or computer with a camera.`,
+    body: `As soon as your extract is ordered, the app shows free times. You don't have to wait for it to arrive. Calls are held in two daily slots, around 09:00 and 14:00 on weekdays. Pick a time and it is booked; you get a reminder 1 hour before.
+The call is 15 minutes, by video. You need your driving licence and a phone or computer with a camera, and your extract if it has arrived.`,
   },
   {
     id: 'call-reschedule',
@@ -195,10 +196,10 @@ If you miss your call, ask in the chat for a new time. Missing one call doesn't 
 1. How a job works: pickup, photos and handover.
 2. What to do if you get stuck at a pickup: stay, tell ops, your waiting time is paid.
 3. When you can drive.
-4. You show your criminal-record extract and licence. We only look at the extract and keep nothing from it.
+4. Your licence, and your criminal-record extract if it has arrived. We only look at the extract and keep nothing from it. If it hasn't arrived, you show it before your first drive.
 5. Your questions, and our decision. If we need to check something, you get the decision within 48 hours.
 6. If you're accepted, we book your first drive together in the same call.
-No preparation is needed beyond having your extract and licence at hand.`,
+No preparation is needed beyond having your licence at hand, and your extract if you have it.`,
   },
   {
     id: 'decision-review',
@@ -215,8 +216,9 @@ Some reasons we can't go into in writing. Then we offer to explain in a call.`,
     id: 'first-drive',
     title: 'Your first drive',
     category: 'First drive',
-    tags: ['first drive', 'första uppdraget', 'first job', 'first gig', 'start', 'new driver'],
-    body: `When you're accepted, the app offers three easy first drives: short, with a standard car, near where you live and at times that fit you. Pick one and it is booked.
+    tags: ['first drive', 'första uppdraget', 'first job', 'first gig', 'start', 'new driver', 'show extract', 'visa utdrag', 'extract check'],
+    body: `When you're accepted, the app offers up to three easy first drives: short, with a standard car, in your part of Stockholm and at times that fit you. Pick one and it is booked.
+You can't drive before your criminal-record extract has been shown, but you can book the drive before it arrives: until it is shown, the drives start at least 5 days ahead, and you show it in a 5-minute video check by the day before. Otherwise the drive goes to another driver; you stay accepted and pick a new one.
 Someone from ops calls you within 24 hours to welcome you and go through the drive. During the whole drive ops is on standby in the chat.
 Bring your driving licence and a charged phone. The day before, you get a reminder with the address and time.`,
   },
@@ -414,7 +416,7 @@ You can ask to see your data, correct it or have it deleted: ask in the chat.`,
     category: 'Privacy',
     tags: ['ai', 'bot', 'chatbot', 'assistant', 'robot', 'human', 'person', 'människa', 'is this a bot'],
     body: `The chat assistant is an AI. It answers from our help articles and from the status of your own application, nothing else. It can't make decisions about your application.
-It can suggest things on your own application: booking or moving your call, marking your extract as ordered or arrived, picking your first drive, or pausing reminders. Nothing happens until you tap Confirm.
+It can suggest things on your own application: booking or moving your call, marking your extract as ordered or arrived, booking the 5-minute extract check, picking your first drive, or pausing reminders. Nothing happens until you tap Confirm.
 You can talk to a person at any time: tap "Talk to a person" or just ask. The assistant also hands you over when it isn't sure.
 Don't share sensitive details in the chat, such as health information or anything from your criminal-record extract.`,
   },

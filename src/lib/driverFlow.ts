@@ -124,7 +124,8 @@ export function driverStep(a: Applicant): DriverStep {
   if (a.docs.id !== 'verified') return 'id';
   if (a.docs.licence === 'missing' || a.docs.licence === 'pending') return 'licence';
   if (a.docs.photo === 'missing' || a.docs.photo === 'pending') return 'photo';
-  if (a.docs.extract !== 'ready') return 'extract';
+  // Ordered is enough: the extract comes by post, so the call and the decision don't wait for it.
+  if (a.docs.extract === 'missing') return 'extract';
   if (!a.callAt) return 'call';
   return 'decision';
 }

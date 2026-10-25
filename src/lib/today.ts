@@ -4,12 +4,13 @@ import { deriveStage } from './stage';
 import { slaStatus } from './sla';
 import { isNoResponse } from './nudges';
 import { activationBucket } from './activation';
+import { checkMissed, needsExtract } from './extract';
 import { assistedJobs, needsConfirmation, openIncidents, type Job } from './liveOps';
 
 export type TodayTab = 'live' | 'review' | 'missing' | 'awaiting' | 'chat';
 
 export interface TodayItem {
-  key: 'urgent' | 'urgentchat' | 'assistant' | 'toclose' | 'pickups' | 'questions' | 'overdue' | 'activation' | 'close';
+  key: 'urgent' | 'urgentchat' | 'assistant' | 'toclose' | 'pickups' | 'questions' | 'overdue' | 'extract' | 'activation' | 'close';
   tab: TodayTab;
   count: number;
   label: string;
@@ -26,6 +27,8 @@ export const isToChase = (a: Applicant, now: number) => {
   const b = activationBucket(a.decision!.at, now);
   return b === 'call' || b === 'book';
 };
+/** A 5-minute extract check is booked and not done yet: the last step before a first drive. */
+export const isExtractCheck = (a: Applicant, now: number) => needsExtract(a) && a.extractCheckAt !== undefined && !checkMissed(a, now);
 export const isToClose = (a: Applicant, now: number) => deriveStage(a) === 'registered' && isNoResponse(a, now);
 
 /** What needs a person today, most urgent first. Only items with something to do. */
@@ -61,6 +64,7 @@ export function todayItems(apps: Applicant[], threads: ChatThread[], now: number
     item('pickups', 'live', pickups.map((j) => j.id), 'pickup not confirmed', 'pickups not confirmed', false),
     item('overdue', 'review', appIds(isOverdueReview), 'review overdue', 'reviews overdue', true),
     item('questions', 'chat', questions.map((t) => t.id), 'question waiting', 'questions waiting', false),
+    item('extract', 'awaiting', appIds(isExtractCheck), 'extract check booked', 'extract checks booked', false),
     item('activation', 'awaiting', appIds(isToChase), 'first gig to chase', 'first gigs to chase', false),
     item('close', 'missing', appIds(isToClose), 'file to close', 'files to close', false),
   ];

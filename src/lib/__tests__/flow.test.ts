@@ -96,12 +96,12 @@ describe('driverStep walks the whole flow', () => {
     a = receiveDocument(a, 'photo', 'uploaded', NOW);
     steps.push(driverStep(a));
     a = receiveDocument(a, 'extract', 'pending', NOW);
-    steps.push(driverStep(a));
-    a = receiveDocument(a, 'extract', 'ready', NOW);
-    expect(a.docsCompleteAt).toBe(NOW); // complete file is auto-queued for review
+    // Ordered is enough: the file is complete and the call can be booked without waiting for the post.
+    expect(a.docsCompleteAt).toBe(NOW);
     steps.push(driverStep(a));
     a = bookCall(a, NOW + 20 * HOUR, NOW);
     steps.push(driverStep(a));
+    a = receiveDocument(a, 'extract', 'ready', NOW + 10 * HOUR);
     a = setExtractShown(setPhotoApproved(a, true, NOW), true, NOW);
     const r = applyDecision(a, { type: 'accepted' }, NOW + 20 * HOUR);
     if (!r.ok) throw new Error(r.error);
@@ -110,7 +110,7 @@ describe('driverStep walks the whole flow', () => {
     const offer = firstGigOffers(a, gigs, seed, NOW + 20 * HOUR)[0];
     a = bookOffer(a, offer, NOW + 21 * HOUR);
     steps.push(driverStep(a));
-    expect(steps).toEqual(['id', 'licence', 'photo', 'extract', 'extract', 'call', 'decision', 'first_gig', 'booked']);
+    expect(steps).toEqual(['id', 'licence', 'photo', 'extract', 'call', 'decision', 'first_gig', 'booked']);
     expect(progress('id')).toBe(0);
     expect(progress('booked')).toBeGreaterThan(progress('first_gig'));
   });

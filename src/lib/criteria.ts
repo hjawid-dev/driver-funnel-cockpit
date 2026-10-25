@@ -8,14 +8,17 @@ import { isNoResponse } from './nudges';
  *
  * Privacy by design:
  * - No criminal-record or traffic-offence data is stored (GDPR art. 10). The applicant shows
- *   the extract in a short call; the reviewer ticks "shown" and records nothing from it.
+ *   the extract, voluntarily, in a call; the reviewer ticks "shown" and records nothing from it.
+ * - The extract comes by post and can take two weeks, so it doesn't block the decision: it must be
+ *   shown before the first drive (see extract.ts). Polisen advises showing it only after an offer.
  * - Reason codes are generic, so a rejection never reveals an offence.
  * - The system supports the decision; a human always makes it and can explain it.
  */
 export const MIN_LICENCE_YEARS = 2;
 export const BORDERLINE_LICENCE_YEARS = 1;
 
-export type CheckResult = 'pass' | 'fail' | 'borderline' | 'manual';
+/** 'later': required, but before the first drive, so it doesn't block the decision. */
+export type CheckResult = 'pass' | 'fail' | 'borderline' | 'manual' | 'later';
 
 export interface MustHave {
   key: 'licence' | 'id' | 'extract' | 'photo';
@@ -72,12 +75,14 @@ export function evaluate(a: Applicant): Evaluation {
 
   const extract: MustHave = {
     key: 'extract',
-    label: 'Criminal-record extract shown',
-    ...(a.docs.extract !== 'ready'
-      ? { result: 'fail', detail: a.docs.extract === 'pending' ? 'Ordered, not yet ready to show' : 'Not ordered yet' }
-      : a.extractShown
-        ? { result: 'pass', detail: 'Shown in the onboarding call. Nothing from it is stored.' }
-        : { result: 'manual', detail: 'Shown in the onboarding call. Tick when seen; record nothing from it.' }),
+    label: 'Criminal-record extract shown, before the first drive',
+    ...(a.extractShown
+      ? { result: 'pass', detail: 'Shown. Nothing from it is stored.' }
+      : a.docs.extract === 'ready'
+        ? { result: 'later', detail: 'Arrived: tick it if shown in this call. Otherwise a 5-minute check before the first drive. Doesn\'t block the decision.' }
+        : a.docs.extract === 'pending'
+          ? { result: 'later', detail: 'Ordered from Polisen (post, up to 2 weeks). Shown before the first drive; doesn\'t block the decision.' }
+          : { result: 'fail', detail: 'Not ordered yet' }),
   };
 
   const photo: MustHave = {
@@ -220,7 +225,7 @@ export const CALL_AGENDA = [
   'How a job works: pickup, photos, handover',
   'If you get stuck at a pickup: stay, call ops, waiting time is paid',
   'When you can drive',
-  'You show your extract; we only look at it',
+  'Your extract: shown now if it has arrived, otherwise before your first drive',
   'Your questions, and the decision',
   'Book your first drive together',
 ] as const;

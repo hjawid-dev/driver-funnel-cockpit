@@ -14,7 +14,7 @@ export interface TimelineEvent {
   tone?: 'ok' | 'bad' | 'neutral';
 }
 
-const DOC_NAME = { licence: 'Driving licence', id: 'ID (BankID)', extract: 'Extract ready to show', photo: 'Profile photo' } as const;
+const DOC_NAME = { licence: 'Driving licence', id: 'ID (BankID)', extract: 'Extract arrived', photo: 'Profile photo' } as const;
 
 /** Every stage transition with its timestamp: the data the funnel metrics are built from. */
 export function buildTimeline(a: Applicant, now: number): TimelineEvent[] {

@@ -16,7 +16,7 @@ describe('seed composition', () => {
     const counts: Record<string, number> = {};
     for (const a of seed) counts[deriveStage(a)] = (counts[deriveStage(a)] ?? 0) + 1;
     expect(seed).toHaveLength(44);
-    expect(counts).toEqual({ review: 8, registered: 15, accepted: 6, active: 10, rejected: 4, closed: 1 });
+    expect(counts).toEqual({ review: 9, registered: 14, accepted: 6, active: 10, rejected: 4, closed: 1 });
   });
   it('is deterministic for a given now, with unique ids', () => {
     expect(generateSeed(NOW)).toEqual(seed);
@@ -56,8 +56,8 @@ describe('the 8 review cases behave as described', () => {
   const sla = (n: string) => slaStatus(byName(n).docsCompleteAt!, NOW).bucket;
   const approve = (n: string) => ({ ...byName(n), photoApproved: true, extractShown: true });
 
-  it('Elin: clean accept once the photo and the extract call are ticked', () => {
-    expect(evaluate(byName('Elin Johansson')).acceptBlockedBy).toHaveLength(2); // photo + extract not ticked yet
+  it('Elin: clean accept once the photo is ticked (the extract is shown before the first drive)', () => {
+    expect(evaluate(byName('Elin Johansson')).acceptBlockedBy).toHaveLength(1); // photo not ticked yet
     expect(validateDecision(approve('Elin Johansson'), { type: 'accepted' }, NOW)).toBeNull();
     expect(sla('Elin Johansson')).toBe('ok');
   });

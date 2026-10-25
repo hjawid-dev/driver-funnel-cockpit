@@ -11,20 +11,20 @@ const ROWS: { cockpit: string; hubspot: string; required: string; workflow: stri
   {
     cockpit: '(automatic)',
     hubspot: 'Documents submitted',
-    required: 'Licence, ID and photo in place, extract ready to show · docs_complete_at',
+    required: 'Licence, ID and photo in place, extract ordered (it comes by post, so the decision does not wait for it) · docs_complete_at',
     workflow: 'Auto-move to Under review · reviewer task in the next review slot (09:00 / 14:00)',
   },
   {
     cockpit: 'Review queue',
     hubspot: 'Under review',
-    required: 'extract_shown (yes/no only) · decision · generic reject_reason · second_reviewer for suitability rejections · decided_at',
+    required: 'decision · generic reject_reason · second_reviewer for suitability rejections · decided_at · extract_shown (yes/no only) if it has arrived',
     workflow: 'Onboarding call booked by the applicant · SLA alert to owner + backup at 24 h and 48 h after docs complete',
   },
   {
     cockpit: 'Awaiting first gig',
     hubspot: 'Accepted',
-    required: 'accept_variant (standard / simple drives first / activation flag) · welcome_call_at · first_gig_booked_for',
-    workflow: 'Welcome-call task only if no first drive was booked in the call · alert at 7 d without booking · call task at 14 d · dormant at 30 d',
+    required: 'accept_variant (standard / simple drives first / activation flag) · extract_shown_at (yes/no only) · extract_check_at · welcome_call_at · first_gig_booked_for · activation_reason',
+    workflow: 'Extract shown in a 5-minute check, by the day before the first drive, or the drive is released · welcome-call task only if no first drive was booked in the call · alert at 7 d without booking · call task at 14 d · dormant at 30 d',
   },
   {
     cockpit: 'Active',
@@ -165,7 +165,7 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
             </h3>
             <ul className="mt-2 grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
               <li>
-                <strong>No criminal-record data stored.</strong> The applicant orders their own extract and shows it in the onboarding call. Only
+                <strong>No criminal-record data stored.</strong> The applicant orders their own extract and shows it, voluntarily, before the first drive. Only
                 "extract shown: yes" is recorded (GDPR art. 10).
               </li>
               <li>
