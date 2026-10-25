@@ -1,18 +1,18 @@
 import { ArrowRight, FileText, TriangleAlert } from 'lucide-react';
 import { kpiDelta, type Funnel, type FunnelKey, type Kpi } from '../lib/kpis';
-import { StatusChip } from './ui';
+import { Proposed, StatusChip } from './ui';
 import { InfoTip } from './InfoTip';
 
 /** The four metrics the case asks about, in this order. Acceptance and first-gig quality are in the weekly report. */
 export const FUNNEL_KPIS: Kpi['key'][] = ['appToActive', 'docCompletion', 'timeToDecision', 'activation'];
 
-const LABEL: Partial<Record<Kpi['key'], string>> = { appToActive: 'Application → active', activation: 'First-gig activation' };
+const LABEL: Partial<Record<Kpi['key'], string>> = { activation: 'First-gig activation' };
 
 /** The case's own numbers, kept apart from the demo sample so the two are never mixed. */
 const CASE_BASELINE: Partial<Record<Kpi['key'], string>> = {
   appToActive: 'Case: 25 of 120 a month ≈ 21%',
   docCompletion: 'Case: ~70% (30% never finish)',
-  timeToDecision: 'Case: 6 days on average',
+  timeToDecision: 'Case: 6 days on average (mean)',
   activation: 'Case: not measured today',
 };
 
@@ -48,6 +48,7 @@ export function FunnelKpis({ kpis, baseline, onReport }: { kpis: Kpi[]; baseline
                   <p className="text-muted">{k.caption}</p>
                 </InfoTip>
               </h3>
+              {k.northStar && <p className="text-xs text-muted">{k.sub}</p>}
               <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="num text-2xl font-semibold tracking-tight">{k.display}</span>
                 {d && (
@@ -58,7 +59,13 @@ export function FunnelKpis({ kpis, baseline, onReport }: { kpis: Kpi[]; baseline
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                 <StatusChip status={k.status} />
-                <span className="text-muted">{k.target}</span>
+                {k.key === 'timeToDecision' ? (
+                  <span className="text-muted">Case target &lt; 48 h</span>
+                ) : (
+                  <span className="flex items-center gap-1 text-muted">
+                    {k.target} <Proposed title="My proposed target, not given in the case: to set with the team." />
+                  </span>
+                )}
               </div>
               <p className="mt-2 border-t border-lavender pt-1.5 text-xs text-muted">{CASE_BASELINE[k.key]}</p>
             </article>

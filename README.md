@@ -11,7 +11,13 @@ Two connected jobs, one page each:
 
 ## Driver Funnel: turn qualified applicants into active drivers
 
-1. **Four metrics.** Application → active (the north star), document completion, time to decision and first-gig activation. Each shows the live demo number, its target, and the case's own baseline on a separate line, so the two are never mixed.
+1. **Four metrics:**
+   - **New active ÷ applications,** the north star. It is a 30-day flow, the same kind of number as the case's "25 of 120 a month". It is not a cohort conversion, which needs 60+ days of history.
+   - **Document completion.**
+   - **Median time to decision.** The case gives a mean of 6 days.
+   - **First-gig activation.**
+
+   Each shows the live demo number, its target, and the case's own baseline on a separate line, so the two are never mixed.
 2. **Where candidates get stuck.** Registered → Docs submitted → Reviewed → Accepted → Active, with the share who moved on and the biggest drop-off marked. A click on a stage opens the people who are there now.
 3. **One candidate queue.** Each row shows who, where they are, why now and the next action: request documents, review and decide, book a first gig, call the driver. Filters: Needs action, Missing documents, In review, Awaiting first gig, All applicants.
 4. **Candidate panel.** It shows the next step at the top, then the written criteria:
@@ -39,6 +45,26 @@ Two connected jobs, one page each:
 
    Every step is logged with the time, and a closed incident keeps its summary.
 4. **The pre-pickup check.** A routine pickup shows its touchpoints: at booking, the day before, 60 minutes before, and on arrival. The action appears when a reply is missing.
+
+## From the case, and what is proposed
+
+**From the case:**
+- 120 applications and 25 active drivers a month
+- 30% never finish their documents
+- 6 days on average to a decision, against a 48-hour target
+- the funnel stages
+- an ID or personnummer and a background check
+- the Part 1 facts: pickup 09:00, 25 minutes waited, deadline 12:00, 35 km, 500 / 780 SEK, a pilot customer
+
+**Proposed here**, marked *Proposed* in the app, and to agree with the team:
+- the targets of 35%, 85% and 75%
+- the written criteria
+- BankID for the ID, and the criminal-record extract shown by the driver and never stored. The exact check, and how sensitive data is handled, must be validated with company policy and legal.
+- the reminders at 2, 24 and 72 hours, and closing a file after 14 days
+- two review slots a day
+- for a first gig: book at 7 days, call at 14
+- the 10:15 cut-off for the customer's decision
+- the playbook and the pre-pickup check
 
 ## Secondary, where it is needed
 

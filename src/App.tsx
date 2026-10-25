@@ -25,6 +25,7 @@ import { REVIEWER } from './lib/types';
 import { LiveOps, type LiveSelection } from './components/LiveOps';
 import { DemoMenu } from './components/DemoMenu';
 import { PresentBar } from './components/PresentBar';
+import { Proposed } from './components/ui';
 import { FunnelKpis, FunnelStages } from './components/FunnelOverview';
 import { WorkQueue } from './components/WorkQueue';
 import { filterItems, QUEUE_FILTER_LABEL, queueCounts, workItems, type QueueFilter } from './lib/workQueue';
@@ -471,8 +472,9 @@ export default function App() {
               <FunnelStages funnel={funnel} onStage={onStage} />
               <section id="queue" aria-labelledby="queue-title" className="scroll-mt-4">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <h2 id="queue-title" className="text-sm font-semibold">
+                  <h2 id="queue-title" className="flex items-center gap-1.5 text-sm font-semibold">
                     Candidates
+                    <Proposed title="The follow-up rules are my proposal, not given in the case: reminders at 2, 24 and 72 h, close after 14 days without a reply, two review slots a day, book a first gig at 7 days, call at 14." />
                   </h2>
                   <span className="flex items-center gap-1.5 text-xs text-muted">
                     <CalendarClock size={14} className="text-indigo" aria-hidden />

@@ -18,22 +18,22 @@ export const PRESENT_STEPS: PresentStep[] = [
   {
     key: 'funnel',
     title: 'The funnel problem',
-    say: 'The case: 120 applications a month, 25 active. 30% never finish their documents, and a decision takes 6 days against a 48-hour target. The biggest drop-off is marked.',
+    say: 'The case: 120 applications a month, 25 active. 30% never finish their documents, and a decision takes 6 days on average against a 48-hour target. The biggest drop-off is marked.',
   },
   {
     key: 'review',
     title: 'Review consistently',
-    say: 'Written criteria: must-haves, borderline rules, and every reject with a reason code. A person decides. The extract is shown, never stored.',
+    say: 'Proposed written criteria: must-haves, borderline rules, and every reject with a reason code. A person decides. BankID and a shown extract are my proposal for the ID and background check, to validate with legal.',
   },
   {
     key: 'activate',
     title: 'Close the activation gap',
-    say: "Accepted isn't the goal, active is. No first gig booked after 7 days: book one with them. After 14 days: call.",
+    say: "Accepted isn't the goal, active is. My proposed rule: no first gig booked after 7 days, book one with them. After 14 days, call.",
   },
   {
     key: 'incident',
     title: 'Handle a live incident',
-    say: 'Tuesday 09:30: Julia has waited 25 minutes and the keys are missing. Work the current step. The customer decides by 10:15.',
+    say: 'Tuesday 09:30: Julia has waited 25 minutes and the keys are missing. Work the current step. My proposed cut-off: the customer decides by 10:15.',
   },
   {
     key: 'improve',

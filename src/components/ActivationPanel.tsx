@@ -6,7 +6,7 @@ import { bookFirstGig, completeFirstGig, logWelcomeCall, OPS_ACTIVATION_LABEL, s
 import { EXTRACT_STATE_LABEL, extractState, markExtractShown, needsExtract, showBy } from '../lib/extract';
 import { DAY, formatDateTime } from '../lib/time';
 import { ActivationChip } from './Activation';
-import { DrawerSection } from './ui';
+import { DrawerSection, Proposed } from './ui';
 
 interface Props {
   a: Applicant;
@@ -48,7 +48,7 @@ export function ActivationPanel({ a, apps, gigs, now, onUpdate, onResult }: Prop
 
   return (
     <>
-      <DrawerSection title="Activation">
+      <DrawerSection title="Activation" aside={<Proposed title="My proposed follow-up, not given in the case: welcome call within 24 h, book a first gig at 7 days, call at 14, dormant after 30." />}>
         <div className="rounded-lg border border-lavender p-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm">

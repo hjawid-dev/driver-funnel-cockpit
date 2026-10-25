@@ -66,3 +66,12 @@ export function CollapsibleSection({ title, summary, children }: { title: string
     </details>
   );
 }
+
+/** Marks a rule or a number that is my proposal, not a fact from the case. */
+export function Proposed({ title = 'A proposed operating rule, not given in the case: to agree with the team.' }: { title?: string }) {
+  return (
+    <span title={title} className="inline-flex cursor-help items-center rounded border border-dashed border-indigo/50 px-1 py-px align-middle text-[10px] font-semibold uppercase tracking-wide text-indigo normal-case">
+      Proposed
+    </span>
+  );
+}

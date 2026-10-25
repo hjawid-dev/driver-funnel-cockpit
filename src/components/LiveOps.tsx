@@ -40,7 +40,7 @@ import { byOpsPriority, currentStep, OPS_GROUP, OPS_STATE_LABEL, opsState, type 
 import { formatDuration } from '../lib/time';
 import type { ChatThread } from '../lib/chat/types';
 import { ChatQueue } from './ChatQueue';
-import { CollapsibleSection } from './ui';
+import { CollapsibleSection, Proposed } from './ui';
 import { InfoTip } from './InfoTip';
 
 /** What the main area shows: a pickup, or the driver questions a person must answer. */
@@ -309,7 +309,14 @@ function IncidentWork({ j, now, onJob }: { j: Job; now: number; onJob: Props['on
             <span className="block text-xs font-normal text-muted">{OUTCOME_LABEL[j.incident.outcome.type]}</span>
           </Now>
         ) : (
-          <Now label="Customer decides by" tone={now >= c.decideBy ? 'bad' : undefined}>
+          <Now
+            label={
+              <>
+                Customer decides by <Proposed title="My proposed cut-off, not given in the case: 35 minutes before the last departure that still makes the 12:00 deadline." />
+              </>
+            }
+            tone={now >= c.decideBy ? 'bad' : undefined}
+          >
             <span className="num">{hm(c.decideBy)}</span> <span className="font-normal text-muted">{now < c.decideBy ? `in ${formatDuration(c.decideBy - now)}` : 'passed'}</span>
             <span className="block text-xs font-normal text-muted">so the car can still leave by {hm(c.lastDeparture)}</span>
           </Now>
@@ -325,7 +332,9 @@ function IncidentWork({ j, now, onJob }: { j: Job; now: number; onJob: Props['on
       )}
 
       <section aria-label="Playbook">
-        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted">Playbook</h3>
+        <h3 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+          Playbook <Proposed title="My proposed playbook, not given in the case: to agree with the team." />
+        </h3>
         <ol className="divide-y divide-lavender rounded-xl border border-lavender">
           {PLAYBOOK.map((s, i) => {
             const doneAt = s.key === 'decide' ? (j.incident?.outcome?.at ?? steps.decide) : steps[s.key];
@@ -371,10 +380,10 @@ function IncidentWork({ j, now, onJob }: { j: Job; now: number; onJob: Props['on
   );
 }
 
-function Now({ label, children, strong, tone }: { label: string; children: ReactNode; strong?: boolean; tone?: 'bad' }) {
+function Now({ label, children, strong, tone }: { label: ReactNode; children: ReactNode; strong?: boolean; tone?: 'bad' }) {
   return (
     <div className={`rounded-xl px-3 py-2.5 ${strong ? 'bg-indigo text-white' : 'bg-card'}`}>
-      <div className={`text-xs ${strong ? 'text-white/75' : 'text-muted'}`}>{label}</div>
+      <div className={`flex items-center gap-1.5 text-xs ${strong ? 'text-white/75' : 'text-muted'}`}>{label}</div>
       <div className={`mt-0.5 text-sm font-semibold ${tone === 'bad' ? 'text-bad' : ''} ${strong ? '[&_.text-muted]:text-white/75' : ''}`}>{children}</div>
     </div>
   );
@@ -442,7 +451,7 @@ function CasePrevention({ j }: { j: Job }) {
   const t24 = j.pickupAt - CHECK_24_MS;
   const t60 = j.pickupAt - CHECK_60_MS;
   return (
-    <CollapsibleSection title="Prevention: how the pre-pickup check would have caught this" summary="4 touchpoints">
+    <CollapsibleSection title="Prevention (proposed): how a pre-pickup check would have caught this" summary="4 touchpoints">
       <ol className="space-y-1.5 text-sm">
         <li>
           <strong>1 · At booking.</strong> A named contact, a backup and the exact key location, or no dispatch.
@@ -614,7 +623,7 @@ function PrePickupCheck({ j, now, onJob }: { j: Job; now: number; onJob: Props['
   return (
     <section aria-label="Pre-pickup check">
       <h3 className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
-        Pre-pickup check
+        Pre-pickup check <Proposed title="My proposed routine, not given in the case: to agree with the team." />
         <InfoTip label="About the pre-pickup check">
           <p>Each touchpoint has an owner. No reply in 2 hours (or 20 minutes) gives ops a task: call the backup contact.</p>
           <p className="text-muted">A missing key shows up the evening before, not at the gate.</p>

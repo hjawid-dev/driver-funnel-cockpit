@@ -4,7 +4,7 @@ import type { Applicant, RejectReason } from '../lib/types';
 import { REJECT_REASONS } from '../lib/types';
 import { CALL_AGENDA, DECISION_LABEL, evaluate, NEEDS_SECOND_REVIEWER, noteLooksSensitive, type CheckResult } from '../lib/criteria';
 import { applyDecision, requestNewPhoto, setExtractShown, setPhotoApproved, type ActionResult } from '../lib/actions';
-import { CollapsibleSection, DrawerSection } from './ui';
+import { CollapsibleSection, DrawerSection, Proposed } from './ui';
 
 export const BACKUP_REVIEWER = 'Sofia (backup)';
 
@@ -53,9 +53,13 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
     <>
       <DrawerSection
         title="Criteria"
+        aside={<Proposed title="My proposed written criteria, not given in the case: to agree with the team, and to check with policy and legal." />}
         info={
           <>
             <p>Thresholds are a starting proposal, to be set with the team.</p>
+            <p>
+              From the case: ID or personnummer, and a background check. Proposed here: BankID for the ID, and the criminal-record extract shown by the driver, never stored. The exact check, and how sensitive data is handled, must be validated with company policy and legal.
+            </p>
             <p className="text-muted">
               The extract comes by post and can take two weeks, so it doesn't hold up the decision: it is shown, voluntarily, before the first drive. In this call if it has arrived, otherwise in a 5-minute check. We only look at it: no copy, no notes about its content.
             </p>
