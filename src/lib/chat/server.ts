@@ -83,7 +83,7 @@ export function createChatHandler(opts: { env: ChatEnv; client?: ModelClient; no
       async start(controller) {
         const send = (e: ChatEvent) => controller.enqueue(encoder.encode(JSON.stringify(e) + '\n'));
         const timer = setTimeout(() => stream.abort(), TIMEOUT_MS);
-        const splitter = new MetaSplitter();
+        const splitter = new MetaSplitter(knownOptions);
         let shown = '';
         try {
           for await (const ev of stream) {

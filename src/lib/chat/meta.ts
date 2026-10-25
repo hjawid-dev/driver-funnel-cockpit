@@ -21,9 +21,19 @@ export class MetaSplitter {
   private buf = '';
   private inMeta = false;
   private meta = '';
+  private ids: IdScrubber;
+
+  /** `optionIds`: the action ids the app sent. The driver never sees them, even if the model writes one. */
+  constructor(optionIds: Iterable<string> = []) {
+    this.ids = new IdScrubber(optionIds);
+  }
 
   /** Feed a chunk; returns the text that is safe to show now. */
   push(chunk: string): string {
+    return this.ids.push(this.splitMeta(chunk));
+  }
+
+  private splitMeta(chunk: string): string {
     if (this.inMeta) {
       this.meta += chunk;
       return '';
@@ -52,9 +62,58 @@ export class MetaSplitter {
 
   /** Call at the end of the stream: returns any held-back text and the parsed meta. */
   end(knownSources: Set<string>, knownOptions: Set<string> = new Set()): { text: string; meta: Meta } {
-    const text = this.inMeta ? '' : this.buf;
+    const rest = this.inMeta ? '' : this.buf;
     this.buf = '';
+    const text = this.ids.push(rest) + this.ids.end();
     return { text, meta: parseMeta(this.meta.split(CLOSE)[0], knownSources, knownOptions) };
+  }
+}
+
+/** The ways a model tends to write an id: in brackets or quotes. */
+const WRAPS: [string, string][] = [['(', ')'], ['[', ']'], ['“', '”'], ['"', '"'], ["'", "'"], ['`', '`']];
+const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Removes the app's internal action ids ("(ARRIVED)", "[S2]", "\"G3\"") from the text the driver sees.
+ * The prompt already forbids them; this catches the times the model writes one anyway.
+ * While streaming, it holds back a short tail that could still become such an id.
+ */
+export class IdScrubber {
+  private buf = '';
+  private re: RegExp | null = null;
+  private tokens: string[] = [];
+
+  constructor(ids: Iterable<string>) {
+    const list = [...new Set(ids)].filter(Boolean).sort((a, b) => b.length - a.length);
+    if (!list.length) return;
+    const alt = list.map(esc).join('|');
+    this.re = new RegExp(`[ \\t]?(?:${WRAPS.map(([o, c]) => `${esc(o)}(?:${alt})${esc(c)}`).join('|')})`, 'g');
+    this.tokens = WRAPS.flatMap(([o, c]) => list.map((id) => o + id + c));
+  }
+
+  push(chunk: string): string {
+    if (!this.re) return chunk;
+    // Complete ids go first, then hold back a tail that could still become one.
+    const text = (this.buf + chunk).replace(this.re, '');
+    const window = Math.max(...this.tokens.map((t) => t.length));
+    let cut = text.length;
+    for (let i = Math.max(0, text.length - window); i < text.length; i++) {
+      const tail = text.slice(i);
+      if (this.tokens.some((t) => t.startsWith(tail))) {
+        cut = i;
+        break;
+      }
+    }
+    // And the spaces before it, so removing an id leaves no double space.
+    while (cut > 0 && (text[cut - 1] === ' ' || text[cut - 1] === '\t')) cut--;
+    this.buf = text.slice(cut);
+    return text.slice(0, cut);
+  }
+
+  end(): string {
+    const rest = this.buf;
+    this.buf = '';
+    return this.re ? rest.replace(this.re, '') : rest;
   }
 }
 
