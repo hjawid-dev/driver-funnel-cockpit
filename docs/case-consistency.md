@@ -42,7 +42,7 @@ Browser verification covers: disabled acceptance until checks/call are logged; a
 
 - External calls, SMS, BankID/manual checks, account-owner contact, review bookings and compensation are simulated/logged. No live customer messages or payments were sent.
 - The backup reviewer is an explicitly labelled demo role, not a separate authenticated account. Real identity/authorization and cross-device reservation transactions require a backend.
-- Data model version 9 resets older demo saves; it does not migrate them. Subsequent version-9 reloads preserve absolute history. Use Present/Reset to explicitly start a new scenario.
+- Data model version 9 resets older demo saves; it does not migrate them. Subsequent version-9 reloads preserve absolute history. Use Reset demo in the demo menu to explicitly start a new scenario.
 - The accompanying Google Slides update distinguishes the 59-volume gap from identified lost individuals, uses a comparable mean decision time, defines proposed cohort windows and labels the ~46 scenario as illustrative.
 - The brief's platform wording should be clarified with the interviewer; the submission note accurately names the tools used. No rebuild in another platform was performed.
 - Live AI/model credentials and real integrations were not certified by these frontend/domain tests. Existing numerical report checks remain limited to numbers; generated interpretation should still be reviewed.

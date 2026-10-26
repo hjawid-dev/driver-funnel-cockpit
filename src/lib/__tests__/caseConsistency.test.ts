@@ -8,7 +8,7 @@ import { workItems } from '../workQueue';
 import { firstGigOffers, generateGigs } from '../gigs';
 import { driverStep } from '../driverFlow';
 import { generateSeed } from '../seed';
-import { agreeDeliveryDeadline, bookReplacement, checkIn, closeIncident, confirmByPhone, depart, firstDriveResult, incidentClock, pickupChecks, pickupReadinessErrors, replacementJob, seedJobs, setOutcome, tellAccountOwner } from '../liveOps';
+import { agreeDeliveryDeadline, bookReplacement, checkIn, gotKeys, closeIncident, confirmByPhone, depart, firstDriveResult, incidentClock, pickupChecks, pickupReadinessErrors, replacementJob, seedJobs, setOutcome, tellAccountOwner } from '../liveOps';
 import { liveOpsEvents, automationEvents, materializeAutomation } from '../automation';
 import { opsState } from '../opsState';
 import { weeklyFacts } from '../report/facts';
@@ -116,6 +116,12 @@ describe('case-consistent funnel and controls', () => {
 });
 
 describe('case-consistent Live Ops', () => {
+  it('treats immediate keys at check-in as a normal handover without inventing an incident', () => {
+    const j = { ...job(), asInCase: false, escalation: undefined, problemAt: undefined, arrivedAt: undefined };
+    const handedOver = gotKeys(checkIn(j, j.pickupAt), j.pickupAt);
+    expect(handedOver.keysAt).toBe(j.pickupAt);
+    expect(handedOver.incident).toBeUndefined();
+  });
   it('keeps T-24 and T-60 phone confirmations separate', () => {
     const j = { ...job(), asInCase: false, pickupAt: NOW + HOUR };
     const yesterday = confirmByPhone(j, NOW - 20 * HOUR, '24h');
