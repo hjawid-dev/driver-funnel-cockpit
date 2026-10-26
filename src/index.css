@@ -46,5 +46,5 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
   * { scroll-behavior: auto !important; }
 }
 
-/* Dialogs cover the viewport during normal exploration. */
-.below-present { top: 0 !important; }
+/* Keep case navigation available above dialogs. */
+.below-present { top: var(--present-top, 0px) !important; }

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarClock } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarClock, Route } from 'lucide-react';
 import { useClock, useDemoData } from './state';
 import { computeFunnel, computeKpis, type FunnelKey } from './lib/kpis';
 import { nextReviewSlot } from './lib/sla';
@@ -25,10 +25,12 @@ import { backToAi, callRequested, emptyThread, keysFoundByDriver, opsReply, pick
 import { REVIEWER } from './lib/types';
 import { LiveOps, type LiveSelection } from './components/LiveOps';
 import { DemoMenu } from './components/DemoMenu';
+import { PresentBar } from './components/PresentBar';
 import { Proposed } from './components/ui';
 import { FunnelKpis, FunnelStages } from './components/FunnelOverview';
 import { WorkQueue } from './components/WorkQueue';
 import { filterItems, QUEUE_FILTER_LABEL, queueCounts, workItems, type QueueFilter } from './lib/workQueue';
+import { docsTarget, incidentTarget, PRESENT_STEPS, reviewTarget, siteCallTarget, presentActionFor, presentDone, presentEvidence, presentPrerequisite, preparePresentAction, runPresentAction } from './lib/present';
 
 /**
  * Two connected jobs, one page each.
@@ -48,7 +50,7 @@ const TEXTS_KEY = 'driver-funnel-cockpit-texts';
 export default function App() {
   const clock = useClock();
   const now = clock.now;
-  const { apps, gigs, threads, jobs, update, add, upsertThread, updateJob, updateJobs, reset, recordThrough } = useDemoData();
+  const { apps, gigs, threads, jobs, update, add, upsertThread, updateJob, updateJobs, reset, recordThrough, replaceDemo } = useDemoData();
   const toast = useToast();
   useEffect(() => { recordThrough(now); }, [now, recordThrough]);
 
@@ -59,6 +61,8 @@ export default function App() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [showHubspot, setShowHubspot] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [present, setPresent] = useState<number | null>(null);
+  const [presentError, setPresentError] = useState<string | null>(null);
   // Bumped when the cockpit opens the phone on the chat; 0 opens it on the steps.
   const [chatRequest, setChatRequest] = useState(0);
   const [phoneOpen, setPhoneOpen] = useState(false);
@@ -349,10 +353,106 @@ export default function App() {
     if (f === 'all') setStageFilter('all');
   };
 
+  // Presentation navigation only changes the view; explicit demo buttons perform the work.
+  const presentData = { apps, gigs, threads, jobs };
+  const currentPresent = present === null ? null : PRESENT_STEPS[present];
+  const presentAction = currentPresent ? presentActionFor(currentPresent.key, presentData) : null;
+  const presentComplete = presentAction ? presentDone(presentAction, presentData) : false;
+  const presentBlocked = presentAction ? presentPrerequisite(presentAction, presentData) !== null : false;
+  const goStep = (i: number) => {
+    const step = PRESENT_STEPS[i];
+    if (!step) return;
+    setPresent(i);
+    setPresentError(null);
+    setShowReport(false);
+    setShowHubspot(false);
+    setOpenId(null);
+    setPhoneOpen(false);
+    setChatRequest(0);
+    setStageFilter('all');
+    window.scrollTo({ top: 0 });
+    if (['incident', 'playbook', 'prevent'].includes(step.key)) {
+      setPage('live');
+      setLiveSel(incidentTarget(jobs)?.id ?? null);
+    } else if (step.key === 'deliver') {
+      setPage('live');
+      setLiveSel(jobs.find(j => j.firstDrive && j.driverId === reviewTarget(apps)?.id)?.id ?? null);
+    } else {
+      setPage('funnel');
+      setFilter(step.key === 'docs' ? 'missing' : step.key === 'review' ? 'review' : step.key === 'activate' ? 'awaiting' : 'action');
+      if (step.key === 'review' || step.key === 'activate') setOpenId(reviewTarget(apps)?.id ?? null);
+      if (step.key === 'docs') setOpenId(docsTarget(apps)?.id ?? null);
+    }
+  };
+  const runPresentation = (prepare = false) => {
+    if (!presentAction) return;
+    try {
+      const result = prepare ? preparePresentAction(presentAction, presentData, now) : runPresentAction(presentAction, presentData, now);
+      replaceDemo(result.data);
+      clock.setTo(result.now);
+      setPresentError(null);
+      if (currentPresent?.key === 'deliver') {
+        setLiveSel(result.data.jobs.find(j => j.firstDrive && j.driverId === reviewTarget(result.data.apps)?.id)?.id ?? null);
+      }
+      toast.notify(prepare ? 'Prepared the missing earlier demo actions. Existing session changes are preserved.' : 'Simulated demo action recorded. See the evidence and live record below.');
+    } catch (error) {
+      setPresentError(error instanceof Error ? error.message : 'The demo action could not be completed.');
+    }
+  };
+  const presentInspect = (view: 'phone' | 'prevention' | 'report') => {
+    if (view === 'report') return setShowReport(true);
+    setOpenId(null);
+    if (view === 'prevention') {
+      setPage('live');
+      setLiveSel(siteCallTarget(jobs)?.id ?? null);
+    } else {
+      setChatRequest(0);
+      openAsDriver(currentPresent?.key === 'docs' ? docsTarget(apps)?.id ?? null : reviewTarget(apps)?.id ?? null);
+    }
+  };
+  // While presenting, the header and the bar stick to the top; drawers and dialogs open below them.
+  const topRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = document.documentElement.style;
+    const el = topRef.current;
+    if (present === null || !el) {
+      root.removeProperty('--present-top');
+      return;
+    }
+    const set = () => root.setProperty('--present-top', `${el.offsetHeight}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [present]);
+  // ← and → move between the steps, unless you are typing.
+  useEffect(() => {
+    if (present === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target instanceof Element ? e.target : null;
+      if (t?.closest('input, textarea, select, [contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'ArrowRight' && present < PRESENT_STEPS.length - 1) goStep(present + 1);
+      else if (e.key === 'ArrowLeft' && present > 0) goStep(present - 1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+  const startPresenting = () => {
+    clock.pause();
+    playCase(true);
+    setPhoneOpen(false);
+    setPage('live');
+    setLiveSel(null);
+    setPresent(0);
+    setPresentError(null);
+    window.scrollTo({ top: 0 });
+    toast.notify('Case demo started: fresh data, Tuesday 09:30.');
+  };
+
   return (
     <div className="min-h-screen flex">
       <div className="min-w-0 flex-1 flex flex-col">
-        <div>
+        <div ref={topRef} className={present !== null ? 'sticky top-0 z-[60]' : ''}>
         <header className="bg-navy text-white">
           <div className="mx-auto max-w-7xl px-4 h-14 flex items-center gap-3">
             <span className="hidden sm:inline font-semibold tracking-tight whitespace-nowrap">Driver Ops</span>
@@ -376,6 +476,17 @@ export default function App() {
               ))}
             </nav>
             <div className="ml-auto flex items-center gap-1">
+              {present === null && (
+                <button
+                  type="button"
+                  onClick={startPresenting}
+                  title="Explore case 1 and case 2 step by step with fresh demo data"
+                  className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white"
+                >
+                  <Route size={15} aria-hidden /> <span className="hidden sm:inline">Explore cases</span>
+                  <span className="sr-only sm:hidden">Explore cases</span>
+                </button>
+              )}
               <DemoMenu
                 now={now}
                 onAdvance={onAdvance}
@@ -389,6 +500,7 @@ export default function App() {
             </div>
           </div>
         </header>
+        {present !== null && <PresentBar step={present} onStep={goStep} onExit={() => { setPresent(null); clock.resume(); }} action={presentAction} completed={presentComplete} blocked={presentBlocked} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} error={presentError} onRun={() => runPresentation()} onPrepare={() => runPresentation(true)} onInspect={presentInspect} />}
         </div>
 
         <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-6 space-y-6">
@@ -397,11 +509,13 @@ export default function App() {
             <p className="mt-0.5 text-sm text-muted">{PAGE_SUB[page]}</p>
           </div>
 
+          {currentPresent?.key === 'funnel' && <section aria-label="Case 2 baseline" className="rounded-xl border border-indigo/20 bg-lavender/30 p-4"><p className="text-xs font-semibold uppercase text-indigo">Case facts · separate from the demo records below</p><div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">{[['120', 'applications / month'], ['~84', 'submit documents (70%)'], ['25', 'active (21%)'], ['6 days', 'mean registration → decision']].map(([value, label]) => <div key={label}><strong className="num text-2xl text-navy">{value}</strong><p className="text-sm text-muted">{label}</p></div>)}</div><p className="mt-3 text-sm">Acceptance is not measured. The 59-volume gap includes unknown pending cases, rejections and timing. The dashboard below uses 44 fictional applicants.</p></section>}
+          {currentPresent?.key === 'measure' && <p className="rounded-xl bg-lavender/30 p-4 text-sm"><strong>Demo evidence, not measured business impact.</strong> Julia’s incident and Elin’s delivery have recorded outcomes. A change in these illustrative KPI cards is not proof of a better monthly conversion rate.</p>}
           {page === 'funnel' ? (
             <>
               <FunnelKpis kpis={kpis} baseline={baseline} onReport={() => setShowReport(true)} />
               <FunnelStages funnel={funnel} onStage={onStage} />
-              <section id="queue" aria-labelledby="queue-title" className="scroll-mt-4">
+              <section id="queue" aria-labelledby="queue-title" className="scroll-mt-[calc(var(--present-top,0px)+1rem)]">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <h2 id="queue-title" className="flex items-center gap-1.5 text-sm font-semibold">
                     Candidates
@@ -437,7 +551,7 @@ export default function App() {
               </section>
             </>
           ) : (
-            <LiveOps jobs={jobs} now={now} onJob={onJob} onViewChat={openDriverChat} selected={liveSel} onSelect={setLiveSel} threads={threads} waitingQuestions={questions} onThread={onThread} />
+            <LiveOps jobs={jobs} now={now} onJob={onJob} onViewChat={openDriverChat} selected={liveSel} onSelect={setLiveSel} focus={present !== null && PRESENT_STEPS[present]?.key === 'playbook' ? 'playbook' : null} threads={threads} waitingQuestions={questions} onThread={onThread} />
           )}
         </main>
 

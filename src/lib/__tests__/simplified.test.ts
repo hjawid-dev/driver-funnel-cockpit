@@ -4,9 +4,10 @@ import { caseTime, DAY, HOUR } from '../time';
 import { generateSeed } from '../seed';
 import { generateGigs } from '../gigs';
 import { deriveStage } from '../stage';
-import { closeIncident as rawCloseIncident, markStep, seedJobs, setOutcome } from '../liveOps';
+import { closeIncident as rawCloseIncident, markStep, problemSummary, seedJobs, setOutcome } from '../liveOps';
 import { filterItems, queueCounts, workItems } from '../workQueue';
 import { byOpsPriority, currentStep, firstToOpen, opsState } from '../opsState';
+import { activationTarget, checkTarget, docsTarget, incidentTarget, PRESENT_STEPS, reviewTarget, siteCallTarget } from '../present';
 import { inReview, mk, NOW } from './helpers';
 
 describe('the candidate queue', () => {
@@ -83,6 +84,36 @@ describe('Live Ops states', () => {
   it('shows a delivered drive as delivered', () => {
     const filip = jobs.find((j) => j.driverName === 'Filip Nyström')!;
     expect(opsState(filip, at)).toBe('delivered');
+  });
+});
+
+describe('presentation mode', () => {
+  const at = caseTime(NOW);
+  const apps = generateSeed(at);
+  const gigs = generateGigs(at);
+  const jobs = seedJobs(apps, at, { asInCase: true });
+
+  it('runs Part 1 first, and each part shows the problem before its fixes', () => {
+    expect(PRESENT_STEPS.map((s) => s.key)).toEqual(['incident', 'playbook', 'prevent', 'funnel', 'docs', 'review', 'activate', 'deliver', 'measure']);
+    expect(PRESENT_STEPS.map((s) => `${s.part}${s.kind}`)).toEqual(['1Problem', '1Fix', '1Result', '2Problem', '2Fix', '2Fix', '2Fix', '2Result', '2Result']);
+  });
+
+  it('opens a pickup nobody confirmed, a new site to call, and a file with documents missing', () => {
+    expect(checkTarget(jobs, at)?.driverName).toBe('Linnea Björk');
+    expect(siteCallTarget(jobs, at)?.driverName).toBe('Linnea Björk');
+    expect(docsTarget(apps, gigs, at)?.name).toBe('Nora Axelsson');
+  });
+
+  it('keeps Elin throughout review and activation, and Julia as the incident', () => {
+    expect(reviewTarget(apps)?.name).toBe('Elin Johansson');
+    const d = activationTarget(apps, gigs, at)!;
+    expect(d.id).toBe(reviewTarget(apps)?.id);
+    expect(deriveStage(d)).toBe('review');
+    expect(incidentTarget(jobs, at)?.asInCase).toBe(true);
+  });
+
+  it('states the Part 1 problem in a few words: 25 minutes, no keys, no answer', () => {
+    expect(problemSummary(incidentTarget(jobs, at)!, at)).toEqual(['Waited 25 min', 'No keys', 'Contact not answering']);
   });
 });
 
