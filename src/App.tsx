@@ -18,19 +18,19 @@ import { HANDOVER_LABEL } from './lib/chat/types';
 import { REASON_LABEL } from './lib/sms';
 import { waitingThreads } from './lib/chat/threads';
 import { releaseDue } from './lib/extract';
-import { assisting, currentJob, driverUpdate, escalate, firstDriveResult, jobAlert, openIncidents, reportProblem, syncFirstDrive, type Job } from './lib/liveOps';
+import { assisting, currentJob, driverUpdate, escalate, firstDriveResult, incidentClock, jobAlert, openIncidents, reportProblem, syncFirstDrive, type Job } from './lib/liveOps';
 import { canStartDrive } from './lib/eligibility';
 import { completeFirstGig } from './lib/actions';
 import { backToAi, callRequested, emptyThread, keysFoundByDriver, opsReply, pickupReported, relayContactReply, solvedNote, textsSentNote, threadIdFor } from './lib/chat/threads';
 import { REVIEWER } from './lib/types';
 import { LiveOps, type LiveSelection } from './components/LiveOps';
 import { DemoMenu } from './components/DemoMenu';
-import { PresentBar } from './components/PresentBar';
+import { PresentBar, type GuideView } from './components/PresentBar';
 import { Proposed } from './components/ui';
 import { FunnelKpis, FunnelStages } from './components/FunnelOverview';
 import { WorkQueue } from './components/WorkQueue';
 import { filterItems, QUEUE_FILTER_LABEL, queueCounts, workItems, type QueueFilter } from './lib/workQueue';
-import { docsTarget, incidentTarget, PRESENT_STEPS, reviewTarget, siteCallTarget, presentActionFor, presentDone, presentEvidence, presentPrerequisite, preparePresentAction, runPresentAction } from './lib/present';
+import { docsTarget, PRESENT_STEPS, reviewTarget, guideDestination, focusGuideStep, presentEvidence } from './lib/present';
 
 /**
  * Two connected jobs, one page each.
@@ -50,7 +50,7 @@ const TEXTS_KEY = 'driver-funnel-cockpit-texts';
 export default function App() {
   const clock = useClock();
   const now = clock.now;
-  const { apps, gigs, threads, jobs, update, add, upsertThread, updateJob, updateJobs, reset, recordThrough, replaceDemo } = useDemoData();
+  const { apps, gigs, threads, jobs, update, add, upsertThread, updateJob, updateJobs, reset, recordThrough } = useDemoData();
   const toast = useToast();
   useEffect(() => { recordThrough(now); }, [now, recordThrough]);
 
@@ -62,7 +62,6 @@ export default function App() {
   const [showHubspot, setShowHubspot] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [present, setPresent] = useState<number | null>(null);
-  const [presentError, setPresentError] = useState<string | null>(null);
   // Bumped when the cockpit opens the phone on the chat; 0 opens it on the steps.
   const [chatRequest, setChatRequest] = useState(0);
   const [phoneOpen, setPhoneOpen] = useState(false);
@@ -353,63 +352,53 @@ export default function App() {
     if (f === 'all') setStageFilter('all');
   };
 
-  // Presentation navigation only changes the view; explicit demo buttons perform the work.
+  // The guide changes views only. All decisions, bookings and delivery use the ordinary controls.
   const presentData = { apps, gigs, threads, jobs };
   const currentPresent = present === null ? null : PRESENT_STEPS[present];
-  const presentAction = currentPresent ? presentActionFor(currentPresent.key, presentData) : null;
-  const presentComplete = presentAction ? presentDone(presentAction, presentData) : false;
-  const presentBlocked = presentAction ? presentPrerequisite(presentAction, presentData) !== null : false;
   const goStep = (i: number) => {
     const step = PRESENT_STEPS[i];
     if (!step) return;
+    const target = guideDestination(step.key, presentData);
     setPresent(i);
-    setPresentError(null);
     setShowReport(false);
     setShowHubspot(false);
-    setOpenId(null);
-    setPhoneOpen(false);
-    setChatRequest(0);
     setStageFilter('all');
+    setPage(target.page);
+    setFilter(target.filter);
+    setLiveSel(target.liveId);
+    setOpenId(target.applicantId);
+    setPhoneId(target.driverId);
+    setChatRequest(target.phone === 'chat' ? n => n + 1 : 0);
+    setPhoneOpen(target.phone !== null);
     window.scrollTo({ top: 0 });
-    if (['incident', 'playbook', 'prevent'].includes(step.key)) {
-      setPage('live');
-      setLiveSel(incidentTarget(jobs)?.id ?? null);
-    } else if (step.key === 'deliver') {
-      setPage('live');
-      setLiveSel(jobs.find(j => j.firstDrive && j.driverId === reviewTarget(apps)?.id)?.id ?? null);
-    } else {
-      setPage('funnel');
-      setFilter(step.key === 'docs' ? 'missing' : step.key === 'review' ? 'review' : step.key === 'activate' ? 'awaiting' : 'action');
-      if (step.key === 'review' || step.key === 'activate') setOpenId(reviewTarget(apps)?.id ?? null);
-      if (step.key === 'docs') setOpenId(docsTarget(apps)?.id ?? null);
-    }
+    setTimeout(() => focusGuideStep(step.key), 100);
   };
-  const runPresentation = (prepare = false) => {
-    if (!presentAction) return;
-    try {
-      const result = prepare ? preparePresentAction(presentAction, presentData, now) : runPresentAction(presentAction, presentData, now);
-      replaceDemo(result.data);
-      clock.setTo(result.now);
-      setPresentError(null);
-      if (currentPresent?.key === 'deliver') {
-        setLiveSel(result.data.jobs.find(j => j.firstDrive && j.driverId === reviewTarget(result.data.apps)?.id)?.id ?? null);
-      }
-      toast.notify(prepare ? 'Prepared the missing earlier demo actions. Existing session changes are preserved.' : 'Simulated demo action recorded. See the evidence and live record below.');
-    } catch (error) {
-      setPresentError(error instanceof Error ? error.message : 'The demo action could not be completed.');
-    }
-  };
-  const presentInspect = (view: 'phone' | 'prevention' | 'report') => {
+  const guideExplore = (view: GuideView) => {
+    if (view === 'target' && present !== null) return goStep(present);
     if (view === 'report') return setShowReport(true);
     setOpenId(null);
-    if (view === 'prevention') {
-      setPage('live');
-      setLiveSel(siteCallTarget(jobs)?.id ?? null);
-    } else {
-      setChatRequest(0);
-      openAsDriver(currentPresent?.key === 'docs' ? docsTarget(apps)?.id ?? null : reviewTarget(apps)?.id ?? null);
+    setPhoneOpen(false);
+    if (view === 'start') {
+      setPhoneId(null); setChatRequest(0); setPhoneOpen(true);
+    } else if (view === 'reminders') {
+      setPage('funnel'); setOpenId(docsTarget(apps)?.id ?? null);
+      setTimeout(() => {
+        [...document.querySelectorAll<HTMLElement>('h3')].find(e => e.textContent?.trim().startsWith('Nudges'))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    } else if (view === 'criteria') {
+      setPage('funnel'); setOpenId(reviewTarget(apps)?.id ?? null);
+    } else if (view === 'job') {
+      setPage('live'); setLiveSel(jobs.find(j => j.firstDrive && j.driverId === reviewTarget(apps)?.id)?.id ?? null);
     }
   };
+  const guideJob = jobs.find(j => j.firstDrive && j.driverId === reviewTarget(apps)?.id);
+  const guideIncident = jobs.find(j => j.asInCase);
+  const guideJumpAt = currentPresent?.key === 'decision'
+    ? guideIncident ? incidentClock(guideIncident, now).decideBy : null
+    : currentPresent?.key === 'deliver' && guideJob && !guideJob.deliveredAt
+      ? guideJob.departedAt ? guideJob.departedAt + guideJob.driveMin * 60000 : guideJob.pickupAt
+      : null;
+  const guideJumpLabel = guideJumpAt && guideJumpAt > now ? currentPresent?.key === 'decision' ? 'Move demo time to 10:15 decision point' : guideJob?.departedAt ? 'Move demo time to delivery' : 'Move demo time to pickup' : null;
   // While presenting, the header and the bar stick to the top; drawers and dialogs open below them.
   const topRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -444,7 +433,6 @@ export default function App() {
     setPage('live');
     setLiveSel(null);
     setPresent(0);
-    setPresentError(null);
     window.scrollTo({ top: 0 });
     toast.notify('Case demo started: fresh data, Tuesday 09:30.');
   };
@@ -452,7 +440,7 @@ export default function App() {
   return (
     <div className="min-h-screen flex">
       <div className="min-w-0 flex-1 flex flex-col">
-        <div ref={topRef} className={present !== null ? 'sticky top-0 z-[60]' : ''}>
+        <div ref={topRef} className={present !== null ? `sticky top-0 z-[60] ${phoneOpen ? 'lg:w-[calc(100%+420px)]' : ''}` : ''}>
         <header className="bg-navy text-white">
           <div className="mx-auto max-w-7xl px-4 h-14 flex items-center gap-3">
             <span className="hidden sm:inline font-semibold tracking-tight whitespace-nowrap">Driver Ops</span>
@@ -500,7 +488,7 @@ export default function App() {
             </div>
           </div>
         </header>
-        {present !== null && <PresentBar step={present} onStep={goStep} onExit={() => { setPresent(null); clock.resume(); }} action={presentAction} completed={presentComplete} blocked={presentBlocked} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} error={presentError} onRun={() => runPresentation()} onPrepare={() => runPresentation(true)} onInspect={presentInspect} />}
+        {present !== null && <PresentBar step={present} onStep={goStep} onExit={() => { setPresent(null); clock.resume(); }} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} onExplore={guideExplore} jumpLabel={guideJumpLabel} onJump={() => { if (guideJumpAt && guideJumpAt > now) onAdvance(guideJumpAt - now); }} />}
         </div>
 
         <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-6 space-y-6">
@@ -509,8 +497,6 @@ export default function App() {
             <p className="mt-0.5 text-sm text-muted">{PAGE_SUB[page]}</p>
           </div>
 
-          {currentPresent?.key === 'funnel' && <section aria-label="Case 2 baseline" className="rounded-xl border border-indigo/20 bg-lavender/30 p-4"><p className="text-xs font-semibold uppercase text-indigo">Case facts · separate from the demo records below</p><div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">{[['120', 'applications / month'], ['~84', 'submit documents (70%)'], ['25', 'active (21%)'], ['6 days', 'mean registration → decision']].map(([value, label]) => <div key={label}><strong className="num text-2xl text-navy">{value}</strong><p className="text-sm text-muted">{label}</p></div>)}</div><p className="mt-3 text-sm">Acceptance is not measured. The 59-volume gap includes unknown pending cases, rejections and timing. The dashboard below uses 44 fictional applicants.</p></section>}
-          {currentPresent?.key === 'measure' && <p className="rounded-xl bg-lavender/30 p-4 text-sm"><strong>Demo evidence, not measured business impact.</strong> Julia’s incident and Elin’s delivery have recorded outcomes. A change in these illustrative KPI cards is not proof of a better monthly conversion rate.</p>}
           {page === 'funnel' ? (
             <>
               <FunnelKpis kpis={kpis} baseline={baseline} onReport={() => setShowReport(true)} />
@@ -551,7 +537,7 @@ export default function App() {
               </section>
             </>
           ) : (
-            <LiveOps jobs={jobs} now={now} onJob={onJob} onViewChat={openDriverChat} selected={liveSel} onSelect={setLiveSel} focus={present !== null && PRESENT_STEPS[present]?.key === 'playbook' ? 'playbook' : null} threads={threads} waitingQuestions={questions} onThread={onThread} />
+            <LiveOps jobs={jobs} now={now} onJob={onJob} onViewChat={openDriverChat} selected={liveSel} onSelect={setLiveSel} focus={null} threads={threads} waitingQuestions={questions} onThread={onThread} />
           )}
         </main>
 

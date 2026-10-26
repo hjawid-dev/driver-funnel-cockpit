@@ -94,8 +94,8 @@ describe('presentation mode', () => {
   const jobs = seedJobs(apps, at, { asInCase: true });
 
   it('runs Part 1 first, and each part shows the problem before its fixes', () => {
-    expect(PRESENT_STEPS.map((s) => s.key)).toEqual(['incident', 'playbook', 'prevent', 'funnel', 'docs', 'review', 'activate', 'deliver', 'measure']);
-    expect(PRESENT_STEPS.map((s) => `${s.part}${s.kind}`)).toEqual(['1Problem', '1Fix', '1Result', '2Problem', '2Fix', '2Fix', '2Fix', '2Result', '2Result']);
+    expect(PRESENT_STEPS.map((s) => s.key)).toEqual(['incident', 'playbook', 'decision', 'prevent', 'onboarding', 'reminders', 'queue', 'criteria', 'activate', 'deliver', 'measure']);
+    expect(PRESENT_STEPS.map(s => s.part)).toEqual([1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2]);
   });
 
   it('opens a pickup nobody confirmed, a new site to call, and a file with documents missing', () => {
@@ -104,8 +104,8 @@ describe('presentation mode', () => {
     expect(docsTarget(apps, gigs, at)?.name).toBe('Nora Axelsson');
   });
 
-  it('keeps Elin throughout review and activation, and Julia as the incident', () => {
-    expect(reviewTarget(apps)?.name).toBe('Elin Johansson');
+  it('keeps Ahmed throughout review and activation, and Julia as the incident', () => {
+    expect(reviewTarget(apps)?.name).toBe('Ahmed Hassan');
     const d = activationTarget(apps, gigs, at)!;
     expect(d.id).toBe(reviewTarget(apps)?.id);
     expect(deriveStage(d)).toBe('review');

@@ -1,146 +1,86 @@
 import type { Applicant, Gig } from './types';
 import type { Job } from './liveOps';
 import type { DemoData } from './persist';
-import { applyDecision, bookFirstGig, completeFirstGig, completeOnboarding, logNudge, logWelcomeCall, receiveDocument, setExtractShown, setPhotoApproved } from './actions';
-import { checkIn, closeIncident, confirmByPhone, deliver, depart, firstDriveResult, gotKeys, markStep, recordOwnError, setOutcome, syncFirstDrive, tellAccountOwner } from './liveOps';
-import { firstGigOffers } from './gigs';
 import { deriveStage } from './stage';
-import { DAY, MIN, formatDateTime } from './time';
+import { formatDateTime } from './time';
 
-export type PresentKey = 'incident' | 'playbook' | 'prevent' | 'funnel' | 'docs' | 'review' | 'activate' | 'deliver' | 'measure';
-export type PresentAction = 'respond' | 'resolve' | 'nudge' | 'review' | 'book' | 'pickup' | 'deliver';
+export type PresentKey = 'incident' | 'playbook' | 'decision' | 'prevent' | 'onboarding' | 'reminders' | 'queue' | 'criteria' | 'activate' | 'deliver' | 'measure';
 export interface PresentStep {
   key: PresentKey;
   part: 1 | 2;
-  kind: 'Problem' | 'Fix' | 'Result';
   title: string;
+  solution: string;
   instruction: string;
+  location: string;
 }
+
+/** Case problem → existing solution → ordinary app control. No business actions live in the guide. */
 export const PRESENT_STEPS: PresentStep[] = [
-  { key: 'incident', part: 1, kind: 'Problem', title: '09:30: Julia is stuck, delivery is due at 12:00', instruction: 'Review Julia’s waiting time, the delivery deadline and the pilot-customer status.' },
-  { key: 'playbook', part: 1, kind: 'Fix', title: 'One owner works the incident against a clock', instruction: 'Run the simulated response, or log each action in the playbook below.' },
-  { key: 'prevent', part: 1, kind: 'Result', title: 'Close Julia’s incident, then prevent the next one', instruction: 'Log the simulated outcome and follow-up. Then open the next new-site check.' },
-  { key: 'funnel', part: 2, kind: 'Problem', title: '120 applications, 25 active drivers', instruction: 'Compare the case baseline with the dashboard and explore where applicants are waiting.' },
-  { key: 'docs', part: 2, kind: 'Fix', title: 'Nora gets the exact next action', instruction: 'Log a simulated reminder and open Nora’s phone to see her next step.' },
-  { key: 'review', part: 2, kind: 'Fix', title: 'Review Elin using a deadline and written criteria', instruction: 'Run the simulated checks and onboarding decision, or complete them in Elin’s file.' },
-  { key: 'activate', part: 2, kind: 'Fix', title: 'Book Elin’s first drive in the same call', instruction: 'Book the first matching job, or choose one in Elin’s file.' },
-  { key: 'deliver', part: 2, kind: 'Result', title: 'Follow the same Elin through her first delivery', instruction: 'Jump to pickup and log the simulated handover; then jump through the drive and log delivery.' },
-  { key: 'measure', part: 2, kind: 'Result', title: 'Measure what changed, and what still needs work', instruction: 'Open the weekly report to inspect decision time, conversion and first-drive quality.' },
+  { key: 'incident', part: 1, title: 'The driver has waited 25 minutes. No contact, no keys.', solution: 'Bring the driver, pickup details and delivery deadline into one view so Ops can assess the risk immediately.', instruction: 'Open Julia’s pickup. Check the 12:00 deadline, contact details and pilot-customer status.', location: 'Live Ops → Julia’s pickup' },
+  { key: 'playbook', part: 1, title: 'The driver asks whether to leave. The contact is not answering.', solution: 'One owner keeps the driver, checks our booking and escalates to the contact and backup in a clear order.', instruction: 'Use the first three playbook sections below. Record the calls and booking check using their normal controls.', location: 'Julia → Playbook' },
+  { key: 'decision', part: 1, title: 'The customer expects an on-time delivery, but the pickup is unresolved.', solution: 'Update the customer early, agree the next action by the decision point, then record compensation, cause and follow-up.', instruction: 'Open “Customer hears it from us”, then the decision and closing sections. Choose an outcome; the guide does not choose for you.', location: 'Julia → Customer update, decision and close' },
+  { key: 'prevent', part: 1, title: 'Nobody at the pickup seems to know about the transport.', solution: 'Before dispatch, confirm the contact, backup and key location. Recheck before pickup; call new sites and pilot customers.', instruction: 'Explore Linnea’s upcoming new-site check: see what Ops confirms, when, and the driver’s arrival check.', location: 'Live Ops → Linnea → Pre-pickup check' },
+  { key: 'onboarding', part: 2, title: 'About 30% never finish submitting their documents after registering.', solution: 'A simple onboarding flow shows progress, missing documents and the next action. Order the extract early and collect the rest in parallel.', instruction: 'Explore Nora’s application on the phone. Use “View application start” to inspect the sign-up flow, or the completed steps to look back.', location: 'Driver’s phone → Nora’s application' },
+  { key: 'reminders', part: 2, title: 'An unfinished application can be forgotten by both the driver and Ops.', solution: 'Specific reminders at 2, 24 and 72 hours explain exactly what is missing. Ops follows up when automation is not enough.', instruction: 'Read Nora’s automatic messages. Then open the reminder schedule to inspect the missing document, message text and manual follow-up.', location: 'Nora → Messages / Ops reminder schedule' },
+  { key: 'queue', part: 2, title: 'Registration to decision takes six days on average. The target is 48 hours.', solution: 'A prioritised queue, a named owner and backup, and fixed review slots make the next action clear. The clock starts at registration.', instruction: 'Inspect the deadlines in the review queue. Nora showed document follow-up; next we will use Ahmed’s complete file for the review-to-active flow.', location: 'Driver Funnel → In review' },
+  { key: 'criteria', part: 2, title: 'No written criteria: reviewers decide borderline cases differently.', solution: 'Written must-haves and borderline rules standardise the assessment. Ahmed’s 1–2 years with a licence means simple first drives.', instruction: 'Read Ahmed’s criteria, complete the applicable checks and log the onboarding call. Use the normal decision button to accept him for simple drives.', location: 'Ahmed → Criteria and decision' },
+  { key: 'activate', part: 2, title: 'Many accepted drivers never complete a first gig.', solution: 'Immediately after acceptance, show short, easy, nearby routes that match the driver. Book the first drive in the same onboarding call.', instruction: 'Keep the same Ahmed. In his phone view, compare the matching routes and choose “Pick this drive”. Booking alone does not make him active.', location: 'Driver’s phone → Ahmed → First-drive offers' },
+  { key: 'deliver', part: 2, title: 'Accepted and booked still do not mean active.', solution: 'Follow the same driver and booked job through the first completed delivery, then record quality and customer feedback.', instruction: 'Use Ahmed’s normal pickup, keys, departure and delivery controls. Move demo time only when needed; open the job in Ops to log customer feedback.', location: 'Ahmed’s booked job → Driver’s phone / Live Ops' },
+  { key: 'measure', part: 2, title: 'Without follow-up, Ops cannot see which part of the process needs improvement.', solution: 'Track document completion, decision time, first-drive activation and application-to-active conversion, alongside acceptance and quality.', instruction: 'Review the dashboard and weekly report. Each measure follows a process you just explored; demo changes are not measured business improvement.', location: 'Driver Funnel → Dashboard and weekly report' },
 ];
 
-export const reviewTarget = (apps: Applicant[]) => apps.find(a => a.name === 'Elin Johansson') ?? null;
+// The people are deliberately stable: Julia for the incident, Nora for documents, Ahmed from review to delivery.
+export const reviewTarget = (apps: Applicant[]) => apps.find(a => a.name === 'Ahmed Hassan') ?? null;
 export const activationTarget = (apps: Applicant[], _gigs?: Gig[], _now?: number) => reviewTarget(apps);
 export const docsTarget = (apps: Applicant[], _gigs?: Gig[], _now?: number) => apps.find(a => a.name === 'Nora Axelsson') ?? null;
 export const incidentTarget = (jobs: Job[], _now?: number) => jobs.find(j => j.asInCase) ?? null;
 export const siteCallTarget = (jobs: Job[], _now?: number) => jobs.find(j => j.newSite && !j.asInCase) ?? jobs.find(j => j.pilot && !j.asInCase) ?? null;
 export const checkTarget = siteCallTarget;
-const start = (d: DemoData) => (incidentTarget(d.jobs)?.pickupAt ?? 0) + 30 * MIN;
-const requireValue = <T,>(v: T | null | undefined, message: string): T => { if (v == null) throw new Error(message); return v; };
-const applicantResult = (r: ReturnType<typeof applyDecision>): Applicant => { if (!r.ok) throw new Error(r.error); return r.applicant; };
-const replaceApplicant = (d: DemoData, a: Applicant): DemoData => ({ ...d, apps: d.apps.map(x => x.id === a.id ? a : x), jobs: syncFirstDrive(d.jobs, a, d.gigs) });
-const replaceJob = (d: DemoData, j: Job): DemoData => ({ ...d, jobs: d.jobs.map(x => x.id === j.id ? j : x) });
 
-export function presentDone(action: PresentAction, d: DemoData): boolean {
-  const j = incidentTarget(d.jobs), a = reviewTarget(d.apps);
-  switch (action) {
-    case 'respond': return !!j?.incident?.steps.customer && !!j.incident.steps.escalate && !!j.incident.steps.own_error && !!j.incident.steps.keep_driver && (!j.pilot || !!j.incident.accountOwnerAt);
-    case 'resolve': return !!j?.incident?.closedAt;
-    case 'nudge': return !!docsTarget(d.apps)?.nudges.some(t => t >= start(d));
-    case 'review': return !!a?.decision;
-    case 'book': return !!a?.firstGig?.gigId;
-    case 'pickup': return !!d.jobs.find(x => x.firstDrive && x.driverId === a?.id)?.departedAt;
-    case 'deliver': return !!a?.firstGig?.doneAt;
-  }
+export interface GuideDestination {
+  page: 'live' | 'funnel';
+  filter: 'review' | 'missing' | 'awaiting' | 'action';
+  applicantId: string | null;
+  driverId: string | null;
+  liveId: string | null;
+  phone: 'steps' | 'chat' | null;
+}
+/** Resolving a step is read-only. Next/back can never accept, book, deliver or rewrite history. */
+export function guideDestination(key: PresentKey, data: DemoData): GuideDestination {
+  const d: GuideDestination = { page: 'funnel', filter: 'action', applicantId: null, driverId: null, liveId: null, phone: null };
+  const ahmed = reviewTarget(data.apps), nora = docsTarget(data.apps);
+  if (['incident', 'playbook', 'decision', 'prevent'].includes(key)) return { ...d, page: 'live', liveId: (key === 'prevent' ? siteCallTarget(data.jobs) : incidentTarget(data.jobs))?.id ?? null };
+  if (key === 'onboarding' || key === 'reminders') return { ...d, filter: 'missing', driverId: nora?.id ?? null, phone: key === 'reminders' ? 'chat' : 'steps' };
+  if (key === 'queue') return { ...d, filter: 'review' };
+  if (key === 'criteria') return { ...d, filter: 'review', applicantId: ahmed?.id ?? null };
+  if (key === 'activate') return { ...d, filter: 'awaiting', driverId: ahmed?.id ?? null, phone: 'steps' };
+  if (key === 'deliver') return { ...d, page: 'live', driverId: ahmed?.id ?? null, liveId: data.jobs.find(j => j.firstDrive && j.driverId === ahmed?.id)?.id ?? null, phone: 'steps' };
+  return d;
 }
 
-export function presentPrerequisite(action: PresentAction, d: DemoData): PresentAction | null {
-  if (action === 'resolve' && !presentDone('respond', d)) return 'respond';
-  if (action === 'book' && !presentDone('review', d)) return 'review';
-  if (action === 'pickup' && !presentDone('book', d)) return 'book';
-  if (action === 'deliver' && !presentDone('pickup', d)) return 'pickup';
-  return null;
-}
-
-/** Explicit demo buttons run the same domain actions as normal controls. Navigation never mutates data. */
-export function runPresentAction(action: PresentAction, d: DemoData, now: number): { data: DemoData; now: number } {
-  if (presentDone(action, d)) return { data: d, now };
-  if (presentPrerequisite(action, d)) throw new Error('Prepare the earlier demo actions first.');
-  let next = d;
-  if (action === 'respond') {
-    let j = requireValue(incidentTarget(d.jobs), 'Julia’s case is missing. Restart the presentation.');
-    const at = Math.max(now, start(d));
-    if (!j.incident?.steps.keep_driver) j = markStep(j, 'keep_driver', at);
-    if (!j.incident?.steps.own_error) j = recordOwnError(j, false, '', at + 2 * MIN);
-    if (!j.incident?.steps.escalate) j = markStep(j, 'escalate', at + 5 * MIN);
-    if (!j.incident?.steps.customer) j = markStep(j, 'customer', at + 10 * MIN);
-    if (j.pilot && !j.incident?.accountOwnerAt) j = tellAccountOwner(j, at + 10 * MIN);
-    next = replaceJob(d, j); now = at + 10 * MIN;
-  } else if (action === 'resolve') {
-    let j = requireValue(incidentTarget(d.jobs), 'Julia’s case is missing.');
-    now = Math.max(now, start(d) + 15 * MIN);
-    if (!j.incident?.outcome) j = setOutcome(j, 'keys_found', now);
-    if (!j.incident?.outcome) throw new Error('The departure cut-off passed. Use the customer’s revised deadline, rebooking or cancellation controls below.');
-    const r = closeIncident(j, { waitPaid: true, feeWaived: false, cause: 'customer_keys', reviewBooked: true, reviewAt: now + DAY }, now);
-    if (!r.ok) throw new Error(r.error);
-    next = replaceJob(d, r.job);
-  } else if (action === 'nudge') {
-    next = replaceApplicant(d, applicantResult(logNudge(requireValue(docsTarget(d.apps), 'Nora’s file is missing.'), now)));
-  } else if (action === 'review') {
-    let a = requireValue(reviewTarget(d.apps), 'Elin’s file is missing.');
-    a = receiveDocument(a, 'licence', 'verified', now);
-    a = receiveDocument(a, 'id', 'verified', now);
-    a = setPhotoApproved(a, true, now);
-    if (a.docs.extract !== 'ready') throw new Error('Show the extract when it has arrived; never bypass a missing pre-drive check.');
-    a = setExtractShown(a, true, now);
-    a = completeOnboarding(a, now);
-    a = applicantResult(applyDecision(a, { type: 'accepted' }, now));
-    next = replaceApplicant(d, applicantResult(logWelcomeCall(a, now)));
-  } else if (action === 'book') {
-    const a = requireValue(reviewTarget(d.apps), 'Elin’s file is missing.');
-    const gig = requireValue(firstGigOffers(a, d.gigs, d.apps, now)[0], 'No matching job remains. Restart the presentation or choose a suitable job manually.');
-    next = replaceApplicant(d, applicantResult(bookFirstGig(a, gig, now, d.apps)));
-  } else {
-    let a = requireValue(reviewTarget(d.apps), 'Elin’s file is missing.');
-    let j = requireValue(d.jobs.find(x => x.firstDrive && x.driverId === a.id), 'Elin needs a booked first drive.');
-    if (action === 'pickup') {
-      now = Math.max(now, j.pickupAt);
-      j = confirmByPhone(j, Math.max(j.bookedAt ?? start(d), j.pickupAt - DAY), '24h');
-      j = confirmByPhone(j, Math.max(j.bookedAt ?? start(d), j.pickupAt - 60 * MIN), '60min');
-      j = checkIn(j, now); j = gotKeys(j, now); j = depart(j, now);
-      if (!j.departedAt) throw new Error('Elin’s pre-drive checks must pass before departure.');
-      next = replaceJob(d, j);
-    } else {
-      now = Math.max(now, requireValue(j.departedAt, 'Log departure before delivery.') + j.driveMin * MIN);
-      j = { ...deliver(j, now), customerSatisfied: true };
-      if (!j.deliveredAt) throw new Error('The drive has not reached the delivery time.');
-      a = applicantResult(completeFirstGig(a, { ...firstDriveResult(j), delivery: { jobId: j.id, at: j.deliveredAt } }, now));
-      next = replaceApplicant(replaceJob(d, j), a);
-    }
-  }
-  return { data: next, now };
-}
-
-/** Loading a checkpoint is explicit and only fills missing prerequisites; it never resets the session. */
-export function preparePresentAction(action: PresentAction, d: DemoData, now: number): { data: DemoData; now: number } {
-  const prior = presentPrerequisite(action, d);
-  if (!prior) return { data: d, now };
-  const prepared = preparePresentAction(prior, d, now);
-  return runPresentAction(prior, prepared.data, prepared.now);
-}
-
-export function presentActionFor(key: PresentKey, d: DemoData): PresentAction | null {
-  return key === 'playbook' ? 'respond' : key === 'prevent' ? 'resolve' : key === 'docs' ? 'nudge' : key === 'review' ? 'review' : key === 'activate' ? 'book' : key === 'deliver' ? presentDone('pickup', d) ? 'deliver' : 'pickup' : null;
-}
-export const PRESENT_ACTION_LABEL: Record<PresentAction, string> = {
-  respond: 'Simulate calls and customer update · +10 min', resolve: 'Simulate keys found and close incident · 09:45 or later', nudge: 'Log Nora’s reminder · simulated SMS', review: 'Simulate checks, onboarding and accept Elin', book: 'Book Elin’s first matching job · demo', pickup: 'Jump to pickup, confirm contacts and depart · demo', deliver: 'Jump through drive, deliver and log satisfied · demo',
-};
-export function presentEvidence(key: PresentKey, d: DemoData): string {
-  const j = incidentTarget(d.jobs), a = reviewTarget(d.apps);
-  if (key === 'prevent' && j?.incident?.closedAt) return `Julia: incident closed; transport ${j.deliveredAt ? 'delivered' : 'not delivered'}. Waiting compensated; cause logged; booker review ${formatDateTime(j.incident.reviewAt!)}.`;
-  if (key === 'playbook' && presentDone('respond', d)) return 'Julia: driver called, booking checked, site escalated, customer and pilot account owner updated. Actions are in the incident log.';
-  if (key === 'docs' && presentDone('nudge', d)) return 'Nora: reminder recorded. Her existing documents and application history are preserved. No real SMS was sent.';
-  if (key === 'review' && a?.decision) return `Elin: ${deriveStage(a)}. Decision ${formatDateTime(a.decision.at)}; registration ${formatDateTime(a.registeredAt)}. The original deadline is preserved.`;
-  if ((key === 'activate' || key === 'deliver') && a?.firstGig?.doneAt) return `Elin: active. ${a.firstGig.gigId} delivered ${formatDateTime(a.firstGig.doneAt)}; on time ${a.firstGig.onTime ? 'yes' : 'no'}; customer feedback ${a.firstGig.customerSatisfied === undefined ? 'pending' : a.firstGig.customerSatisfied ? 'satisfied' : 'follow-up needed'}.`;
-  if ((key === 'activate' || key === 'deliver') && a?.firstGig?.bookedFor) return `Elin: ${deriveStage(a)}, ${a.firstGig.gigId} booked ${formatDateTime(a.firstGig.bookedFor)}. ${presentDone('pickup', d) ? 'Departed; delivery still required.' : 'Not active until delivery.'}`;
+export function presentEvidence(key: PresentKey, data: DemoData): string {
+  const j = incidentTarget(data.jobs), a = reviewTarget(data.apps);
+  if (key === 'decision' && j?.incident?.closedAt) return `Julia’s incident is closed. Transport ${j.deliveredAt ? 'delivered' : 'still open'}; waiting compensation and follow-up are recorded.`;
+  if (key === 'criteria' && a?.decision) return `Ahmed: ${deriveStage(a)}. Licence ${a.licenceYears} years; decision ${formatDateTime(a.decision.at)}. Continue with the same driver.`;
+  if (key === 'activate' && !a?.decision) return 'Ahmed is still under review. Complete his checks and decision in step 8 to reveal his first-drive offers.';
+  if ((key === 'activate' || key === 'deliver') && a?.decision?.type === 'rejected') return 'Ahmed was rejected. His decision is preserved; no first-drive booking or activation is created by the guide.';
+  if ((key === 'activate' || key === 'deliver') && a?.firstGig?.doneAt) return `Ahmed is active: ${a.firstGig.gigId} delivered ${formatDateTime(a.firstGig.doneAt)}. Customer feedback ${a.firstGig.customerSatisfied === undefined ? 'pending' : a.firstGig.customerSatisfied ? 'satisfied' : 'follow-up needed'}.`;
+  if ((key === 'activate' || key === 'deliver') && a?.firstGig?.bookedFor) return `Ahmed: ${a.firstGig.gigId} booked ${formatDateTime(a.firstGig.bookedFor)}. He remains accepted until delivery.`;
+  if (key === 'deliver') return 'Book Ahmed’s first drive in step 9 before exploring pickup and delivery. The guide never creates a placeholder job.';
   return '';
+}
+
+/** UI-only focus: expand a named section and bring the existing control into view. */
+export function focusGuideStep(key: PresentKey) {
+  const find = (label: string) => [...document.querySelectorAll<HTMLElement>('button, h2, h3')].find(e => e.textContent?.trim().startsWith(label));
+  let target: HTMLElement | null | undefined;
+  if (key === 'decision') {
+    target = find('Customer hears it from us');
+    if (target?.getAttribute('aria-expanded') === 'false') target.click();
+  } else if (key === 'playbook') target = document.getElementById('playbook');
+  else if (key === 'queue') target = document.getElementById('queue');
+  else if (key === 'criteria') target = find('Criteria');
+  else if (key === 'measure') target = document.getElementById('kpi-title');
+  // Fixed phone/drawer views already occupy their own viewport. Only scroll their own content or the page.
+  target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }

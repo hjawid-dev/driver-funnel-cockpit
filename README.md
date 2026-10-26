@@ -76,7 +76,7 @@ Details sit behind a click: the main view shows the problem and the step to take
 - **Driver questions:** in Live Ops. The assistant says it is an AI. Its weekly numbers are folded away.
 - **Demo menu:** the clock icon. It holds the simulated time (+2 h, +1 day, +3 days), what ran by itself, the automated-texts switch, the HubSpot mapping, and Reset demo.
 
-Both pages are available for free exploration. **Explore cases** adds a nine-step user walkthrough of case 1 and case 2 with task instructions and recorded results. Normal controls remain available at every step; no presenter manuscript is displayed.
+Both pages are available for free exploration. **Explore cases** adds an eleven-step user walkthrough linking each case problem to its existing solution. Users act through the normal controls; guide navigation does not accept applicants, book jobs or complete deliveries. No presenter manuscript is displayed.
 
 ## Run it
 
