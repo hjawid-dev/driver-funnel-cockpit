@@ -90,6 +90,10 @@ export default function App() {
 
   const open = apps.find((a) => a.id === openId) ?? null;
   const close = useCallback(() => setOpenId(null), []);
+  const openApplicant = useCallback((id: string) => {
+    setPhoneOpen(false);
+    setOpenId(id);
+  }, []);
   const closeReport = useCallback(() => setShowReport(false), []);
   const closeHubspot = useCallback(() => setShowHubspot(false), []);
 
@@ -164,6 +168,7 @@ export default function App() {
   }, []);
 
   const openDriverChat = useCallback((id: string | null) => {
+    setOpenId(null);
     setPhoneId(id);
     setPhoneOpen(true);
     setChatRequest(Date.now());
@@ -441,7 +446,7 @@ export default function App() {
   return (
     <div className="min-h-screen flex">
       <div className="min-w-0 flex-1 flex flex-col">
-        <div ref={topRef} className={present !== null ? 'sticky top-0 z-[60]' : ''}>
+        <div ref={topRef} className={`${present !== null ? 'sticky top-0 z-[60]' : ''} ${open ? 'lg:w-[calc(100%_-_520px)]' : ''}`}>
         <header className="bg-navy text-white">
           <div className="mx-auto max-w-7xl px-4 h-14 flex items-center gap-3">
             <span className="hidden sm:inline font-semibold tracking-tight whitespace-nowrap">Driver Ops</span>
@@ -531,9 +536,9 @@ export default function App() {
                   ))}
                 </div>
                 {filter === 'all' ? (
-                  <AllApplicants apps={apps} now={now} filter={stageFilter} onFilter={setStageFilter} onOpen={setOpenId} />
+                  <AllApplicants apps={apps} now={now} filter={stageFilter} onFilter={setStageFilter} onOpen={openApplicant} />
                 ) : (
-                  <WorkQueue key={filter} items={shownItems} filter={filter} onOpen={setOpenId} />
+                  <WorkQueue key={filter} items={shownItems} filter={filter} onOpen={openApplicant} />
                 )}
               </section>
             </>
@@ -563,7 +568,7 @@ export default function App() {
           Driver Funnel builds a supply of qualified drivers. Live Ops keeps that supply delivering. · Prototype by Hjalmar Widlund · demo data, no real people
         </footer>
       </div>
-      {phoneOpen && (
+      {phoneOpen && !open && (
         <DriverPhone
           applicantId={phoneId}
           apps={apps}
@@ -581,7 +586,7 @@ export default function App() {
           textsEnabled={textsEnabled}
           onDecide={(id) => {
             showPage('funnel');
-            setOpenId(id);
+            openApplicant(id);
           }}
           onClose={() => setPhoneOpen(false)}
         />

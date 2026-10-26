@@ -98,7 +98,7 @@ export interface GuideStatus { kind: 'explore' | 'pending' | 'complete'; text: s
 export function guideStatus(key: PresentKey, data: DemoData, newApplicantId: string | null = null): GuideStatus {
   const j = incidentTarget(data.jobs), a = reviewTarget(data.apps);
   const complete = (text: string): GuideStatus => ({ kind: 'complete', text: `Step complete: ${text} Continue with Next.` });
-  const pending = (text: string): GuideStatus => ({ kind: 'pending', text: `Next step: ${text}` });
+  const pending = (text: string): GuideStatus => ({ kind: 'pending', text: `To continue: ${text}` });
   if (key === 'playbook') {
     const steps = j?.incident?.steps;
     if (!steps?.keep_driver) return pending('Call driver and log the call in the playbook.');

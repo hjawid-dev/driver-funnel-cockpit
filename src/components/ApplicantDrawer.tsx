@@ -47,7 +47,7 @@ export function ApplicantDrawer({ applicant: a, apps, gigs, now, onClose, onUpda
   }, [onClose]);
 
   return (
-    <div className="below-present fixed inset-0 z-50">
+    <div className="fixed inset-0 z-[70] lg:z-50">
       <div className="anim-fade absolute inset-0 bg-navy/40" onClick={onClose} aria-hidden />
       <aside
         role="dialog"

@@ -59,7 +59,7 @@ export function WorkQueue({ items, filter, onOpen }: Props) {
             </span>
             <span className={`col-span-2 text-sm md:col-span-1 ${w.needsAction ? 'font-semibold text-indigo' : 'text-muted'}`}>
               <span className="md:hidden text-xs font-normal text-muted">{STAGE_LABEL[w.stage]} · </span>
-              {w.next}
+              Next step: {w.next}
             </span>
             <ChevronRight size={16} aria-hidden className="row-start-1 col-start-2 text-muted md:row-auto md:col-auto" />
           </button>
