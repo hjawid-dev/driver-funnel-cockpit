@@ -52,9 +52,9 @@ export function ListIntro({ children, info }: { children: ReactNode; info?: Reac
 }
 
 /** A drawer section that starts closed: for history you look at now and then. */
-export function CollapsibleSection({ title, summary, children }: { title: string; summary?: ReactNode; children: ReactNode }) {
+export function CollapsibleSection({ title, summary, children, open }: { title: string; summary?: ReactNode; children: ReactNode; open?: boolean }) {
   return (
-    <details className="group">
+    <details className="group" open={open}>
       <summary className="mb-2 flex cursor-pointer list-none items-baseline justify-between gap-2 [&::-webkit-details-marker]:hidden">
         <span className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted group-hover:text-navy">
           <span aria-hidden className="inline-block transition-transform group-open:rotate-90">›</span>

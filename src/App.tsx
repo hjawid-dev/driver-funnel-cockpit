@@ -52,7 +52,7 @@ export default function App() {
   const { apps, gigs, threads, jobs, update, add, upsertThread, updateJob, updateJobs, reset } = useDemoData();
   const toast = useToast();
 
-  const [page, setPage] = useState<Page>(() => (window.location.hash === '#live' ? 'live' : 'funnel'));
+  const [page, setPage] = useState<Page>(() => (window.location.hash === '#funnel' ? 'funnel' : 'live'));
   const [filter, setFilter] = useState<QueueFilter>('action');
   const [stageFilter, setStageFilter] = useState<StageFilter>('all');
   const [liveSel, setLiveSel] = useState<LiveSelection>(null);
@@ -350,7 +350,12 @@ export default function App() {
     setShowReport(false);
     setShowHubspot(false);
     setOpenId(null);
-    if (step.key === 'funnel') {
+    if (step.key === 'incident' || step.key === 'playbook') {
+      setPage('live');
+      setLiveSel(incidentTarget(jobs, now)?.id ?? null);
+      if (step.key === 'incident') window.scrollTo({ top: 0, behavior: 'smooth' });
+      else setTimeout(() => document.getElementById('playbook')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    } else if (step.key === 'funnel') {
       setPage('funnel');
       setFilter('action');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -358,17 +363,10 @@ export default function App() {
       setPage('funnel');
       setFilter('review');
       setOpenId(reviewTarget(apps)?.id ?? null);
-    } else if (step.key === 'activate') {
+    } else {
       setPage('funnel');
       setFilter('awaiting');
       setOpenId(activationTarget(apps, gigs, now)?.id ?? null);
-    } else if (step.key === 'incident') {
-      setPage('live');
-      setLiveSel(incidentTarget(jobs, now)?.id ?? null);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      setPage('funnel');
-      setShowReport(true);
     }
   };
   // While presenting, the header and the bar stick to the top; drawers and dialogs open below them.
@@ -401,7 +399,8 @@ export default function App() {
   const startPresenting = () => {
     playCase(true);
     setPhoneOpen(false);
-    setPage('funnel');
+    setPage('live');
+    setLiveSel(null);
     setPresent(0);
     window.scrollTo({ top: 0 });
     toast.notify('Presentation: fresh demo data, Tuesday 09:30.');
@@ -415,7 +414,7 @@ export default function App() {
           <div className="mx-auto max-w-7xl px-4 h-14 flex items-center gap-3">
             <span className="hidden sm:inline font-semibold tracking-tight whitespace-nowrap">Driver Ops</span>
             <nav aria-label="Pages" className="sm:ml-2 flex rounded-lg bg-white/10 p-0.5 text-sm font-semibold">
-              {(['funnel', 'live'] as const).map((p) => (
+              {(['live', 'funnel'] as const).map((p) => (
                 <button
                   key={p}
                   type="button"
@@ -502,12 +501,12 @@ export default function App() {
                 {filter === 'all' ? (
                   <AllApplicants apps={apps} now={now} filter={stageFilter} onFilter={setStageFilter} onOpen={setOpenId} />
                 ) : (
-                  <WorkQueue items={shownItems} filter={filter} onOpen={setOpenId} />
+                  <WorkQueue key={filter} items={shownItems} filter={filter} onOpen={setOpenId} />
                 )}
               </section>
             </>
           ) : (
-            <LiveOps jobs={jobs} now={now} onJob={onJob} onViewChat={openDriverChat} selected={liveSel} onSelect={setLiveSel} threads={threads} waitingQuestions={questions} onThread={onThread} />
+            <LiveOps jobs={jobs} now={now} onJob={onJob} onViewChat={openDriverChat} selected={liveSel} onSelect={setLiveSel} focus={present !== null && PRESENT_STEPS[present]?.key === 'playbook' ? 'playbook' : null} threads={threads} waitingQuestions={questions} onThread={onThread} />
           )}
         </main>
 

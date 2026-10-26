@@ -10,10 +10,10 @@ const LABEL: Partial<Record<Kpi['key'], string>> = { activation: 'First-gig acti
 
 /** The case's own numbers, kept apart from the demo sample so the two are never mixed. */
 const CASE_BASELINE: Partial<Record<Kpi['key'], string>> = {
-  appToActive: 'Case: 25 of 120 a month ≈ 21%',
-  docCompletion: 'Case: ~70% (30% never finish)',
-  timeToDecision: 'Case: 6 days on average (mean)',
-  activation: 'Case: not measured today',
+  appToActive: 'Case: 25 of 120 ≈ 21%',
+  docCompletion: 'Case: ~70%',
+  timeToDecision: 'Case: 6 days (mean)',
+  activation: 'Case: not measured',
 };
 
 export function FunnelKpis({ kpis, baseline, onReport }: { kpis: Kpi[]; baseline: Kpi[]; onReport: () => void }) {
@@ -45,10 +45,10 @@ export function FunnelKpis({ kpis, baseline, onReport }: { kpis: Kpi[]; baseline
                       {line}
                     </p>
                   ))}
+                  {k.northStar && <p className="text-muted">{k.sub}.</p>}
                   <p className="text-muted">{k.caption}</p>
                 </InfoTip>
               </h3>
-              {k.northStar && <p className="text-xs text-muted">{k.sub}</p>}
               <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="num text-2xl font-semibold tracking-tight">{k.display}</span>
                 {d && (
@@ -67,7 +67,7 @@ export function FunnelKpis({ kpis, baseline, onReport }: { kpis: Kpi[]; baseline
                   </span>
                 )}
               </div>
-              <p className="mt-2 border-t border-lavender pt-1.5 text-xs text-muted">{CASE_BASELINE[k.key]}</p>
+              <p className="mt-1 text-xs text-muted">{CASE_BASELINE[k.key]}</p>
             </article>
           );
         })}

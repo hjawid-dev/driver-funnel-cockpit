@@ -25,6 +25,7 @@ import {
   OUTCOME_LABEL,
   PLAYBOOK,
   pickupChecks,
+  problemSummary,
   REPLY_WAIT_24_MS,
   REPLY_WAIT_60_MS,
   setOutcome,
@@ -56,6 +57,8 @@ interface Props {
   threads: ChatThread[];
   waitingQuestions: number;
   onThread: (t: ChatThread) => void;
+  /** Presentation mode on the fix for Part 1: open the prevention too. */
+  focus?: 'playbook' | null;
 }
 
 const hm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
@@ -81,7 +84,7 @@ export function StateChip({ state }: { state: OpsState }) {
 const GROUP_LABEL: Record<OpsGroup, string> = { attention: 'Needs attention', routine: 'On track', done: 'Done' };
 
 /** Live Ops: exceptions first in a short list; the selected pickup in the main area, with the step to do now. */
-export function LiveOps({ jobs, now, onJob, onViewChat, selected, onSelect, threads, waitingQuestions, onThread }: Props) {
+export function LiveOps({ jobs, now, onJob, onViewChat, selected, onSelect, threads, waitingQuestions, onThread, focus = null }: Props) {
   const ordered = byOpsPriority(jobs, now);
   const job = ordered.find((j) => j.id === selected) ?? (selected === 'questions' ? null : ordered[0]) ?? null;
   const shownId = selected === 'questions' ? 'questions' : (job?.id ?? null);
@@ -164,7 +167,7 @@ export function LiveOps({ jobs, now, onJob, onViewChat, selected, onSelect, thre
             <ChatQueue threads={threads} now={now} onThread={onThread} onViewChat={onViewChat} />
           </section>
         ) : job ? (
-          <JobDetail key={job.id} j={job} now={now} onJob={onJob} onViewChat={onViewChat} />
+          <JobDetail key={job.id} j={job} now={now} onJob={onJob} onViewChat={onViewChat} focus={focus} />
         ) : (
           <p className="rounded-xl bg-card p-6 text-sm text-muted">No pickups in the next 24 hours.</p>
         )}
@@ -175,7 +178,7 @@ export function LiveOps({ jobs, now, onJob, onViewChat, selected, onSelect, thre
 
 // ---------- The selected pickup ----------
 
-function JobDetail({ j, now, onJob, onViewChat }: { j: Job; now: number; onJob: Props['onJob']; onViewChat: Props['onViewChat'] }) {
+function JobDetail({ j, now, onJob, onViewChat, focus }: { j: Job; now: number; onJob: Props['onJob']; onViewChat: Props['onViewChat']; focus: Props['focus'] }) {
   const s = opsState(j, now);
   const incident = s === 'needs_person' || s === 'to_close';
   const closed = j.incident?.closedAt !== undefined && j.incident.closedAt <= now;
@@ -188,6 +191,7 @@ function JobDetail({ j, now, onJob, onViewChat }: { j: Job; now: number; onJob: 
     : s === 'issue'
       ? 'Issue reported at the pickup'
       : OPS_STATE_LABEL[s];
+  const problem = problemSummary(j, now);
 
   return (
     <article className={`rounded-2xl border bg-white ${s === 'needs_person' ? 'border-bad/40' : 'border-lavender'}`}>
@@ -205,6 +209,17 @@ function JobDetail({ j, now, onJob, onViewChat }: { j: Job; now: number; onJob: 
           <p className="text-xs text-muted">
             <span className="num">{j.id}</span> · {j.from} → {j.to}
           </p>
+          {incident && problem.length > 0 && (
+            <p className="mt-2 flex flex-wrap items-center gap-1.5 text-sm font-semibold text-bad">
+              <TriangleAlert size={15} aria-hidden />
+              {problem.map((p, i) => (
+                <span key={p} className="whitespace-nowrap">
+                  {i > 0 && <span className="mr-1.5 font-normal text-bad/50">·</span>}
+                  {p}
+                </span>
+              ))}
+            </p>
+          )}
         </div>
         <button type="button" onClick={() => onViewChat(j.driverId)} className="flex items-center gap-1 rounded-md border border-lavender bg-white px-2 py-1 text-xs font-semibold text-indigo hover:border-indigo">
           <Smartphone size={13} aria-hidden /> Driver's chat
@@ -214,7 +229,7 @@ function JobDetail({ j, now, onJob, onViewChat }: { j: Job; now: number; onJob: 
       <div className="space-y-5 px-4 py-4 sm:px-5">
         <Facts j={j} />
         {incident ? (
-          <IncidentWork j={j} now={now} onJob={onJob} />
+          <IncidentWork j={j} now={now} onJob={onJob} focus={focus} />
         ) : s === 'issue' ? (
           <AssistWork j={j} now={now} onJob={onJob} />
         ) : closed ? (
@@ -228,7 +243,7 @@ function JobDetail({ j, now, onJob, onViewChat }: { j: Job; now: number; onJob: 
 }
 
 function Facts({ j }: { j: Job }) {
-  const rows: [string, ReactNode][] = [
+  const main: [string, ReactNode][] = [
     ['Agreed pickup', <span className="num">{hm(j.pickupAt)}</span>],
     ['Delivery deadline', <span className="num">{hm(j.deadline)}</span>],
     [
@@ -237,6 +252,9 @@ function Facts({ j }: { j: Job }) {
         {j.km} km · {j.driveMin} min
       </span>,
     ],
+    ['Keys', j.keyLocation],
+  ];
+  const more: [string, ReactNode][] = [
     ['Customer', `${j.customer}${j.pilot ? ' (pilot)' : ''}`],
     [
       'Pickup contact',
@@ -250,7 +268,6 @@ function Facts({ j }: { j: Job }) {
         {j.backup.role} <span className="num block whitespace-nowrap text-muted">{j.backup.phone}</span>
       </span>,
     ],
-    ['Keys', j.keyLocation],
     [
       'Price · reward',
       <span className="num">
@@ -258,7 +275,7 @@ function Facts({ j }: { j: Job }) {
       </span>,
     ],
   ];
-  return (
+  const grid = (rows: [string, ReactNode][]) => (
     <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
       {rows.map(([k, v]) => (
         <div key={k} className="min-w-0">
@@ -268,11 +285,24 @@ function Facts({ j }: { j: Job }) {
       ))}
     </dl>
   );
+  return (
+    <div>
+      {grid(main)}
+      <details className="group mt-1.5">
+        <summary className="cursor-pointer list-none text-xs font-semibold text-indigo hover:text-navy [&::-webkit-details-marker]:hidden">
+          <span aria-hidden className="mr-1 inline-block transition-transform group-open:rotate-90">›</span>
+          <span className="group-open:hidden">Customer, contacts and price</span>
+          <span className="hidden group-open:inline">Hide details</span>
+        </summary>
+        <div className="mt-2">{grid(more)}</div>
+      </details>
+    </div>
+  );
 }
 
 // ---------- An incident with a person: owner, time pressure, the step to do now ----------
 
-function IncidentWork({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJob'] }) {
+function IncidentWork({ j, now, onJob, focus }: { j: Job; now: number; onJob: Props['onJob']; focus: Props['focus'] }) {
   const c = incidentClock(j, now);
   const steps = j.incident?.steps ?? {};
   const next = currentStep(j);
@@ -287,41 +317,15 @@ function IncidentWork({ j, now, onJob }: { j: Job; now: number; onJob: Props['on
   const e = escalation(j, now);
   const alert = jobAlert(j, now)!;
   const tried = assistantLog(j, now);
-  const lastLog = j.incident?.log.at(-1);
 
   return (
     <>
-      <div className="grid gap-2 sm:grid-cols-3">
-        <Now label="Owner">
-          You, in ops{' '}
-          <span className="font-normal text-muted">
-            since <span className="num">{hm(alert.at)}</span>
-          </span>
-          <span className="block text-xs font-normal text-muted">{e ? (e.why === 'phoned' ? `${firstName(j)} called ops` : ESCALATION_LABEL[e.why]) : alert.text}</span>
-        </Now>
-        <Now label="Next step" strong>
-          {next ? next.title : 'Close the loop'}
-          <span className="block text-xs font-normal text-muted">{lastLog ? `Last: ${lastLog.text} (${hm(lastLog.at)})` : 'Nothing done yet'}</span>
-        </Now>
-        {j.incident?.outcome ? (
-          <Now label="Customer decided">
-            <span className="num">{hm(j.incident.outcome.at)}</span>
-            <span className="block text-xs font-normal text-muted">{OUTCOME_LABEL[j.incident.outcome.type]}</span>
-          </Now>
-        ) : (
-          <Now
-            label={
-              <>
-                Customer decides by <Proposed title="My proposed cut-off, not given in the case: 35 minutes before the last departure that still makes the 12:00 deadline." />
-              </>
-            }
-            tone={now >= c.decideBy ? 'bad' : undefined}
-          >
-            <span className="num">{hm(c.decideBy)}</span> <span className="font-normal text-muted">{now < c.decideBy ? `in ${formatDuration(c.decideBy - now)}` : 'passed'}</span>
-            <span className="block text-xs font-normal text-muted">so the car can still leave by {hm(c.lastDeparture)}</span>
-          </Now>
-        )}
-      </div>
+      <p className="text-sm">
+        <span className="text-muted">Owner:</span> <strong className="font-semibold">You, in ops</strong>{' '}
+        <span className="text-muted">
+          since <span className="num">{hm(alert.at)}</span> · {e ? (e.why === 'phoned' ? `${firstName(j)} called ops` : ESCALATION_LABEL[e.why]) : alert.text}
+        </span>
+      </p>
 
       <TimeBar j={j} now={now} />
 
@@ -331,7 +335,7 @@ function IncidentWork({ j, now, onJob }: { j: Job; now: number; onJob: Props['on
         </CollapsibleSection>
       )}
 
-      <section aria-label="Playbook">
+      <section id="playbook" aria-label="Playbook" className="scroll-mt-40">
         <h3 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
           Playbook <Proposed title="My proposed playbook, not given in the case: to agree with the team." />
         </h3>
@@ -371,7 +375,7 @@ function IncidentWork({ j, now, onJob }: { j: Job; now: number; onJob: Props['on
         </ol>
       </section>
 
-      {j.asInCase && <CasePrevention j={j} />}
+      {j.asInCase && <CasePrevention key={focus ?? 'closed'} j={j} open={focus === 'playbook'} />}
 
       <CollapsibleSection title="Incident log" summary={`${j.incident?.log.length ?? 0} entries`}>
         {j.incident?.log.length ? <TimeList entries={j.incident.log} /> : <p className="text-sm text-muted">Nothing logged yet. Each step you mark done is logged with the time.</p>}
@@ -403,8 +407,20 @@ function TimeBar({ j, now }: { j: Job; now: number }) {
   ] as const;
   return (
     <div>
-      <p className="mb-1.5 flex items-center gap-1 text-sm">
-        {firstName(j)} has waited <strong className={`num ${c.waitedMs >= 20 * 60_000 ? 'text-bad' : 'text-warn'}`}>{formatDuration(c.waitedMs)}</strong>
+      <p className="mb-1.5 flex flex-wrap items-center gap-1 text-sm">
+        {j.incident?.outcome ? (
+          <>
+            Customer decided at <strong className="num">{hm(j.incident.outcome.at)}</strong>: {OUTCOME_LABEL[j.incident.outcome.type].toLowerCase()}
+          </>
+        ) : (
+          <>
+            Customer decides by <strong className={`num ${now >= c.decideBy ? 'text-bad' : ''}`}>{hm(c.decideBy)}</strong>
+            <Proposed title="My proposed cut-off, not given in the case: 35 minutes before the last departure that still makes the 12:00 deadline." />
+            <span className="text-muted">
+              {now < c.decideBy ? `in ${formatDuration(c.decideBy - now)}` : 'passed'} · so the car can still leave by <span className="num">{hm(c.lastDeparture)}</span>
+            </span>
+          </>
+        )}
         <InfoTip label="How the clock is counted">
           <p>Last departure = deadline − drive time − 15 min for photos and handover − 5 min margin.</p>
           <p>Decide by = 35 minutes before the last departure, so there is time to act on what the customer picks.</p>
@@ -447,11 +463,11 @@ function TimeList({ entries }: { entries: { at: number; text: string }[] }) {
 }
 
 /** The case had no pre-pickup check. This is when it would have caught the missing keys. */
-function CasePrevention({ j }: { j: Job }) {
+function CasePrevention({ j, open }: { j: Job; open?: boolean }) {
   const t24 = j.pickupAt - CHECK_24_MS;
   const t60 = j.pickupAt - CHECK_60_MS;
   return (
-    <CollapsibleSection title="Prevention (proposed): how a pre-pickup check would have caught this" summary="4 touchpoints">
+    <CollapsibleSection title="Prevention (proposed): how a pre-pickup check would have caught this" summary="4 touchpoints" open={open}>
       <ol className="space-y-1.5 text-sm">
         <li>
           <strong>1 · At booking.</strong> A named contact, a backup and the exact key location, or no dispatch.

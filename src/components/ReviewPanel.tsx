@@ -5,6 +5,7 @@ import { REJECT_REASONS } from '../lib/types';
 import { CALL_AGENDA, DECISION_LABEL, evaluate, NEEDS_SECOND_REVIEWER, noteLooksSensitive, type CheckResult } from '../lib/criteria';
 import { applyDecision, requestNewPhoto, setExtractShown, setPhotoApproved, type ActionResult } from '../lib/actions';
 import { CollapsibleSection, DrawerSection, Proposed } from './ui';
+import { InfoTip } from './InfoTip';
 
 export const BACKUP_REVIEWER = 'Sofia (backup)';
 
@@ -20,6 +21,12 @@ const VARIANT_HINT = {
   accepted_simple: 'Licence 1–2 years: the driver starts on simple drives first.',
   accepted_flagged: 'Limited availability: flagged for activation follow-up.',
 } as const;
+
+/** The first sentence of a criterion's note; the rest sits behind the "?". */
+const firstSentence = (s: string) => {
+  const i = s.indexOf('. ');
+  return i === -1 ? s : s.slice(0, i + 1);
+};
 
 export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
   const ev = evaluate(a);
@@ -67,14 +74,21 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
         }
       >
         <div className="rounded-lg border border-lavender">
-          <div className="border-b border-lavender px-3 py-2 text-xs font-semibold text-navy">Must-have · all required (the extract before the first drive)</div>
+          <div className="border-b border-lavender px-3 py-2 text-xs font-semibold text-navy">Must-have · all required</div>
           <ul className="divide-y divide-lavender">
             {ev.mustHaves.map((m) => (
               <li key={m.key} className="flex items-start gap-2.5 px-3 py-2 text-sm">
                 <ResultIcon result={m.result} />
                 <div className="min-w-0 flex-1">
                   <div className="font-medium">{m.label}</div>
-                  <div className={`text-xs ${m.result === 'fail' ? 'text-bad' : 'text-muted'}`}>{m.detail}</div>
+                  <div className={`flex items-center gap-1 text-xs ${m.result === 'fail' ? 'text-bad' : 'text-muted'}`}>
+                    {firstSentence(m.detail)}
+                    {firstSentence(m.detail) !== m.detail && (
+                      <InfoTip label={`More on ${m.label.toLowerCase()}`}>
+                        <p>{m.detail}</p>
+                      </InfoTip>
+                    )}
+                  </div>
                   {m.key === 'extract' && extractReady && (
                     <Tick checked={!!a.extractShown} onChange={(v) => onUpdate(setExtractShown(a, v, now))}>
                       Extract shown in call (nothing stored)

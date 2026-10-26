@@ -335,6 +335,24 @@ export function incidentClock(j: Job, now: number): Clock {
   };
 }
 
+const PROBLEM_SHORT: Record<PickupReason, string> = {
+  keys_missing: 'No keys',
+  no_contact: 'Nobody on site',
+  car_missing: 'Car not ready',
+  damage: 'Damage or breakdown',
+  unsafe: 'Driver feels unsafe',
+  other: 'Problem at the pickup',
+};
+
+/** The problem in a few words, for the top of a stuck pickup: how long, what is wrong, who isn't answering. */
+export function problemSummary(j: Job, now: number): string[] {
+  if (j.incident?.outcome || done(j.keysAt, now)) return [];
+  const out = [`Waited ${Math.round(incidentClock(j, now).waitedMs / MIN)} min`];
+  if (done(j.problemAt, now)) out.push(PROBLEM_SHORT[j.problemReason ?? 'other']);
+  if (j.problemReason !== 'no_contact' && !(j.contactReply && j.contactReply.at <= now)) out.push('Contact not answering');
+  return out;
+}
+
 export interface PlaybookStep {
   key: StepKey;
   title: string;

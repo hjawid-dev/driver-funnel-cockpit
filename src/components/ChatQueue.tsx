@@ -6,7 +6,7 @@ import { AI_TARGET, CHAT_SLA_MS, backToAi, slaFor, chatStats, closeGap, contentG
 import { HELP_BY_ID } from '../content/help';
 import { REVIEWER } from '../lib/types';
 import { ago, formatDateTime, formatDuration } from '../lib/time';
-import { SectionHeader } from './ui';
+import { CollapsibleSection, SectionHeader } from './ui';
 import { InfoTip } from './InfoTip';
 
 interface Props {
@@ -31,11 +31,10 @@ export function ChatQueue({ threads, now, onThread, onViewChat, only }: Props) {
   const recent = [...threads]
     .filter((t) => t.status !== 'waiting' && t.messages.length)
     .sort((a, b) => b.messages.at(-1)!.at - a.messages.at(-1)!.at)
-    .slice(0, 8);
+    .slice(0, 4);
 
   return (
     <div className="space-y-6 pt-4">
-      <Stats stats={stats} />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <section>
@@ -112,6 +111,9 @@ export function ChatQueue({ threads, now, onThread, onViewChat, only }: Props) {
           </ul>
         )}
       </section>
+      <CollapsibleSection title="The assistant this week" summary={stats.rate === null ? undefined : `${Math.round(stats.rate)}% answered by AI`}>
+        <Stats stats={stats} />
+      </CollapsibleSection>
     </div>
   );
 }

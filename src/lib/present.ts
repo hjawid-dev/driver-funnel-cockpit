@@ -4,57 +4,70 @@ import { workItems } from './workQueue';
 import type { Job } from './liveOps';
 import { openIncidents } from './liveOps';
 
-/** Presentation mode: five short steps through the case. The first four are the core; the report is optional. */
-export type PresentKey = 'funnel' | 'review' | 'activate' | 'incident' | 'improve';
+/** Presentation mode: the case in its own order. Part 1 first, then Part 2; each part shows the problem, then the fix. */
+export type PresentKey = 'incident' | 'playbook' | 'funnel' | 'review' | 'activate';
 
 export interface PresentStep {
   key: PresentKey;
+  part: 1 | 2;
+  /** Problem or fix: the label above the title. */
+  kind: 'Problem' | 'Fix';
   title: string;
-  /** What to say, in one or two short sentences. */
+  /** What to say, in one short sentence. */
   say: string;
 }
 
 export const PRESENT_STEPS: PresentStep[] = [
   {
+    key: 'incident',
+    part: 1,
+    kind: 'Problem',
+    title: 'A driver is stuck at the pickup',
+    say: 'Delivery by 12:00, for a pilot customer.',
+  },
+  {
+    key: 'playbook',
+    part: 1,
+    kind: 'Fix',
+    title: 'Work the playbook, then prevent it',
+    say: 'The customer decides by 10:15 (proposed).',
+  },
+  {
     key: 'funnel',
-    title: 'The funnel problem',
-    say: 'The case: 120 applications a month, 25 active. 30% never finish their documents, and a decision takes 6 days on average against a 48-hour target. The biggest drop-off is marked.',
+    part: 2,
+    kind: 'Problem',
+    title: '120 applications, 25 active drivers',
+    say: '30% never finish their documents. A decision takes 6 days, not 48 h.',
   },
   {
     key: 'review',
-    title: 'Review consistently',
-    say: 'Proposed written criteria: must-haves, borderline rules, and every reject with a reason code. A person decides. BankID and a shown extract are my proposal for the ID and background check, to validate with legal.',
+    part: 2,
+    kind: 'Fix',
+    title: 'Decide within 48 hours',
+    say: 'Proposed written criteria. A person decides.',
   },
   {
     key: 'activate',
-    title: 'Close the activation gap',
-    say: "Accepted isn't the goal, active is. My proposed rule: no first gig booked after 7 days, book one with them. After 14 days, call.",
-  },
-  {
-    key: 'incident',
-    title: 'Handle a live incident',
-    say: 'Tuesday 09:30: Julia has waited 25 minutes and the keys are missing. Work the current step. My proposed cut-off: the customer decides by 10:15.',
-  },
-  {
-    key: 'improve',
-    title: 'Measure and improve',
-    say: 'Every click logs a timestamp or a reason code. That feeds four metrics every Monday and shows where to fix the process.',
+    part: 2,
+    kind: 'Fix',
+    title: 'From accepted to active',
+    say: 'Proposed: book a first gig at 7 days, call at 14.',
   },
 ];
 
-/** The file to open in step 2: Elin if she is still in review, else the most urgent file. */
+/** The file to open in the review step: Elin if she is still in review, else the most urgent file. */
 export function reviewTarget(apps: Applicant[]): Applicant | null {
   const inReview = apps.filter((a) => deriveStage(a) === 'review');
   return inReview.find((a) => a.name === 'Elin Johansson') ?? [...inReview].sort((a, b) => a.docsCompleteAt! - b.docsCompleteAt!)[0] ?? null;
 }
 
-/** The driver to open in step 3: the accepted driver who most needs a push to a first gig. */
+/** The driver to open in the activation step: the accepted driver who most needs a push to a first gig. */
 export function activationTarget(apps: Applicant[], gigs: Gig[], now: number): Applicant | null {
   const waiting = workItems(apps, gigs, now).filter((w) => w.stage === 'accepted');
   return (waiting.find((w) => w.needsAction) ?? waiting[0])?.a ?? null;
 }
 
-/** The pickup to open in step 4: the case, or else the most urgent open incident. */
+/** The pickup to open in Part 1: the case, or else the most urgent open incident. */
 export function incidentTarget(jobs: Job[], now: number): Job | null {
   return jobs.find((j) => j.asInCase) ?? openIncidents(jobs, now)[0] ?? null;
 }

@@ -3,7 +3,7 @@ import { caseTime, DAY, HOUR } from '../time';
 import { generateSeed } from '../seed';
 import { generateGigs } from '../gigs';
 import { deriveStage } from '../stage';
-import { closeIncident, markStep, seedJobs, setOutcome } from '../liveOps';
+import { closeIncident, markStep, problemSummary, seedJobs, setOutcome } from '../liveOps';
 import { filterItems, queueCounts, workItems } from '../workQueue';
 import { byOpsPriority, currentStep, firstToOpen, opsState } from '../opsState';
 import { activationTarget, incidentTarget, PRESENT_STEPS, reviewTarget } from '../present';
@@ -92,8 +92,9 @@ describe('presentation mode', () => {
   const gigs = generateGigs(at);
   const jobs = seedJobs(apps, at, { asInCase: true });
 
-  it('has five steps, the report last', () => {
-    expect(PRESENT_STEPS.map((s) => s.key)).toEqual(['funnel', 'review', 'activate', 'incident', 'improve']);
+  it('has five steps: Part 1 first, each part the problem before the fix', () => {
+    expect(PRESENT_STEPS.map((s) => s.key)).toEqual(['incident', 'playbook', 'funnel', 'review', 'activate']);
+    expect(PRESENT_STEPS.map((s) => `${s.part}${s.kind}`)).toEqual(['1Problem', '1Fix', '2Problem', '2Fix', '2Fix']);
   });
 
   it('opens Elin for review, a driver who needs a push to a first gig, and the case', () => {
@@ -102,5 +103,9 @@ describe('presentation mode', () => {
     expect(deriveStage(d)).toBe('accepted');
     expect(workItems(apps, gigs, at).find((w) => w.a.id === d.id)?.needsAction).toBe(true);
     expect(incidentTarget(jobs, at)?.asInCase).toBe(true);
+  });
+
+  it('states the Part 1 problem in a few words: 25 minutes, no keys, no answer', () => {
+    expect(problemSummary(incidentTarget(jobs, at)!, at)).toEqual(['Waited 25 min', 'No keys', 'Contact not answering']);
   });
 });

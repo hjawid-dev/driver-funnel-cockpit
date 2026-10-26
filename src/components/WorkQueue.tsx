@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ChevronRight, CircleCheck } from 'lucide-react';
 import { STAGE_LABEL } from '../lib/stage';
 import { QUEUE_FILTER_LABEL, type QueueFilter, type WorkItem, type WorkTone } from '../lib/workQueue';
@@ -8,6 +9,9 @@ interface Props {
   filter: QueueFilter;
   onOpen: (id: string) => void;
 }
+
+/** Rows shown before "Show all": the top of the queue is what needs doing first. */
+const FIRST_ROWS = 8;
 
 const TONE: Record<WorkTone, string> = { bad: 'text-bad', warn: 'text-warn', ok: 'text-ok', muted: 'text-muted' };
 
@@ -21,6 +25,7 @@ const EMPTY: Record<QueueFilter, string> = {
 
 /** The candidate queue: who, where they are, why now, and the next action. One row each, most urgent first. */
 export function WorkQueue({ items, filter, onOpen }: Props) {
+  const [all, setAll] = useState(false);
   if (!items.length) {
     return (
       <p className="flex items-center gap-2 rounded-xl bg-card px-4 py-6 text-sm text-muted">
@@ -28,9 +33,11 @@ export function WorkQueue({ items, filter, onOpen }: Props) {
       </p>
     );
   }
+  const shown = all ? items : items.slice(0, FIRST_ROWS);
   return (
+    <>
     <ul aria-label={QUEUE_FILTER_LABEL[filter]} className="divide-y divide-lavender overflow-hidden rounded-xl border border-lavender">
-      {items.map((w) => (
+      {shown.map((w) => (
         <li key={w.a.id}>
           <button
             type="button"
@@ -59,5 +66,11 @@ export function WorkQueue({ items, filter, onOpen }: Props) {
         </li>
       ))}
     </ul>
+    {items.length > FIRST_ROWS && (
+      <button type="button" onClick={() => setAll(!all)} className="mt-2 text-sm font-semibold text-indigo hover:underline">
+        {all ? 'Show the first ' + FIRST_ROWS : `Show all ${items.length}`}
+      </button>
+    )}
+    </>
   );
 }

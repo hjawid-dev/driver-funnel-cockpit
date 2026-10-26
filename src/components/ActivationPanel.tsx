@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { CalendarCheck, Car, Flag, Lock, PhoneCall } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { CalendarCheck, Car, Check, Flag, Lock, PhoneCall } from 'lucide-react';
 import { FIRST_GIG_ISSUE_LABEL, type Applicant, type FirstGigIssue, type Gig, type OpsActivationReason } from '../lib/types';
 import { ACTIVATION_REASON_LABEL, ACTIVATION_RULE, activationBucket, activationFlags, activationReason, welcomeCallState } from '../lib/activation';
 import { bookFirstGig, completeFirstGig, logWelcomeCall, OPS_ACTIVATION_LABEL, setActivationReason, type ActionResult } from '../lib/actions';
@@ -40,6 +41,9 @@ export function ActivationPanel({ a, apps, gigs, now, onUpdate, onResult }: Prop
   const [ok, setOk] = useState(false);
   const [cause, setCause] = useState<FirstGigIssue>('customer_keys');
   const [note, setNote] = useState('');
+  const [rebook, setRebook] = useState(false);
+  // The step to do now: the only one shown open, like the playbook in Live Ops.
+  const current: 1 | 2 | 3 = a.firstGig?.bookedFor ? 3 : call.state === 'due' || call.state === 'overdue' ? 1 : 2;
 
   const reason = activationReason(a, apps, gigs, now);
   const extract = extractState(a, now);
@@ -128,102 +132,121 @@ export function ActivationPanel({ a, apps, gigs, now, onUpdate, onResult }: Prop
         </DrawerSection>
       )}
 
-      <DrawerSection title="1 · Welcome call" aside={<span className="text-xs text-muted">within 24 h of acceptance</span>}>
-        {call.state === 'done' ? (
-          <p className="text-sm text-ok font-medium">Logged {formatDateTime(call.at)}</p>
-        ) : call.state === 'not_needed' ? (
-          <p className="text-sm text-muted">Not needed: the first drive is booked.</p>
-        ) : (
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => onResult(logWelcomeCall(a, now))}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-2 text-sm font-semibold text-white hover:bg-navy"
-            >
-              <PhoneCall size={15} aria-hidden /> Log welcome call
-            </button>
-            <span className={`text-xs font-semibold ${call.state === 'overdue' ? 'text-bad' : call.state === 'missed' ? 'text-muted' : 'text-warn'}`}>{call.label}</span>
-          </div>
-        )}
-      </DrawerSection>
+      <section aria-label="Activation steps">
+        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted">Steps to a first drive</h3>
+        <ol className="divide-y divide-lavender rounded-xl border border-lavender">
+          <Step n={1} title="Welcome call" when="within 24 h of acceptance" current={current === 1} done={call.state === 'done' || call.state === 'not_needed'}
+            summary={call.state === 'done' ? `Logged ${formatDateTime(call.at)}` : call.state === 'not_needed' ? 'Not needed: the first drive is booked' : call.state === 'missed' ? 'Missed' : call.label}>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => onResult(logWelcomeCall(a, now))}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-2 text-sm font-semibold text-white hover:bg-navy"
+              >
+                <PhoneCall size={15} aria-hidden /> Log welcome call
+              </button>
+              <span className={`text-xs font-semibold ${call.state === 'overdue' ? 'text-bad' : call.state === 'missed' ? 'text-muted' : 'text-warn'}`}>{'label' in call ? call.label : ''}</span>
+            </div>
+          </Step>
 
-      <DrawerSection title="2 · Book first gig" aside={<span className="text-xs text-muted">book within 7 days</span>}>
-        {a.firstGig?.bookedFor && (
-          <p className="mb-2 text-sm font-medium">
-            Booked for <span className="num">{formatDateTime(a.firstGig.bookedFor)}</span>
-          </p>
-        )}
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="text-xs">
-            <span className="block text-muted mb-1">Date (starts 09:00, ops on standby)</span>
-            <input
-              type="date"
-              value={date}
-              min={toInputDate(now)}
-              onChange={(e) => setDate(e.target.value)}
-              className="rounded-md border border-lavender px-2 py-1.5 text-sm"
-            />
-          </label>
-          <button
-            type="button"
-            disabled={!date}
-            onClick={() => onResult(bookFirstGig(a, fromInputDate(date), now))}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-indigo px-3 py-2 text-sm font-semibold text-indigo hover:bg-indigo hover:text-white disabled:opacity-50"
-          >
-            <CalendarCheck size={15} aria-hidden /> {a.firstGig?.bookedFor ? 'Rebook' : 'Book first gig'}
-          </button>
-        </div>
-      </DrawerSection>
-
-      <DrawerSection title="3 · First gig completed" aside={<span className="text-xs text-muted">feeds first-gig quality</span>}>
-        <div className="rounded-lg border border-lavender p-3 space-y-2 text-sm">
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={onTime} onChange={(e) => setOnTime(e.target.checked)} className="h-4 w-4 accent-indigo" />
-            On time
-          </label>
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} className="h-4 w-4 accent-indigo" />
-            No incident, customer happy
-          </label>
-          {!ok && (
-            <div className="space-y-1.5 rounded-md bg-card/60 p-2">
-              <label className="flex flex-wrap items-center gap-2">
-                What went wrong
-                <select value={cause} onChange={(e) => setCause(e.target.value as FirstGigIssue)} className="rounded-md border border-lavender bg-white px-2 py-1 text-sm">
-                  {(Object.keys(FIRST_GIG_ISSUE_LABEL) as FirstGigIssue[]).map((c) => (
-                    <option key={c} value={c}>
-                      {FIRST_GIG_ISSUE_LABEL[c]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="sr-only">What happened</span>
-                <textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  maxLength={300}
-                  rows={2}
-                  placeholder="What happened on the drive, e.g. the keys weren't at reception and the customer moved the time."
-                  className="w-full rounded-md border border-lavender px-2 py-1.5 text-sm"
+          <Step n={2} title="Book first gig" when="within 7 days" current={current === 2 || rebook} done={!!a.firstGig?.bookedFor && !rebook}
+            summary={a.firstGig?.bookedFor ? `Booked for ${formatDateTime(a.firstGig.bookedFor)}` : 'Not booked yet'}
+            action={a.firstGig?.bookedFor && !rebook ? <button type="button" onClick={() => setRebook(true)} className="text-xs font-semibold text-indigo hover:underline">Rebook</button> : undefined}>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="text-xs">
+                <span className="block text-muted mb-1">Date (starts 09:00, ops on standby)</span>
+                <input
+                  type="date"
+                  value={date}
+                  min={toInputDate(now)}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="rounded-md border border-lavender px-2 py-1.5 text-sm"
                 />
               </label>
-              <p className="text-xs text-muted">Describe the drive, not the person. Required for an incident.</p>
+              <button
+                type="button"
+                disabled={!date}
+                onClick={() => {
+                  setRebook(false);
+                  onResult(bookFirstGig(a, fromInputDate(date), now));
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-indigo px-3 py-2 text-sm font-semibold text-indigo hover:bg-indigo hover:text-white disabled:opacity-50"
+              >
+                <CalendarCheck size={15} aria-hidden /> {a.firstGig?.bookedFor ? 'Rebook' : 'Book first gig'}
+              </button>
             </div>
-          )}
-          <p className="text-xs text-muted">
-            Will log: <span className={onTime && ok ? 'text-ok font-semibold' : 'text-bad font-semibold'}>{outcome}</span>
-          </p>
-          <button
-            type="button"
-            onClick={() => onResult(completeFirstGig(a, { onTime, ok, ...(ok ? {} : { issue: { cause, note } }) }, now), true)}
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-indigo px-3 py-2.5 text-sm font-semibold text-white hover:bg-navy"
-          >
-            <Car size={16} aria-hidden /> Mark first gig completed
-          </button>
-        </div>
-      </DrawerSection>
+          </Step>
+
+          <Step n={3} title="First gig completed" when="feeds first-gig quality" current={current === 3 && !rebook} done={false} summary="After the first gig is booked">
+            <div className="space-y-2 text-sm">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={onTime} onChange={(e) => setOnTime(e.target.checked)} className="h-4 w-4 accent-indigo" />
+                On time
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} className="h-4 w-4 accent-indigo" />
+                No incident, customer happy
+              </label>
+              {!ok && (
+                <div className="space-y-1.5 rounded-md bg-card/60 p-2">
+                  <label className="flex flex-wrap items-center gap-2">
+                    What went wrong
+                    <select value={cause} onChange={(e) => setCause(e.target.value as FirstGigIssue)} className="rounded-md border border-lavender bg-white px-2 py-1 text-sm">
+                      {(Object.keys(FIRST_GIG_ISSUE_LABEL) as FirstGigIssue[]).map((c) => (
+                        <option key={c} value={c}>
+                          {FIRST_GIG_ISSUE_LABEL[c]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="sr-only">What happened</span>
+                    <textarea
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      maxLength={300}
+                      rows={2}
+                      placeholder="What happened on the drive, e.g. the keys weren't at reception and the customer moved the time."
+                      className="w-full rounded-md border border-lavender px-2 py-1.5 text-sm"
+                    />
+                  </label>
+                  <p className="text-xs text-muted">Describe the drive, not the person. Required for an incident.</p>
+                </div>
+              )}
+              <p className="text-xs text-muted">
+                Will log: <span className={onTime && ok ? 'text-ok font-semibold' : 'text-bad font-semibold'}>{outcome}</span>
+              </p>
+              <button
+                type="button"
+                onClick={() => onResult(completeFirstGig(a, { onTime, ok, ...(ok ? {} : { issue: { cause, note } }) }, now), true)}
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-indigo px-3 py-2.5 text-sm font-semibold text-white hover:bg-navy"
+              >
+                <Car size={16} aria-hidden /> Mark first gig completed
+              </button>
+            </div>
+          </Step>
+        </ol>
+      </section>
     </>
   );
 }
 
+
+/** One step to a first drive: a line when it is done or later, the controls when it is the step to do now. */
+function Step({ n, title, when, current, done, summary, action, children }: { n: number; title: string; when: string; current: boolean; done: boolean; summary: string; action?: ReactNode; children: ReactNode }) {
+  return (
+    <li className={`px-3 py-2.5 text-sm ${current ? 'bg-lavender/40' : ''}`}>
+      <div className="flex items-center gap-3">
+        <span aria-hidden className={`num flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${done ? 'bg-ok text-white' : current ? 'bg-indigo text-white' : 'bg-card text-muted'}`}>
+          {done ? <Check size={14} /> : n}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className={current ? 'font-bold' : done ? 'font-medium' : 'text-muted'}>{title}</span>
+          <span className="block text-xs text-muted">{current ? when : summary}</span>
+        </span>
+        {action}
+      </div>
+      {current && <div className="mt-2.5 pl-9">{children}</div>}
+    </li>
+  );
+}

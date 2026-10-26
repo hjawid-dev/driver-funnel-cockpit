@@ -107,7 +107,6 @@ function Facts({ a, now }: { a: Applicant; now: number }) {
     ['Area', a.area],
     ['Licence', `${fmtYears(a.licenceYears)} · valid B`],
     ['Availability', a.availability === 'full' ? 'Full' : `Limited${a.availabilityNote ? `: ${a.availabilityNote}` : ''}`],
-    ['Registered', <When ts={a.registeredAt} now={now} />],
     ['File complete', a.docsCompleteAt ? <When ts={a.docsCompleteAt} now={now} /> : <span className="text-muted">Not yet</span>],
     ...(a.callAt ? ([['Onboarding call', <When ts={a.callAt} now={now} />]] as [string, ReactNode][]) : []),
     ...(a.source === 'self' ? ([['Source', 'Applied in the driver app']] as [string, ReactNode][]) : []),
@@ -155,8 +154,9 @@ function When({ ts, now }: { ts: number; now: number }) {
 }
 
 function Documents({ a }: { a: Applicant }) {
+  const ok = DOC_KEYS.filter((k) => ['verified', 'uploaded', 'ready'].includes(a.docs[k]) || (k === 'extract' && a.extractShown)).length;
   return (
-    <DrawerSection title="Documents">
+    <CollapsibleSection title="Documents" summary={`${ok} of ${DOC_KEYS.length} in place`}>
       <ul className="divide-y divide-lavender rounded-lg border border-lavender">
         {DOC_KEYS.map((k) => (
           <li key={k} className="px-3 py-2 text-sm">
@@ -168,7 +168,7 @@ function Documents({ a }: { a: Applicant }) {
           </li>
         ))}
       </ul>
-    </DrawerSection>
+    </CollapsibleSection>
   );
 }
 
