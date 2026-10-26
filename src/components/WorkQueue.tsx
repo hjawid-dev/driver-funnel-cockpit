@@ -37,7 +37,9 @@ export function WorkQueue({ items, filter, onOpen }: Props) {
   return (
     <>
     <ul aria-label={QUEUE_FILTER_LABEL[filter]} className="divide-y divide-lavender overflow-hidden rounded-xl border border-lavender">
-      {shown.map((w) => (
+      {shown.map((w) => {
+        const detail = w.stage === 'review' ? null : w.detail.split(' · ')[0];
+        return (
         <li key={w.a.id}>
           <button
             type="button"
@@ -47,7 +49,7 @@ export function WorkQueue({ items, filter, onOpen }: Props) {
             <span className="min-w-0">
               <span className="block truncate font-semibold">{w.a.name}</span>
               <span className="num block text-xs text-muted">
-                {w.a.id} · {w.a.area}
+                {w.a.area}
               </span>
             </span>
             <span className="hidden md:block">
@@ -55,7 +57,7 @@ export function WorkQueue({ items, filter, onOpen }: Props) {
             </span>
             <span className="col-span-2 min-w-0 md:col-span-1">
               <span className={`block font-semibold ${TONE[w.tone]}`}>{w.status}</span>
-              <span className="block truncate text-xs text-muted">{w.detail}</span>
+              {detail && detail !== w.status && <span className="block truncate text-xs text-muted">{detail}</span>}
             </span>
             <span className={`col-span-2 text-sm md:col-span-1 ${w.needsAction ? 'font-semibold text-indigo' : 'text-muted'}`}>
               <span className="md:hidden text-xs font-normal text-muted">{STAGE_LABEL[w.stage]} · </span>
@@ -64,7 +66,8 @@ export function WorkQueue({ items, filter, onOpen }: Props) {
             <ChevronRight size={16} aria-hidden className="row-start-1 col-start-2 text-muted md:row-auto md:col-auto" />
           </button>
         </li>
-      ))}
+        );
+      })}
     </ul>
     {items.length > FIRST_ROWS && (
       <button type="button" onClick={() => setAll(!all)} className="mt-2 text-sm font-semibold text-indigo hover:underline">

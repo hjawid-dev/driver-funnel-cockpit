@@ -1,4 +1,4 @@
-import { Ban, FlaskConical, MessageSquare, Send } from 'lucide-react';
+import { Ban, FlaskConical, Send } from 'lucide-react';
 import type { Applicant, DocKey, DocStatus } from '../lib/types';
 import { isNoResponse, NUDGE_OFFSETS, nudgeMessage, nudgeState, outstandingDocs } from '../lib/nudges';
 import { applyDecision, closeNoResponse, logNudge, receiveDocument, type ActionResult } from '../lib/actions';
@@ -88,37 +88,32 @@ export function MissingPanel({ a, now, onResult }: Props) {
         </ul>
       </DrawerSection>
 
-      <DrawerSection title="Nudges" aside={<span className="text-xs text-muted">{nudge.label}</span>}>
-        <ol className="space-y-1 text-sm">
+      <DrawerSection title="Nudges" aside={<span className="text-xs text-muted">{nudge.autoSent.length} auto reminders sent</span>} info={<>
+        <p className="font-semibold">Reminder schedule</p>
+        <p>Automatic reminders after 2, 24 and 72 hours. The driver can pause or stop them in the chat.</p>
+        <ol className="space-y-1">
           {NUDGE_OFFSETS.map((o, i) => {
             const at = a.registeredAt + o;
             const sent = nudge.autoSent.includes(at);
             return (
-              <li key={o} className="flex items-center gap-3">
-                <span className={`h-2 w-2 shrink-0 rounded-full ${sent ? 'bg-indigo' : 'border border-muted'}`} aria-hidden />
-                <span className="w-16 text-muted">+{o / HOUR} h</span>
-                <span className="num text-xs">{formatDateTime(at)}</span>
-                <span className="text-xs text-muted">{sent ? `Auto-nudge ${i + 1} sent` : 'Scheduled'}</span>
+              <li key={o}>
+                <span className="font-semibold">+{o / HOUR} h · {sent ? `Reminder ${i + 1} sent` : 'Not sent'}</span>
+                <span className="num block text-muted">{formatDateTime(at)}</span>
               </li>
             );
           })}
           {nudge.manual.map((t) => (
-            <li key={t} className="flex items-center gap-3">
-              <span className="h-2 w-2 shrink-0 rounded-full bg-magenta" aria-hidden />
-              <span className="w-16 text-muted">Manual</span>
-              <span className="num text-xs">{formatDateTime(t)}</span>
-              <span className="text-xs text-muted">Logged by ops</span>
+            <li key={t}>
+              <span className="font-semibold">Manual reminder</span>
+              <span className="num block text-muted">{formatDateTime(t)} · logged by Ops</span>
             </li>
           ))}
         </ol>
 
-        <div className="mt-3 rounded-lg bg-card p-3">
-          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted">
-            <MessageSquare size={13} aria-hidden /> Reminder text · via driver chat in production
-          </div>
-          <p className="whitespace-pre-line text-sm">{nudgeMessage(a)}</p>
-        </div>
-
+        <p className="pt-2 font-semibold">Message preview</p>
+        <p className="whitespace-pre-line">{nudgeMessage(a)}</p>
+      </>}>
+        <p className="text-sm text-muted">{nudge.nextAt ? `Next: ${formatDateTime(nudge.nextAt)}` : nudge.label.replace('nudges', 'reminders')}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"

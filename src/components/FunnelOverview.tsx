@@ -1,12 +1,17 @@
 import { ArrowRight, FileText, TriangleAlert } from 'lucide-react';
 import { kpiDelta, type Funnel, type FunnelKey, type Kpi } from '../lib/kpis';
-import { Proposed, StatusChip } from './ui';
+import { StatusChip } from './ui';
 import { InfoTip } from './InfoTip';
 
 /** The four metrics the case asks about, in this order. Acceptance and first-gig quality are in the weekly report. */
 export const FUNNEL_KPIS: Kpi['key'][] = ['appToActive', 'docCompletion', 'timeToDecision', 'activation', 'acceptance', 'quality'];
 
 const LABEL: Partial<Record<Kpi['key'], string>> = { activation: 'First-gig activation' };
+const PERIOD: Partial<Record<Kpi['key'], string>> = {
+  appToActive: 'Last 30 days',
+  docCompletion: 'Within 7 days',
+  activation: 'Within 14 days',
+};
 
 /** The case's own numbers, kept apart from the demo sample so the two are never mixed. */
 const CASE_BASELINE: Partial<Record<Kpi['key'], string>> = {
@@ -24,9 +29,10 @@ export function FunnelKpis({ kpis, baseline, onReport }: { kpis: Kpi[]; baseline
         <h2 id="kpi-title" className="flex items-center gap-1 text-sm font-semibold">
           How the funnel performs
           <InfoTip label="About these numbers">
-            <p>The big number is the demo sample, live from the data: it moves when you act. The grey line under it is the case's own baseline.</p>
-            <p className="text-muted">Rates only count people who have had time to move on, so someone who registered yesterday isn't counted as lost. Targets are a starting proposal.</p>
+            <p>Live demo data. Open a metric's question mark for its definition, sample and case baseline.</p>
+            <p className="text-muted">Targets are proposed, except the case's 48-hour decision target. Cohort rates only count applicants with enough follow-up time.</p>
           </InfoTip>
+          <span className="ml-2 text-xs font-normal text-muted">Targets proposed</span>
         </h2>
         <button type="button" onClick={onReport} className="flex items-center gap-1.5 text-sm font-semibold text-indigo hover:underline">
           <FileText size={15} aria-hidden /> Weekly report
@@ -45,8 +51,9 @@ export function FunnelKpis({ kpis, baseline, onReport }: { kpis: Kpi[]; baseline
                       {line}
                     </p>
                   ))}
-                  {k.northStar && <p className="text-muted">{k.sub}.</p>}
+                  {k.sub && <p className="text-muted">{k.sub}</p>}
                   <p className="text-muted">{k.caption}</p>
+                  {CASE_BASELINE[k.key] && <p className="text-muted">{CASE_BASELINE[k.key]}</p>}
                 </InfoTip>
               </h3>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -57,18 +64,17 @@ export function FunnelKpis({ kpis, baseline, onReport }: { kpis: Kpi[]; baseline
                   </span>
                 )}
               </div>
-              {k.sub && <p className="mt-1 text-xs text-muted">{k.sub}</p>}
+              {PERIOD[k.key] && <p className="mt-1 text-xs text-muted">{PERIOD[k.key]}</p>}
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                 <StatusChip status={k.status} />
-                {k.key === 'acceptance' ? <span className="text-muted">Guardrail · reviewed files</span> : k.key === 'timeToDecision' ? (
+                {k.key === 'acceptance' ? <span className="text-muted">Guardrail</span> : k.key === 'timeToDecision' ? (
                   <span className="text-muted">Case target &lt; 48 h</span>
                 ) : (
                   <span className="flex items-center gap-1 text-muted">
-                    {k.target} <Proposed title="My proposed target, not given in the case: to set with the team." />
+                    {k.target}
                   </span>
                 )}
               </div>
-              <p className="mt-1 text-xs text-muted">{CASE_BASELINE[k.key]}</p>
             </article>
           );
         })}

@@ -65,7 +65,7 @@ export function ApplicantDrawer({ applicant: a, apps, gigs, now, onClose, onUpda
             </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted">
               <span className="num">{a.id}</span>
-              {stage === 'review' && <SlaChip {...slaStatus(a.registeredAt, now)} />}
+              {(stage === 'review' || stage === 'registered') && <SlaChip {...slaStatus(a.registeredAt, now)} />}
             </div>
           </div>
           {onViewAsDriver && (
@@ -86,7 +86,7 @@ export function ApplicantDrawer({ applicant: a, apps, gigs, now, onClose, onUpda
           {next && (
             <div className={`rounded-xl px-3.5 py-2.5 text-sm ${next.needsAction ? 'bg-indigo text-white' : 'bg-card'}`}>
               <div className="font-semibold">Next step: {next.next}</div>
-              <div className={`mt-1 text-xs ${next.needsAction ? 'text-white/75' : 'text-muted'}`}>{next.status}</div>
+              {stage === 'accepted' && <div className={`mt-1 text-xs ${next.needsAction ? 'text-white/75' : 'text-muted'}`}>{next.status}</div>}
             </div>
           )}
           <Facts a={a} now={now} />
@@ -107,11 +107,9 @@ function Facts({ a, now }: { a: Applicant; now: number }) {
     ['Area', a.area],
     ['Licence', `${fmtYears(a.licenceYears)} · ${a.docs.licence === 'verified' ? 'verified B' : 'not verified'}`],
     ['Owner / backup', `${a.owner ?? 'Hjalmar'} / ${a.backup ?? 'Sofia'}`],
-    ['Decision deadline (48 calendar hours)', formatDateTime(a.registeredAt + 48 * 3600000)],
+    ['Decision deadline', formatDateTime(a.registeredAt + 48 * 3600000)],
     ['Availability', a.availability === 'full' ? 'Full' : `Limited${a.availabilityNote ? `: ${a.availabilityNote}` : ''}`],
-    ['File complete', a.docsCompleteAt ? <When ts={a.docsCompleteAt} now={now} /> : <span className="text-muted">Not yet</span>],
     ...(a.callAt ? ([['Onboarding call', <When ts={a.callAt} now={now} />]] as [string, ReactNode][]) : []),
-    ...(a.source === 'self' ? ([['Source', 'Applied in the driver app']] as [string, ReactNode][]) : []),
   ];
   return (
     <DrawerSection
@@ -119,6 +117,10 @@ function Facts({ a, now }: { a: Applicant; now: number }) {
       info={
         <>
           <p>The licence is checked with Transportstyrelsen and the ID with BankID.</p>
+          <p>Decision deadline: 48 calendar hours from registration.</p>
+          <p>Registered: {formatDateTime(a.registeredAt)}.</p>
+          <p>File complete: {a.docsCompleteAt ? <When ts={a.docsCompleteAt} now={now} /> : 'Not yet'}.</p>
+          {a.source === 'self' && <p>Source: applied in the driver app.</p>}
           <p className="text-muted">
             Proposed retention schedule (demo does not delete data): <RetentionText a={a} />
           </p>

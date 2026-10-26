@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { CircleAlert, CircleCheck, CircleX, Clock, Scale, ShieldCheck, Square, SquareCheck } from 'lucide-react';
 import type { Applicant, RejectReason } from '../lib/types';
 import { REJECT_REASONS } from '../lib/types';
-import { CALL_AGENDA, DECISION_LABEL, evaluate, NEEDS_SECOND_REVIEWER, noteLooksSensitive, type CheckResult } from '../lib/criteria';
+import { CALL_AGENDA, DECISION_LABEL, evaluate, NEEDS_SECOND_REVIEWER, noteLooksSensitive, PHOTO_STANDARD, type CheckResult, type MustHave } from '../lib/criteria';
 import { completeOnboarding, confirmSecondReview, receiveDocument, applyDecision, setExtractShown, setPhotoApproved, type ActionResult } from '../lib/actions';
 import { CollapsibleSection, DrawerSection, Proposed } from './ui';
 import { InfoTip } from './InfoTip';
@@ -27,6 +27,12 @@ const VARIANT_HINT = {
 const firstSentence = (s: string) => {
   const i = s.indexOf('. ');
   return i === -1 ? s : s.slice(0, i + 1);
+};
+const CHECK_LABEL: Record<MustHave['key'], string> = {
+  licence: 'B licence · ≥ 1 year',
+  id: 'Verified identity',
+  extract: 'Extract · before first drive',
+  photo: 'Profile photo',
 };
 
 export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Props) {
@@ -60,7 +66,7 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
 
   return (
     <>
-      {hardReject && <div className="rounded-lg border border-bad/30 bg-bad-bg p-3 text-sm"><p className="font-semibold text-bad">Not eligible: a valid B licence held for at least one year is required.</p><p className="mt-1">This is a hard minimum; an exception cannot be approved.</p><p className="mt-1 font-semibold">Next step: select the rejection reason and press Reject.</p></div>}
+      {hardReject && <div className="rounded-lg border border-bad/30 bg-bad-bg p-3 text-sm"><p className="font-semibold text-bad">Not eligible: a valid B licence held ≥ 1 year is required.</p><p className="mt-1">Cannot accept or override.</p></div>}
       {!preDrive && <DrawerSection
         title="Criteria"
         aside={<Proposed title="My proposed written criteria, not given in the case: to agree with the team, and to check with policy and legal." />}
@@ -77,20 +83,21 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
         }
       >
         <div className="rounded-lg border border-lavender">
-          <div className="border-b border-lavender px-3 py-2 text-xs font-semibold text-navy">Must-have · all required</div>
+          <div className="border-b border-lavender px-3 py-2 text-xs font-semibold text-navy">Required checks</div>
           <ul className="divide-y divide-lavender">
             {ev.mustHaves.map((m) => (
               <li key={m.key} className="flex items-start gap-2.5 px-3 py-2 text-sm">
                 <ResultIcon result={m.result} />
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium">{m.label}</div>
+                  <div className="flex items-center gap-1 font-medium">{CHECK_LABEL[m.key]}
+                    <InfoTip label={`More on ${m.label.toLowerCase()}`}>
+                      <p className="font-semibold">{m.label}</p><p>{m.detail}</p>
+                    </InfoTip>
+                  </div>
                   <div className={`flex items-center gap-1 text-xs ${m.result === 'fail' ? 'text-bad' : 'text-muted'}`}>
-                    {firstSentence(m.detail)}
-                    {firstSentence(m.detail) !== m.detail && (
-                      <InfoTip label={`More on ${m.label.toLowerCase()}`}>
-                        <p>{m.detail}</p>
-                      </InfoTip>
-                    )}
+                    {m.key === 'photo' && m.detail === PHOTO_STANDARD ? 'Needs review'
+                      : m.key === 'extract' && m.result === 'later' ? `${extractReady ? 'Ready to show' : 'Ordered'} · does not block acceptance`
+                        : firstSentence(m.detail)}
                   </div>
                   {!hardReject && m.key === 'extract' && extractReady && (
                     <Tick checked={!!a.extractShown} onChange={(v) => onUpdate(setExtractShown(a, v, now))}>
@@ -109,7 +116,7 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
             ))}
           </ul>
 
-          <div className="border-y border-lavender bg-card/60 px-3 py-2 text-xs font-semibold">Borderline · a written rule decides</div>
+          <div className="border-y border-lavender bg-card/60 px-3 py-2 text-xs font-semibold">Borderline rules</div>
           {ev.borderline.length === 0 ? (
             <p className="px-3 py-2 text-sm text-muted">No borderline rule applies.</p>
           ) : (
@@ -136,7 +143,7 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
         </ol>
       </CollapsibleSection>}
 
-      {!preDrive && !hardReject && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!a.onboardingCompletedAt} disabled={!!a.onboardingCompletedAt} onChange={() => onUpdate(completeOnboarding(a, now))} />Log onboarding call completed; ready to decide and book first drive</label>}
+      {!preDrive && !hardReject && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!a.onboardingCompletedAt} disabled={!!a.onboardingCompletedAt} onChange={() => onUpdate(completeOnboarding(a, now))} />Onboarding call completed</label>}
 
       <DrawerSection
         title="Decision"

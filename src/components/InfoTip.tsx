@@ -16,6 +16,8 @@ interface Props {
 export function InfoTip({ label, children, align = 'left', dark = false, className = '' }: Props) {
   const [open, setOpen] = useState(false);
   const [shift, setShift] = useState(0);
+  const [above, setAbove] = useState(false);
+  const [maxHeight, setMaxHeight] = useState(384);
   const wrap = useRef<HTMLSpanElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const btn = useRef<HTMLButtonElement>(null);
@@ -40,14 +42,33 @@ export function InfoTip({ label, children, align = 'left', dark = false, classNa
     };
   }, [open]);
 
-  // Keep the box inside the window on narrow screens.
+  // Keep explanations readable inside the viewport, including long reminder histories.
   useLayoutEffect(() => {
-    if (!open || !box.current) return setShift(0);
+    if (!open || !box.current || !wrap.current) {
+      setShift(0);
+      setAbove(false);
+      setMaxHeight(384);
+      return;
+    }
     const r = box.current.getBoundingClientRect();
+    const anchor = wrap.current.getBoundingClientRect();
     const margin = 8;
     const vw = document.documentElement.clientWidth;
     if (r.right > vw - margin) setShift(vw - margin - r.right);
     else if (r.left < margin) setShift(margin - r.left);
+    let clipTop = 0;
+    let clipBottom = document.documentElement.clientHeight;
+    for (let parent = wrap.current.parentElement; parent; parent = parent.parentElement) {
+      if (!/auto|scroll|hidden|clip/.test(getComputedStyle(parent).overflowY)) continue;
+      const bounds = parent.getBoundingClientRect();
+      clipTop = Math.max(clipTop, bounds.top);
+      clipBottom = Math.min(clipBottom, bounds.bottom);
+    }
+    const belowSpace = clipBottom - anchor.bottom - 16;
+    const aboveSpace = anchor.top - clipTop - 16;
+    const placeAbove = r.height > belowSpace && aboveSpace > belowSpace;
+    setAbove(placeAbove);
+    setMaxHeight(Math.max(48, Math.min(384, placeAbove ? aboveSpace : belowSpace)));
   }, [open]);
 
   return (
@@ -75,8 +96,8 @@ export function InfoTip({ label, children, align = 'left', dark = false, classNa
           id={id}
           role="note"
           onClick={(e) => e.stopPropagation()}
-          style={shift ? { transform: `translateX(${shift}px)` } : undefined}
-          className={`anim-fade absolute top-full z-40 mt-1.5 w-72 max-w-[calc(100vw-1rem)] space-y-1.5 rounded-lg border border-lavender bg-white p-3 text-left text-xs font-normal normal-case leading-relaxed tracking-normal text-navy shadow-lg ${
+          style={{ maxHeight, ...(shift ? { transform: `translateX(${shift}px)` } : {}) }}
+          className={`anim-fade absolute z-40 ${above ? 'bottom-full mb-1.5' : 'top-full mt-1.5'} w-72 max-w-[calc(100vw-1rem)] overflow-y-auto space-y-1.5 rounded-lg border border-lavender bg-white p-3 text-left text-xs font-normal normal-case leading-relaxed tracking-normal text-navy shadow-lg ${
             align === 'right' ? 'right-0' : 'left-0'
           }`}
         >
