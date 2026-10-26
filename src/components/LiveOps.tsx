@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Bot, Check, CircleCheck, Copy, MessageSquare, PhoneCall, Smartphone, TriangleAlert } from 'lucide-react';
+import { Bot, Check, CircleCheck, Copy, MessageSquare, PhoneCall, Smartphone, TriangleAlert, Truck } from 'lucide-react';
 import {
   pickupReadinessErrors, recordOwnError, agreeDeliveryDeadline, bookReplacement,
   assistantLog,
@@ -87,12 +87,14 @@ const GROUP_LABEL: Record<OpsGroup, string> = { attention: 'Needs attention', ro
 
 /** Live Ops: exceptions first in a short list; the selected pickup in the main area, with the step to do now. */
 export function LiveOps({ jobs, now, onJob, onViewChat, selected, onSelect, threads, waitingQuestions, onThread, focus = null }: Props) {
+  const [lastPickup, setLastPickup] = useState<string | null>(selected === 'questions' ? null : selected);
   const ordered = byOpsPriority(jobs, now);
   const job = ordered.find((j) => j.id === selected) ?? (selected === 'questions' ? null : ordered[0]) ?? null;
   const shownId = selected === 'questions' ? 'questions' : (job?.id ?? null);
   // Pin the pickup shown by default, so it stays open when its state (and place in the list) changes.
   useEffect(() => {
     if (selected === null && job) onSelect(job.id);
+    if (selected && selected !== 'questions') setLastPickup(selected);
   }, [selected, job, onSelect]);
   // On a narrow screen the detail sits below the list: bring it into view.
   const pick = (s: LiveSelection) => {
@@ -102,7 +104,25 @@ export function LiveOps({ jobs, now, onJob, onViewChat, selected, onSelect, thre
   const groups = (['attention', 'routine', 'done'] as OpsGroup[]).map((g) => ({ g, jobs: ordered.filter((j) => OPS_GROUP[opsState(j, now)] === g) }));
 
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-[19rem_minmax(0,1fr)]">
+    <div className="space-y-5">
+      <nav aria-label="Live Ops views" className="flex gap-1 border-b border-lavender">
+        <button type="button" aria-pressed={shownId !== 'questions'} onClick={() => onSelect(ordered.find(j => j.id === lastPickup)?.id ?? ordered[0]?.id ?? null)} className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold ${shownId !== 'questions' ? 'border-indigo text-indigo' : 'border-transparent text-muted hover:text-navy'}`}>
+          <Truck size={17} aria-hidden /> Pickups
+          <span className="num rounded-full bg-card px-2 py-0.5 text-xs text-muted">{jobs.length}</span>
+        </button>
+        <button type="button" aria-pressed={shownId === 'questions'} onClick={() => onSelect('questions')} className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold ${shownId === 'questions' ? 'border-indigo text-indigo' : 'border-transparent text-muted hover:text-navy'}`}>
+          <MessageSquare size={17} aria-hidden /> Driver questions
+          <span className={`num rounded-full px-2 py-0.5 text-xs ${waitingQuestions ? 'bg-indigo text-white' : 'bg-card text-muted'}`}>{waitingQuestions}<span className="sr-only"> waiting</span></span>
+        </button>
+      </nav>
+
+      {shownId === 'questions' ? (
+        <section id="live-detail" aria-labelledby="questions-title" className="scroll-mt-4">
+          <h2 id="questions-title" className="text-lg font-bold">Driver questions</h2>
+          <p className="text-sm text-muted">Questions the AI assistant handed over to Ops. Choose a conversation to read and reply.</p>
+          <ChatQueue threads={threads} now={now} onThread={onThread} onViewChat={onViewChat} />
+        </section>
+      ) : <div className="grid items-start gap-5 lg:grid-cols-[19rem_minmax(0,1fr)]">
       <nav aria-label="Pickups" className="space-y-4 lg:sticky lg:top-4">
         {groups.map(({ g, jobs: js }) =>
           js.length === 0 && g !== 'attention' ? null : (
@@ -147,33 +167,16 @@ export function LiveOps({ jobs, now, onJob, onViewChat, selected, onSelect, thre
             </section>
           ),
         )}
-        <button
-          type="button"
-          onClick={() => pick('questions')}
-          aria-current={shownId === 'questions' ? 'true' : undefined}
-          className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm ${shownId === 'questions' ? 'border-indigo bg-lavender/40' : 'border-lavender hover:bg-card/70'}`}
-        >
-          <MessageSquare size={15} className="text-indigo" aria-hidden />
-          <span className="flex-1 font-semibold">Driver questions</span>
-          <span className={`num rounded-full px-1.5 text-xs ${waitingQuestions ? 'bg-indigo text-white' : 'bg-card text-muted'}`}>{waitingQuestions}</span>
-        </button>
       </nav>
 
       <div id="live-detail" className="min-w-0 scroll-mt-4">
-        {shownId === 'questions' ? (
-          <section aria-labelledby="questions-title">
-            <h2 id="questions-title" className="text-lg font-bold">
-              Driver questions
-            </h2>
-            <p className="text-sm text-muted">The assistant answers what it can and says it is an AI. What it can't answer comes here, to a person.</p>
-            <ChatQueue threads={threads} now={now} onThread={onThread} onViewChat={onViewChat} />
-          </section>
-        ) : job ? (
+        {job ? (
           <JobDetail key={job.id} j={job} now={now} onJob={onJob} onViewChat={onViewChat} focus={focus} />
         ) : (
           <p className="rounded-xl bg-card p-6 text-sm text-muted">No pickups in the next 24 hours.</p>
         )}
       </div>
+      </div>}
     </div>
   );
 }

@@ -72,6 +72,7 @@ function awaitingItem(a: Applicant, apps: Applicant[], gigs: Gig[], now: number)
   const reason = activationReason(a, apps, gigs, now);
   const base = { a, stage: 'accepted' as const, detail: `${ACTIVATION_REASON_LABEL[reason]} · accepted ${ago(a.decision!.at, now)}` };
   if (a.firstGig?.bookedFor) return { ...base, status: reason === 'extract' ? 'Booked; pre-drive check outstanding' : 'First drive booked', tone: reason === 'extract' ? 'warn' : 'ok', next: reason === 'extract' ? 'Complete the pre-drive check before release deadline' : 'Track the booked drive in Live Ops', needsAction: reason === 'extract', rank: reason === 'extract' ? 2 : 7 };
+  if (reason === 'not_interested') return { ...base, status: 'No longer interested', tone: 'muted', next: 'No action unless the driver wants to return', needsAction: false, rank: 9 };
   if (bucket === 'call') return { ...base, status: 'No first booking in 14 days', tone: 'bad', next: 'Call the driver', needsAction: true, rank: 1 };
   if (bucket === 'dormant') return { ...base, status: 'Dormant, 30+ days', tone: 'muted', next: 'Monthly re-engagement', needsAction: false, rank: 9 };
   if (reason === 'booked') return { ...base, status: 'First gig booked', tone: 'ok', next: 'Nothing: on track', needsAction: false, rank: 7 };

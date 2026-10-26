@@ -1,28 +1,55 @@
 import { useState } from 'react';
-import { CalendarCheck, Lock } from 'lucide-react';
-import type { Applicant, Gig } from '../lib/types';
+import { Lock } from 'lucide-react';
+import type { Applicant, Gig, OpsActivationReason } from '../lib/types';
 import { activationReason, ACTIVATION_REASON_LABEL } from '../lib/activation';
-import { bookFirstGig, setActivationReason, OPS_ACTIVATION_LABEL, type ActionResult } from '../lib/actions';
+import { setActivationReason, OPS_ACTIVATION_LABEL, type ActionResult } from '../lib/actions';
 import { firstGigOffers } from '../lib/gigs';
 import { needsExtract, markExtractShown, showBy, EXTRACT_STATE_LABEL, extractState } from '../lib/extract';
 import { formatDateTime } from '../lib/time';
-import { CollapsibleSection, DrawerSection, Proposed } from './ui';
+import { CollapsibleSection, DrawerSection } from './ui';
 import { ReviewPanel } from './ReviewPanel';
 
 interface Props { a: Applicant; apps: Applicant[]; gigs: Gig[]; now: number; onUpdate: (a: Applicant) => void; onResult: (r: ActionResult, close?: boolean) => void; onViewAsDriver?: (id: string) => void }
 
 export function ActivationPanel({ a, apps, gigs, now, onUpdate, onResult, onViewAsDriver }: Props) {
-  const [rebook, setRebook] = useState(false);
   const [review, setReview] = useState(false);
+  const [outcome, setOutcome] = useState<OpsActivationReason | ''>(a.activationReason?.reason ?? '');
   const offers = firstGigOffers(a, gigs, apps, now).filter(g => g.id !== a.firstGig?.gigId);
   const booked = a.firstGig?.bookedFor;
   const reason = activationReason(a, apps, gigs, now);
   return <>
-    <DrawerSection title="Accepted → choose a first drive" aside={<Proposed title="The driver books from matching offers in the app. No booking: reminder after 7 days, personal follow-up after 14 days." />}>
-      <p className="text-sm font-semibold">{ACTIVATION_REASON_LABEL[reason]}</p>
-      <p className="mt-1 text-xs text-muted">Owner: {a.owner ?? 'Hjalmar'} · backup: {a.backup ?? 'Sofia'}. The driver receives matching offers immediately and books independently in the app.</p>
-      {!booked && onViewAsDriver && <button type="button" onClick={() => onViewAsDriver(a.id)} className="mt-2 rounded-lg bg-indigo px-3 py-2 text-sm font-semibold text-white">Open first-drive offers in driver’s view</button>}
-      {!booked && <div className="mt-2 flex flex-wrap gap-1">{(['declined', 'unreachable', 'not_interested'] as const).map(r => <button key={r} type="button" onClick={() => onResult(setActivationReason(a, a.activationReason?.reason === r ? null : r, now))} className="rounded-full border border-lavender px-2 py-1 text-xs">{OPS_ACTIVATION_LABEL[r]}</button>)}</div>}
+    <DrawerSection title="First-drive status">
+      <div className="rounded-xl border border-lavender bg-card/50 p-3">
+        <p className="text-sm font-semibold">{ACTIVATION_REASON_LABEL[reason]}</p>
+        <p className="mt-1 text-xs text-muted">{reason === 'not_interested'
+          ? 'Logged after follow-up. No further booking action is needed. Clear the outcome if the driver wants to return.'
+          : reason === 'unreachable'
+            ? 'The follow-up attempt did not reach the driver. Retry contact and update the outcome when you hear back.'
+            : reason === 'declined'
+              ? 'The offered drives did not suit the driver. They can choose another matching drive in the app.'
+              : reason === 'extract'
+                ? 'The extract must be shown before the first drive. Complete the pre-drive check below.'
+                : booked
+                ? 'The driver has booked in the app. Follow the drive in Live Ops.'
+                : offers.length
+                  ? `${offers.length} matching ${offers.length === 1 ? 'drive is' : 'drives are'} available. The driver chooses and books in the app.`
+                  : 'No matching drive is available right now. Check route demand and the driver’s area and availability.'}</p>
+        {a.activationReason && !booked && <p className="mt-2 text-xs text-muted">Follow-up logged {formatDateTime(a.activationReason.at)}</p>}
+      </div>
+      {!booked && !a.activationReason && onViewAsDriver && offers.length > 0 && <button type="button" onClick={() => onViewAsDriver(a.id)} className="mt-2 rounded-lg border border-lavender px-3 py-2 text-sm font-semibold text-indigo hover:border-indigo">View offers in driver’s app</button>}
+      {!booked && <div className="mt-4"><CollapsibleSection title="Log follow-up outcome" summary={a.activationReason ? 'Outcome recorded' : 'After contacting the driver'}>
+        <form className="space-y-2 rounded-xl border border-lavender p-3" onSubmit={e => { e.preventDefault(); if (outcome) onResult(setActivationReason(a, outcome, now)); }}>
+          <label htmlFor="activation-outcome" className="block text-xs font-semibold">What did you learn from the follow-up?</label>
+          <select id="activation-outcome" value={outcome} onChange={e => setOutcome(e.target.value as OpsActivationReason | '')} className="w-full rounded-lg border border-lavender bg-white px-2 py-2 text-sm">
+            <option value="">Choose an outcome…</option>
+            {(['declined', 'unreachable', 'not_interested'] as const).map(r => <option key={r} value={r}>{OPS_ACTIVATION_LABEL[r]}</option>)}
+          </select>
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="submit" disabled={!outcome || outcome === a.activationReason?.reason} className="rounded-lg bg-indigo px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-lavender disabled:text-muted">Save outcome</button>
+            {a.activationReason && <button type="button" onClick={() => { onResult(setActivationReason(a, null, now)); setOutcome(''); }} className="text-sm font-semibold text-indigo">Clear logged outcome</button>}
+          </div>
+        </form>
+      </CollapsibleSection></div>}
     </DrawerSection>
     {needsExtract(a) && <DrawerSection title="Before the first drive · pre-drive check">
       <p className="flex items-center gap-1 text-sm font-semibold"><Lock size={14} />{EXTRACT_STATE_LABEL[extractState(a, now)]}</p>
@@ -31,12 +58,9 @@ export function ActivationPanel({ a, apps, gigs, now, onUpdate, onResult, onView
       <button type="button" onClick={() => setReview(v => !v)} className="mt-2 block text-sm font-semibold text-bad">Pre-drive requirements not met: review decision</button>
       {review && <ReviewPanel a={a} now={now} onUpdate={onUpdate} onResult={onResult} preDrive />}
     </DrawerSection>}
-    <DrawerSection title={booked ? 'First drive booked' : 'Available matching first drives'}>
-      {booked && <><p className="text-sm font-semibold">{a.firstGig?.gigId} · {formatDateTime(booked)}</p><p className="mt-1 text-xs text-muted">Booking does not make the driver active. Delivery of this job in Live Ops does.</p>
-        {booked > now && <button type="button" onClick={() => setRebook(v => !v)} className="mt-2 text-sm font-semibold text-indigo">{rebook ? 'Keep this booking' : 'Choose another available job'}</button>}
+    {booked && <DrawerSection title="First drive booked">
+      <p className="text-sm font-semibold">{a.firstGig?.gigId} · {formatDateTime(booked)}</p><p className="mt-1 text-xs text-muted">Booking does not make the driver active. Delivery of this job in Live Ops does.</p>
         {onViewAsDriver && <button type="button" onClick={() => onViewAsDriver(a.id)} className="mt-2 block text-sm font-semibold text-indigo">Open booked job in driver's view</button>}
-      </>}
-      {(!booked || rebook) && <CollapsibleSection title="Assisted booking (only if needed)" summary="Driver self-booking is the default" open={rebook || undefined}><div className="mt-2 space-y-2">{offers.length ? offers.map(g => <button key={g.id} type="button" onClick={() => { const result = bookFirstGig(a, g, now, apps); if (result.ok) setRebook(false); onResult(result); }} className="block w-full rounded-xl border border-lavender p-3 text-left text-sm hover:border-indigo"><span className="flex items-center gap-1 font-semibold"><CalendarCheck size={14} />{g.from} → {g.to}</span><span className="block text-xs text-muted">{formatDateTime(g.at)} · {g.km} km · {g.pay} SEK</span></button>) : <p className="rounded-lg bg-warn-bg p-3 text-sm">No suitable open job. Owner: {a.owner ?? 'Hjalmar'}. Check demand and contact this driver; do not create a placeholder drive. Follow up by {formatDateTime(Math.max(now, a.decision!.at + 7 * 86400000))}.</p>}</div></CollapsibleSection>}
-    </DrawerSection>
+    </DrawerSection>}
   </>;
 }

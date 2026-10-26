@@ -36,6 +36,18 @@ describe('requested process corrections', () => {
     expect(workItems([accepted(8)], [], NOW)[0]).toMatchObject({ needsAction: false, next: 'Automatic reminder: choose a first drive in the app' });
     expect(workItems([accepted(15)], [], NOW)[0]).toMatchObject({ needsAction: true, next: 'Call the driver' });
   });
+  it('stops booking follow-up after the driver says they are no longer interested', () => {
+    const a = { ...accepted(35), activationReason: { reason: 'not_interested' as const, at: NOW - 30 * DAY } };
+    const item = workItems([a], [], NOW)[0];
+    expect(item).toMatchObject({ status: 'No longer interested', needsAction: false });
+    expect(automationEvents([a], a.decision!.at, NOW).filter(e => ['book_task', 'call_task', 'dormant'].includes(e.kind))).toEqual([]);
+  });
+  it('keeps reminders and call tasks that predate the logged follow-up outcome', () => {
+    const a = { ...accepted(20), activationReason: { reason: 'not_interested' as const, at: NOW } };
+    const events = automationEvents([a], a.decision!.at, NOW);
+    expect(events.filter(e => e.kind === 'book_task')).toHaveLength(1);
+    expect(events.filter(e => e.kind === 'call_task')).toHaveLength(1);
+  });
   it('accepts a separate manager confirmation without requiring the queue backup to be that person', () => {
     const a = inReview({ backup: 'Sofia' });
     const checked = confirmSecondReview(a, 'requirements_not_met', 'Jamie (Operations Manager)', NOW);

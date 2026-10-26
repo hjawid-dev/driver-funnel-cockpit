@@ -41,7 +41,7 @@ type Page = 'funnel' | 'live';
 const PAGE_LABEL: Record<Page, string> = { funnel: 'Driver Funnel', live: 'Live Ops' };
 const PAGE_SUB: Record<Page, string> = {
   funnel: 'Turn qualified applicants into active drivers.',
-  live: 'Keep pickups on track and resolve incidents before they affect delivery.',
+  live: 'Manage pickups, resolve incidents and answer driver questions.',
 };
 const FILTERS: QueueFilter[] = ['action', 'missing', 'review', 'awaiting', 'all'];
 

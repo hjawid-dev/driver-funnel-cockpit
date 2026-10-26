@@ -1,9 +1,9 @@
 import { useState, type ReactNode } from 'react';
-import { Camera, CircleAlert, CircleCheck, CircleX, Clock, Scale, ShieldCheck, Square, SquareCheck } from 'lucide-react';
+import { CircleAlert, CircleCheck, CircleX, Clock, Scale, ShieldCheck, Square, SquareCheck } from 'lucide-react';
 import type { Applicant, RejectReason } from '../lib/types';
 import { REJECT_REASONS } from '../lib/types';
 import { CALL_AGENDA, DECISION_LABEL, evaluate, NEEDS_SECOND_REVIEWER, noteLooksSensitive, type CheckResult } from '../lib/criteria';
-import { completeOnboarding, confirmSecondReview, receiveDocument, applyDecision, requestNewPhoto, setExtractShown, setPhotoApproved, type ActionResult } from '../lib/actions';
+import { completeOnboarding, confirmSecondReview, receiveDocument, applyDecision, setExtractShown, setPhotoApproved, type ActionResult } from '../lib/actions';
 import { CollapsibleSection, DrawerSection, Proposed } from './ui';
 import { InfoTip } from './InfoTip';
 
@@ -163,17 +163,6 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
               </ul>
             )}
           </div>}
-
-          {/* Request new photo */}
-          {!preDrive && !hardReject && photoSubmitted && (
-            <button
-              type="button"
-              onClick={() => run(requestNewPhoto(a, now))}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-lavender px-4 py-2 text-sm font-semibold hover:border-indigo hover:text-indigo"
-            >
-              <Camera size={16} aria-hidden /> Request new photo
-            </button>
-          )}
 
           {/* Reject */}
           {!showReject ? (

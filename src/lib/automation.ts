@@ -153,9 +153,10 @@ function deriveAutomationEvents(apps: Applicant[], from: number, to: number): Au
     const booked = !!gig?.bookedFor;
     const bookedBy = (t: number) => booked && (gig?.bookedAt ?? d.at) <= t;
     const done = (t: number) => !!gig?.doneAt && gig.doneAt <= t;
-    if (!bookedBy(d.at + 7 * DAY) && !done(d.at + 7 * DAY)) push(d.at + 7 * DAY, 'driver', 'book_task', 'Choose your first drive', `Hi ${first(a)}, ready to get started? Open your application to see the current short, easy jobs near you and pick one that fits. If none fit, contact Ops through the AI assistant.`);
-    if (!bookedBy(d.at + 14 * DAY) && !done(d.at + 14 * DAY)) push(d.at + 14 * DAY, 'ops', 'call_task', `Task: call ${a.name}, no first booking after 14 days`);
-    if (!booked && !done(d.at + 30 * DAY)) push(d.at + 30 * DAY, 'ops', 'dormant', `${a.name} marked dormant (label only, nothing is blocked)`);
+    const interestedAt = (t: number) => a.activationReason?.reason !== 'not_interested' || a.activationReason.at > t;
+    if (interestedAt(d.at + 7 * DAY) && !bookedBy(d.at + 7 * DAY) && !done(d.at + 7 * DAY)) push(d.at + 7 * DAY, 'driver', 'book_task', 'Choose your first drive', `Hi ${first(a)}, ready to get started? Open your application to see the current short, easy jobs near you and pick one that fits. If none fit, contact Ops through the AI assistant.`);
+    if (interestedAt(d.at + 14 * DAY) && !bookedBy(d.at + 14 * DAY) && !done(d.at + 14 * DAY)) push(d.at + 14 * DAY, 'ops', 'call_task', `Task: call ${a.name}, no first booking after 14 days`);
+    if (interestedAt(d.at + 30 * DAY) && !booked && !done(d.at + 30 * DAY)) push(d.at + 30 * DAY, 'ops', 'dormant', `${a.name} marked dormant (label only, nothing is blocked)`);
   }
   return out.sort((x, y) => x.at - y.at);
 }
