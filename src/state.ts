@@ -32,12 +32,14 @@ function readOffset(): number {
  */
 export function useClock(intervalMs = 30_000) {
   const [real, setReal] = useState(() => Date.now());
+  const [paused, setPaused] = useState(false);
   // Saved with the data, so a reload after fast-forwarding keeps timestamps consistent.
   const [offset, setOffset] = useState(readOffset);
   useEffect(() => {
+    if (paused) return;
     const t = setInterval(() => setReal(Date.now()), intervalMs);
     return () => clearInterval(t);
-  }, [intervalMs]);
+  }, [intervalMs, paused]);
   useEffect(() => {
     try {
       localStorage.setItem(OFFSET_KEY, String(offset));
@@ -48,11 +50,12 @@ export function useClock(intervalMs = 30_000) {
   const now = real + offset;
   /** Move simulated time forward; returns the window that passed. */
   const advance = useCallback((ms: number) => {
-    const from = Date.now() + offset;
-    setOffset((o) => o + ms);
-    setReal(Date.now());
+    const t = Date.now();
+    const from = (paused ? real : t) + offset;
+    setOffset(from + ms - t);
+    setReal(t);
     return { from, to: from + ms };
-  }, [offset]);
+  }, [offset, paused, real]);
   const resetTime = useCallback(() => {
     setOffset(0);
     setReal(Date.now());
@@ -63,7 +66,9 @@ export function useClock(intervalMs = 30_000) {
     setOffset(ts - t);
     setReal(t);
   }, []);
-  return { now, offset, advance, resetTime, setTo };
+  const pause = useCallback(() => { setReal(Date.now()); setPaused(true); }, []);
+  const resume = useCallback(() => { const t = Date.now(); setOffset(o => o + real - t); setReal(t); setPaused(false); }, [real]);
+  return { now, offset, advance, resetTime, setTo, pause, resume };
 }
 
 function fresh(now: number, asInCase = false): DemoData {
@@ -175,5 +180,7 @@ export function useDemoData() {
     return next.apps;
   }, []);
 
-  return { apps: data.apps, gigs: data.gigs as Gig[], threads: data.threads, jobs: data.jobs, update, add, upsertThread, updateJob, updateJobs, reset, recordThrough };
+  const replaceDemo = useCallback((next: DemoData) => setData(next), []);
+
+  return { replaceDemo, apps: data.apps, gigs: data.gigs as Gig[], threads: data.threads, jobs: data.jobs, update, add, upsertThread, updateJob, updateJobs, reset, recordThrough };
 }

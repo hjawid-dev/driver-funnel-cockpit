@@ -94,21 +94,21 @@ describe('presentation mode', () => {
   const jobs = seedJobs(apps, at, { asInCase: true });
 
   it('runs Part 1 first, and each part shows the problem before its fixes', () => {
-    expect(PRESENT_STEPS.map((s) => s.key)).toEqual(['incident', 'playbook', 'prevent', 'sitecall', 'funnel', 'docs', 'queue', 'review', 'activate']);
-    expect(PRESENT_STEPS.map((s) => `${s.part}${s.kind}`)).toEqual(['1Problem', '1Fix', '1Fix', '1Fix', '2Problem', '2Fix', '2Fix', '2Fix', '2Fix']);
+    expect(PRESENT_STEPS.map((s) => s.key)).toEqual(['incident', 'playbook', 'prevent', 'funnel', 'docs', 'review', 'activate', 'deliver', 'measure']);
+    expect(PRESENT_STEPS.map((s) => `${s.part}${s.kind}`)).toEqual(['1Problem', '1Fix', '1Result', '2Problem', '2Fix', '2Fix', '2Fix', '2Result', '2Result']);
   });
 
   it('opens a pickup nobody confirmed, a new site to call, and a file with documents missing', () => {
-    expect(checkTarget(jobs, at)?.driverName).toBe('Omar Khalil');
+    expect(checkTarget(jobs, at)?.driverName).toBe('Linnea Björk');
     expect(siteCallTarget(jobs, at)?.driverName).toBe('Linnea Björk');
     expect(docsTarget(apps, gigs, at)?.name).toBe('Nora Axelsson');
   });
 
-  it('opens Elin for review, a driver who needs a push to a first gig, and the case', () => {
+  it('keeps Elin throughout review and activation, and Julia as the incident', () => {
     expect(reviewTarget(apps)?.name).toBe('Elin Johansson');
     const d = activationTarget(apps, gigs, at)!;
-    expect(deriveStage(d)).toBe('accepted');
-    expect(workItems(apps, gigs, at).find((w) => w.a.id === d.id)?.needsAction).toBe(true);
+    expect(d.id).toBe(reviewTarget(apps)?.id);
+    expect(deriveStage(d)).toBe('review');
     expect(incidentTarget(jobs, at)?.asInCase).toBe(true);
   });
 

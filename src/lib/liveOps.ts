@@ -549,6 +549,8 @@ export function checkIn(j: Job, now: number): Job {
 export function gotKeys(j: Job, now: number, how: 'keys' | 'customer' = 'keys'): Job {
   const what = how === 'customer' ? 'The customer came with the keys' : 'The driver found the keys';
   if (now > incidentClock(j, now).lastDeparture) return withIncident({ ...checkIn(j, now), keysAt: now }, now, i => i, `${what}; departure cut-off passed, ops must agree a new delivery plan.`);
+  // Keys handed over at check-in do not constitute an incident or an assistant rescue.
+  if (j.arrivedAt === now && j.problemAt === undefined) return { ...j, keysAt: now };
   // Solved while the assistant had it: closed by the rules, waiting time paid, nobody needs to act. Ops can still see it.
   if (assisting(j, now)) {
     const next = { ...checkIn(j, now), keysAt: now };
@@ -556,7 +558,8 @@ export function gotKeys(j: Job, now: number, how: 'keys' | 'customer' = 'keys'):
     return { ...next, incident: { steps: {}, log, outcome: { type: 'keys_found', at: now }, waitPaid: true, closedAt: now, by: 'assistant', cause: causeFromReason(j.problemReason) } };
   }
   // Ops was already alerted: the incident stays open with the outcome filled in, so ops closes it and the waiting time gets paid.
-  const alerted = !!jobAlert(j, now);
+  // An immediate key handover at check-in is not a missing-key incident.
+  const alerted = !!jobAlert(j, now) && !(j.arrivedAt === now && j.problemAt === undefined);
   const next = { ...checkIn(j, now), keysAt: now };
   if (next.incident?.outcome || (!next.incident && !alerted)) return next;
   return withIncident(next, now, (i) => ({ ...i, outcome: { type: 'keys_found', at: now }, steps: { ...i.steps, decide: now } }), what);

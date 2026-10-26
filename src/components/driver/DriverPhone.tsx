@@ -38,6 +38,7 @@ export function DriverPhone({ applicantId, apps, gigs, threads, jobs, now, chatR
   return (
     <aside
       aria-label="Driver's phone"
+      style={{ top: 'var(--present-top, 0px)', height: 'calc(100dvh - var(--present-top, 0px))' }}
       className="fixed inset-0 z-40 flex flex-col bg-card lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-[420px] lg:shrink-0 lg:border-l lg:border-lavender"
     >
       <div className="flex items-center gap-2 border-b border-lavender px-3 py-2">
@@ -73,7 +74,7 @@ export function DriverPhone({ applicantId, apps, gigs, threads, jobs, now, chatR
       </div>
 
       <div className="flex flex-1 items-start justify-center overflow-hidden p-0 lg:p-5">
-        <div className="anim-fade h-full w-full overflow-hidden bg-white lg:h-[min(780px,calc(100vh-110px))] lg:w-[360px] lg:rounded-[2.2rem] lg:border-[10px] lg:border-navy lg:shadow-2xl">
+        <div className="anim-fade h-full w-full overflow-hidden bg-white lg:h-full lg:max-h-[780px] lg:w-[360px] lg:rounded-[2.2rem] lg:border-[10px] lg:border-navy lg:shadow-2xl">
           <DriverApp
             key={`${applicantId ?? 'new'}-${chatRequest}`}
             applicant={a}

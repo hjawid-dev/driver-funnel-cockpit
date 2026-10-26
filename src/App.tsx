@@ -30,7 +30,7 @@ import { Proposed } from './components/ui';
 import { FunnelKpis, FunnelStages } from './components/FunnelOverview';
 import { WorkQueue } from './components/WorkQueue';
 import { filterItems, QUEUE_FILTER_LABEL, queueCounts, workItems, type QueueFilter } from './lib/workQueue';
-import { activationTarget, checkTarget, docsTarget, incidentTarget, PRESENT_STEPS, reviewTarget, siteCallTarget } from './lib/present';
+import { docsTarget, incidentTarget, PRESENT_STEPS, reviewTarget, siteCallTarget, presentActionFor, presentDone, presentEvidence, presentPrerequisite, preparePresentAction, runPresentAction } from './lib/present';
 
 /**
  * Two connected jobs, one page each.
@@ -50,7 +50,7 @@ const TEXTS_KEY = 'driver-funnel-cockpit-texts';
 export default function App() {
   const clock = useClock();
   const now = clock.now;
-  const { apps, gigs, threads, jobs, update, add, upsertThread, updateJob, updateJobs, reset, recordThrough } = useDemoData();
+  const { apps, gigs, threads, jobs, update, add, upsertThread, updateJob, updateJobs, reset, recordThrough, replaceDemo } = useDemoData();
   const toast = useToast();
   useEffect(() => { recordThrough(now); }, [now, recordThrough]);
 
@@ -62,6 +62,7 @@ export default function App() {
   const [showHubspot, setShowHubspot] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [present, setPresent] = useState<number | null>(null);
+  const [presentError, setPresentError] = useState<string | null>(null);
   // Bumped when the cockpit opens the phone on the chat; 0 opens it on the steps.
   const [chatRequest, setChatRequest] = useState(0);
   const [phoneOpen, setPhoneOpen] = useState(false);
@@ -352,51 +353,61 @@ export default function App() {
     if (f === 'all') setStageFilter('all');
   };
 
-  // ---- Presentation mode: five steps through the case; the app stays usable at every step ----
+  // Presentation navigation only changes the view; explicit demo buttons perform the work.
+  const presentData = { apps, gigs, threads, jobs };
+  const currentPresent = present === null ? null : PRESENT_STEPS[present];
+  const presentAction = currentPresent ? presentActionFor(currentPresent.key, presentData) : null;
+  const presentComplete = presentAction ? presentDone(presentAction, presentData) : false;
+  const presentBlocked = presentAction ? presentPrerequisite(presentAction, presentData) !== null : false;
   const goStep = (i: number) => {
     const step = PRESENT_STEPS[i];
     if (!step) return;
     setPresent(i);
+    setPresentError(null);
     setShowReport(false);
     setShowHubspot(false);
     setOpenId(null);
-    const top = () => window.scrollTo({ top: 0, behavior: 'smooth' });
-    const live = (id: string | null) => {
+    setPhoneOpen(false);
+    setChatRequest(0);
+    setStageFilter('all');
+    window.scrollTo({ top: 0 });
+    if (['incident', 'playbook', 'prevent'].includes(step.key)) {
       setPage('live');
-      setLiveSel(id);
-    };
-    if (step.key === 'incident') {
-      live(incidentTarget(jobs, now)?.id ?? null);
-      top();
-    } else if (step.key === 'playbook') {
-      live(incidentTarget(jobs, now)?.id ?? null);
-      setTimeout(() => document.getElementById('playbook')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
-    } else if (step.key === 'prevent') {
-      live(checkTarget(jobs, now)?.id ?? null);
-      top();
-    } else if (step.key === 'sitecall') {
-      live(siteCallTarget(jobs, now)?.id ?? null);
-      top();
-    } else if (step.key === 'funnel') {
-      setPage('funnel');
-      setFilter('action');
-      top();
-    } else if (step.key === 'docs') {
-      setPage('funnel');
-      setFilter('missing');
-      setOpenId(docsTarget(apps, gigs, now)?.id ?? null);
-    } else if (step.key === 'queue') {
-      setPage('funnel');
-      setFilter('review');
-      setTimeout(() => document.getElementById('queue')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
-    } else if (step.key === 'review') {
-      setPage('funnel');
-      setFilter('review');
-      setOpenId(reviewTarget(apps)?.id ?? null);
+      setLiveSel(incidentTarget(jobs)?.id ?? null);
+    } else if (step.key === 'deliver') {
+      setPage('live');
+      setLiveSel(jobs.find(j => j.firstDrive && j.driverId === reviewTarget(apps)?.id)?.id ?? null);
     } else {
       setPage('funnel');
-      setFilter('awaiting');
-      setOpenId(activationTarget(apps, gigs, now)?.id ?? null);
+      setFilter(step.key === 'docs' ? 'missing' : step.key === 'review' ? 'review' : step.key === 'activate' ? 'awaiting' : 'action');
+      if (step.key === 'review' || step.key === 'activate') setOpenId(reviewTarget(apps)?.id ?? null);
+      if (step.key === 'docs') setOpenId(docsTarget(apps)?.id ?? null);
+    }
+  };
+  const runPresentation = (prepare = false) => {
+    if (!presentAction) return;
+    try {
+      const result = prepare ? preparePresentAction(presentAction, presentData, now) : runPresentAction(presentAction, presentData, now);
+      replaceDemo(result.data);
+      clock.setTo(result.now);
+      setPresentError(null);
+      if (currentPresent?.key === 'deliver') {
+        setLiveSel(result.data.jobs.find(j => j.firstDrive && j.driverId === reviewTarget(result.data.apps)?.id)?.id ?? null);
+      }
+      toast.notify(prepare ? 'Prepared the missing earlier demo actions. Existing session changes are preserved.' : 'Simulated demo action recorded. See the evidence and live record below.');
+    } catch (error) {
+      setPresentError(error instanceof Error ? error.message : 'The demo action could not be completed.');
+    }
+  };
+  const presentInspect = (view: 'phone' | 'prevention' | 'report') => {
+    if (view === 'report') return setShowReport(true);
+    setOpenId(null);
+    if (view === 'prevention') {
+      setPage('live');
+      setLiveSel(siteCallTarget(jobs)?.id ?? null);
+    } else {
+      setChatRequest(0);
+      openAsDriver(currentPresent?.key === 'docs' ? docsTarget(apps)?.id ?? null : reviewTarget(apps)?.id ?? null);
     }
   };
   // While presenting, the header and the bar stick to the top; drawers and dialogs open below them.
@@ -427,11 +438,13 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   });
   const startPresenting = () => {
+    clock.pause();
     playCase(true);
     setPhoneOpen(false);
     setPage('live');
     setLiveSel(null);
     setPresent(0);
+    setPresentError(null);
     window.scrollTo({ top: 0 });
     toast.notify('Presentation: fresh demo data, Tuesday 09:30.');
   };
@@ -487,7 +500,7 @@ export default function App() {
             </div>
           </div>
         </header>
-        {present !== null && <PresentBar step={present} onStep={goStep} onExit={() => setPresent(null)} />}
+        {present !== null && <PresentBar step={present} onStep={goStep} onExit={() => { setPresent(null); clock.resume(); }} action={presentAction} completed={presentComplete} blocked={presentBlocked} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} error={presentError} onRun={() => runPresentation()} onPrepare={() => runPresentation(true)} onInspect={presentInspect} />}
         </div>
 
         <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-6 space-y-6">
@@ -496,6 +509,8 @@ export default function App() {
             <p className="mt-0.5 text-sm text-muted">{PAGE_SUB[page]}</p>
           </div>
 
+          {currentPresent?.key === 'funnel' && <section aria-label="Case 2 baseline" className="rounded-xl border border-indigo/20 bg-lavender/30 p-4"><p className="text-xs font-semibold uppercase text-indigo">Case facts · separate from the demo records below</p><div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">{[['120', 'applications / month'], ['~84', 'submit documents (70%)'], ['25', 'active (21%)'], ['6 days', 'mean registration → decision']].map(([value, label]) => <div key={label}><strong className="num text-2xl text-navy">{value}</strong><p className="text-sm text-muted">{label}</p></div>)}</div><p className="mt-3 text-sm">Acceptance is not measured. The 59-volume gap includes unknown pending cases, rejections and timing. The dashboard below uses 44 fictional applicants.</p></section>}
+          {currentPresent?.key === 'measure' && <p className="rounded-xl bg-lavender/30 p-4 text-sm"><strong>Demo evidence, not measured business impact.</strong> Julia’s incident and Elin’s delivery have recorded outcomes. A change in these illustrative KPI cards is not proof of a better monthly conversion rate.</p>}
           {page === 'funnel' ? (
             <>
               <FunnelKpis kpis={kpis} baseline={baseline} onReport={() => setShowReport(true)} />
