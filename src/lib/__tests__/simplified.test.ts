@@ -7,7 +7,7 @@ import { deriveStage } from '../stage';
 import { closeIncident as rawCloseIncident, markStep, problemSummary, seedJobs, setOutcome } from '../liveOps';
 import { filterItems, queueCounts, workItems } from '../workQueue';
 import { byOpsPriority, currentStep, firstToOpen, opsState } from '../opsState';
-import { activationTarget, checkTarget, docsTarget, incidentTarget, PRESENT_STEPS, reviewTarget, siteCallTarget } from '../present';
+import { activationTarget, checkTarget, docsTarget, incidentTarget, PRESENT_STEPS, reviewTarget } from '../present';
 import { inReview, mk, NOW } from './helpers';
 
 describe('the candidate queue', () => {
@@ -94,13 +94,12 @@ describe('presentation mode', () => {
   const jobs = seedJobs(apps, at, { asInCase: true });
 
   it('runs Part 1 first, and each part shows the problem before its fixes', () => {
-    expect(PRESENT_STEPS.map((s) => s.key)).toEqual(['incident', 'playbook', 'decision', 'prevent', 'onboarding', 'reminders', 'queue', 'criteria', 'activate', 'deliver', 'measure']);
+    expect(PRESENT_STEPS.map((s) => s.key)).toEqual(['incident', 'playbook', 'decision', 'prevent', 'onboarding', 'reminders', 'queue', 'criteria', 'activate', 'followup', 'measure']);
     expect(PRESENT_STEPS.map(s => s.part)).toEqual([1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2]);
   });
 
   it('opens a pickup nobody confirmed, a new site to call, and a file with documents missing', () => {
-    expect(checkTarget(jobs, at)?.driverName).toBe('Linnea Björk');
-    expect(siteCallTarget(jobs, at)?.driverName).toBe('Linnea Björk');
+    expect(checkTarget(jobs, at)?.driverName).toBe('Omar Khalil');
     expect(docsTarget(apps, gigs, at)?.name).toBe('Nora Axelsson');
   });
 

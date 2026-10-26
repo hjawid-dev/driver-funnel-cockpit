@@ -70,8 +70,8 @@ describe('validateDecision', () => {
     expect(validateDecision(inReview(), { type: 'rejected', reason: 'other', note: 'Duplicate account' }, NOW)).toBeNull();
   });
   it('a suitability rejection needs a second reviewer', () => {
-    expect(validateDecision(inReview(), { type: 'rejected', reason: 'requirements_not_met' }, NOW)).toMatch(/second reviewer/);
-    expect(validateDecision(inReview(), { type: 'rejected', reason: 'requirements_not_met', secondReviewer: '  ' }, NOW)).toMatch(/second reviewer/);
+    expect(validateDecision(inReview(), { type: 'rejected', reason: 'requirements_not_met' }, NOW)).toMatch(/Operations Manager or Team Lead/);
+    expect(validateDecision(inReview(), { type: 'rejected', reason: 'requirements_not_met', secondReviewer: '  ' }, NOW)).toMatch(/Operations Manager or Team Lead/);
     expect(validateDecision(inReview({ secondReview: { by: 'Backup', at: NOW, reason: 'requirements_not_met' } }), { type: 'rejected', reason: 'requirements_not_met', secondReviewer: 'Backup' }, NOW)).toBeNull();
   });
   it('plain accept is refused when a borderline rule applies', () => {

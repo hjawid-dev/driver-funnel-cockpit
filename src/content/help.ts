@@ -198,7 +198,7 @@ If you miss your call, ask in the chat for a new time. Missing one call doesn't 
 3. When you can drive.
 4. Your licence, and your criminal-record extract if it has arrived. We only look at the extract and keep nothing from it. If it hasn't arrived, you show it before your first drive.
 5. Your questions, and our decision. If we need to check something, the total decision target remains 48 calendar hours from registration; it does not restart at this call.
-6. If you're accepted, we book your first drive together in the same call.
+6. If you're accepted, matching first-drive offers appear immediately in the app. Choose and book one yourself. Without a booking, we remind you after 7 days and personally follow up after 14 days.
 No preparation is needed beyond having your licence at hand, and your extract if you have it.`,
   },
   {

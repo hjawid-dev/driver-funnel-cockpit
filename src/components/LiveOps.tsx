@@ -4,7 +4,6 @@ import {
   pickupReadinessErrors, recordOwnError, agreeDeliveryDeadline, bookReplacement,
   assistantLog,
   assisting,
-  callSite,
   CAUSE_LABEL,
   causeFromReason,
   cancelPayFor,
@@ -25,7 +24,6 @@ import {
   markStep,
   NO_KEYS_ASSIST_MS,
   needsConfirmation,
-  needsSiteCall,
   OUTCOME_LABEL,
   PLAYBOOK,
   pickupChecks,
@@ -33,7 +31,6 @@ import {
   REPLY_WAIT_24_MS,
   REPLY_WAIT_60_MS,
   setOutcome,
-  siteCallDue,
   tellAccountOwner,
   type Check as PickupCheck,
   type IncidentCause,
@@ -334,6 +331,7 @@ function IncidentWork({ j, now, onJob, focus }: { j: Job; now: number; onJob: Pr
         </span>
       </p>
 
+      <p className="rounded-lg bg-lavender/50 px-3 py-2 text-sm font-semibold">Next step: {next ? ({ keep_driver: 'Call driver', own_error: 'Check booking details', escalate: 'Call pickup contact, then backup', customer: 'Update customer and pilot account owner', decide: 'Record the customer’s decision', close: 'Close the loop' } as const)[next.key] : 'Incident complete'}</p>
       <TimeBar j={j} now={now} />
 
       {tried.length > 0 && !j.incident?.outcome && (
@@ -483,7 +481,7 @@ function CasePrevention({ j, open }: { j: Job; open?: boolean }) {
           <strong>
             2 · Yesterday <span className="num">{hm(t24)}</span>.
           </strong>{' '}
-          Text the {j.contact.role.toLowerCase()}: time, keys, who is on site. A pilot customer or a new site: a person calls instead. No reply by{' '}
+          Text the {j.contact.role.toLowerCase()}: time, keys, who is on site. No reply by{' '}
           <span className="num">{hm(t24 + REPLY_WAIT_24_MS)}</span>: call the backup.
         </li>
         <li>
@@ -601,31 +599,10 @@ function PrePickupCheck({ j, now, onJob }: { j: Job; now: number; onJob: Props['
   const checks = pickupChecks(j, now);
   const status = driverStatus(j, now);
   const call = needsConfirmation(j, now);
-  const site = siteCallDue(j, now);
   const arrived = j.arrivedAt !== undefined && j.arrivedAt <= now;
   const keys = j.keysAt !== undefined && j.keysAt <= now;
   const rows: { when: string; what: string; state: ReactNode; action?: ReactNode; done: boolean }[] = [
     { when: 'At booking', what: 'Contact, backup and key location required before dispatch', state: <span className={pickupReadinessErrors(j).length ? 'text-bad' : 'text-ok'}>{pickupReadinessErrors(j).length ? `Dispatch blocked: ${pickupReadinessErrors(j).join(', ')}` : 'Booking ready'}</span>, done: pickupReadinessErrors(j).length === 0 },
-    ...(needsSiteCall(j)
-      ? [
-          {
-            when: 'Day before',
-            what: `${j.pilot ? 'Pilot customer' : 'New site'}: a person calls, who hands over the keys and where`,
-            state:
-              j.siteCalledAt !== undefined ? (
-                <span className="text-ok">Called {hm(j.siteCalledAt)}</span>
-              ) : (
-                <span className={site ? 'text-warn' : 'text-muted'}>{site ? 'Due now' : 'Scheduled'}</span>
-              ),
-            done: j.siteCalledAt !== undefined,
-            action: site ? (
-              <button type="button" onClick={() => onJob(callSite(j, now), `${j.id}: site called, the key handover is agreed.`)} className={BTN_SM}>
-                <PhoneCall size={13} aria-hidden /> Called the site
-              </button>
-            ) : undefined,
-          },
-        ]
-      : []),
     ...checks.map((c) => ({
       when: `${c.label} · ${hm(c.sentAt)}`,
       what: c.key === '24h' ? 'Text the contact: time, keys, who is on site' : 'Reconfirm the pickup',
@@ -816,9 +793,17 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
         </>
       );
     }
-    case 'close':
+    case 'close': {
+      const remaining = [
+        !j.incident?.outcome && 'Record the decision',
+        j.pilot && !j.incident?.accountOwnerAt && 'Confirm the internal pilot account owner was updated',
+        !waitPaid && 'Confirm waiting-time compensation',
+        (!reviewBooked || !reviewAt || new Date(reviewAt).getTime() <= now) && 'Schedule the 15-minute booker review at a future time',
+        cause === 'other' && !causeNote.trim() && 'Describe the cause',
+      ].filter(Boolean);
       return (
         <>
+          {j.pilot && <label className="flex items-center gap-2"><input type="checkbox" checked={j.incident?.accountOwnerAt !== undefined} disabled={j.incident?.accountOwnerAt !== undefined} onChange={() => onJob(tellAccountOwner(j, now), `${j.id}: internal pilot account owner updated.`)} className="h-4 w-4 accent-indigo" />Internal pilot account owner updated</label>}
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={waitPaid} onChange={(e) => setWaitPaid(e.target.checked)} className="h-4 w-4 accent-indigo" />
             <span>
@@ -866,10 +851,12 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
               setError(null);
               onJob(r.job, `${j.id}: incident closed and logged.`);
             }}
+            disabled={remaining.length > 0}
             className={BTN}
           >
             Close the incident
           </button>
+          {remaining.length > 0 && <p className="text-xs text-muted">Still required: {remaining.join('; ')}.</p>}
           {error && (
             <p role="alert" className="flex items-center gap-1 text-xs text-bad">
               <TriangleAlert size={12} aria-hidden /> {error}
@@ -877,5 +864,6 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
           )}
         </>
       );
+    }
   }
 }

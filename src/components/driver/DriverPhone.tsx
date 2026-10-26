@@ -38,8 +38,7 @@ export function DriverPhone({ applicantId, apps, gigs, threads, jobs, now, chatR
   return (
     <aside
       aria-label="Driver's phone"
-      style={{ top: 'var(--present-top, 0px)', height: 'calc(100dvh - var(--present-top, 0px))' }}
-      className="fixed inset-0 z-40 flex flex-col bg-card lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-[420px] lg:shrink-0 lg:border-l lg:border-lavender"
+      className="driver-phone fixed inset-0 z-40 flex flex-col bg-card lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-[420px] lg:shrink-0 lg:border-l lg:border-lavender"
     >
       <div className="flex items-center gap-2 border-b border-lavender px-3 py-2">
         <label className="flex min-w-0 flex-1 items-center gap-2 text-xs">

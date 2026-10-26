@@ -48,3 +48,6 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 
 /* Keep case navigation available above dialogs. */
 .below-present { top: var(--present-top, 0px) !important; }
+
+.driver-phone { top: var(--present-top, 0px); height: calc(100dvh - var(--present-top, 0px)); }
+@media (min-width: 1024px) { .driver-phone { top: 0; height: 100dvh; } }

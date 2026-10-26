@@ -346,9 +346,9 @@ describe('the demo day', () => {
     const events = liveOpsEvents(jobs, NOW - 30 * HOUR, NOW);
     expect(events.some((e) => e.kind === 'pickup_check' && e.title.includes(julia.id))).toBe(true);
     const tasks = events.filter((e) => e.kind === 'pickup_task' && e.title.includes(julia.id));
-    // Two to call the backup when nobody replied, and one to call the site: Julia's is a pilot customer.
+    // Only missing confirmations create call tasks, including for pilot customers.
     expect(tasks.filter((e) => e.title.includes('Call the'))).toHaveLength(2);
-    expect(tasks.filter((e) => e.title.includes('call the site'))).toHaveLength(1);
+    expect(tasks.filter((e) => e.title.includes('call the site'))).toHaveLength(0);
     expect(events.some((e) => e.kind === 'live_alert' && e.applicantId === julia.driverId)).toBe(true);
   });
   it('shifting a job moves every timestamp', () => {

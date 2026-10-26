@@ -7,7 +7,7 @@ import { completeOnboarding, confirmSecondReview, receiveDocument, applyDecision
 import { CollapsibleSection, DrawerSection, Proposed } from './ui';
 import { InfoTip } from './InfoTip';
 
-export const BACKUP_REVIEWER = 'Sofia (backup)';
+export const BACKUP_REVIEWER = 'Sofia (Team Lead)';
 
 interface Props {
   a: Applicant;
@@ -31,6 +31,7 @@ const firstSentence = (s: string) => {
 
 export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Props) {
   const ev = evaluate(a);
+  const hardReject = !preDrive && (a.docs.licence === 'failed' || (a.docs.licence === 'verified' && a.licenceYears < 1));
   const [secondConfirmed, setSecondConfirmed] = useState(false);
   const [secondName, setSecondName] = useState(BACKUP_REVIEWER);
   const [reason, setReason] = useState<RejectReason | ''>(preDrive ? 'requirements_not_met' : ev.suggestedReject ?? '');
@@ -59,6 +60,7 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
 
   return (
     <>
+      {hardReject && <div className="rounded-lg border border-bad/30 bg-bad-bg p-3 text-sm"><p className="font-semibold text-bad">Not eligible: a valid B licence held for at least one year is required.</p><p className="mt-1">This is a hard minimum; an exception cannot be approved.</p><p className="mt-1 font-semibold">Next step: select the rejection reason and press Reject.</p></div>}
       {!preDrive && <DrawerSection
         title="Criteria"
         aside={<Proposed title="My proposed written criteria, not given in the case: to agree with the team, and to check with policy and legal." />}
@@ -90,14 +92,14 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
                       </InfoTip>
                     )}
                   </div>
-                  {m.key === 'extract' && extractReady && (
+                  {!hardReject && m.key === 'extract' && extractReady && (
                     <Tick checked={!!a.extractShown} onChange={(v) => onUpdate(setExtractShown(a, v, now))}>
                       Extract shown in call (nothing stored)
                     </Tick>
                   )}
                   {m.key === 'licence' && a.docs.licence === 'uploaded' && <button type="button" onClick={() => onUpdate(receiveDocument(a, 'licence', 'verified', now))} className="mt-1 text-xs font-semibold text-indigo">Log licence validity and years verified</button>}
                   {m.key === 'id' && a.docs.id === 'uploaded' && <button type="button" onClick={() => onUpdate(receiveDocument({ ...a, idMethod: 'manual' }, 'id', 'verified', now))} className="mt-1 text-xs font-semibold text-indigo">Log manual identity check completed</button>}
-                  {m.key === 'photo' && photoSubmitted && (
+                  {!hardReject && m.key === 'photo' && photoSubmitted && (
                     <Tick checked={!!a.photoApproved} onChange={(v) => onUpdate(setPhotoApproved(a, v, now))}>
                       Photo meets the standard
                     </Tick>
@@ -123,7 +125,7 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
         </div>
       </DrawerSection>}
 
-      {!preDrive && <CollapsibleSection title="Onboarding call agenda" summary="15 min · 6 points">
+      {!preDrive && !hardReject && <CollapsibleSection title="Onboarding call agenda" summary="15 min · 6 points">
         <ol className="space-y-1 text-sm">
           {CALL_AGENDA.map((x, i) => (
             <li key={x} className="flex gap-2">
@@ -134,7 +136,7 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
         </ol>
       </CollapsibleSection>}
 
-      {!preDrive && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!a.onboardingCompletedAt} disabled={!!a.onboardingCompletedAt} onChange={() => onUpdate(completeOnboarding(a, now))} />Log onboarding call completed; ready to decide and book first drive</label>}
+      {!preDrive && !hardReject && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!a.onboardingCompletedAt} disabled={!!a.onboardingCompletedAt} onChange={() => onUpdate(completeOnboarding(a, now))} />Log onboarding call completed; ready to decide and book first drive</label>}
 
       <DrawerSection
         title="Decision"
@@ -142,7 +144,7 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
       >
         <div className="space-y-4">
           {/* Accept */}
-          {!preDrive && <div className="rounded-lg border border-lavender p-3">
+          {!preDrive && !hardReject && <div className="rounded-lg border border-lavender p-3">
             <button
               type="button"
               disabled={!canAccept}
@@ -163,7 +165,7 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
           </div>}
 
           {/* Request new photo */}
-          {!preDrive && photoSubmitted && (
+          {!preDrive && !hardReject && photoSubmitted && (
             <button
               type="button"
               onClick={() => run(requestNewPhoto(a, now))}
@@ -205,13 +207,13 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
 
             {needsSecond && (
               <div className="rounded-md bg-warn-bg p-2.5 text-sm">
-                <p className="font-semibold text-warn">Suitability rejections are decided by owner + backup together</p>
+                <p className="font-semibold text-warn">Suitability rejection: check with an Operations Manager or Team Lead</p>
                 <label className="mt-2 flex items-center gap-2">
                   <input type="checkbox" checked={secondConfirmed} onChange={(e) => { setSecondConfirmed(e.target.checked); if (e.target.checked && reason) onUpdate(confirmSecondReview(a, reason, secondName, now)); }} className="h-4 w-4 accent-indigo" />
-                  Confirm as backup reviewer (demo role): separate logged check
+                  Checked with Operations Manager / Team Lead (demo): log confirmation
                 </label>
                 <label className="mt-2 flex items-center gap-2 text-xs">
-                  <span className="text-muted">Backup reviewer</span>
+                  <span className="text-muted">Manager / Team Lead</span>
                   <input
                     value={secondName}
                     onChange={(e) => setSecondName(e.target.value)}

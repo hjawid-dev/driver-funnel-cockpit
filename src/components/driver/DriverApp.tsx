@@ -68,8 +68,8 @@ export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, o
             </button>
           )}
           {view !== 'chat' && (
-            <button type="button" onClick={() => setView('chat')} className={headerBtn} aria-label={`Messages and help${unread ? `, ${unread} unread` : ''}`}>
-              <MessageCircle size={15} aria-hidden /> Messages
+            <button type="button" onClick={() => setView('chat')} className={headerBtn} aria-label={`AI assistant and help${unread ? `, ${unread} unread` : ''}`}>
+              <MessageCircle size={15} aria-hidden /> AI assistant
               {unread > 0 && <span className="num ml-0.5 rounded-full bg-green px-1.5 text-[11px] font-bold text-navy">{unread}</span>}
             </button>
           )}
@@ -205,10 +205,10 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
         <Card tone="soft">
           <p className="text-sm font-semibold">About 10 minutes, all on your phone</p>
           <ul className="mt-1.5 space-y-1 text-sm text-muted">
-            <li>1. Order your criminal-record extract first (do not wait for the post)</li>
-            <li>2. Verify ID with BankID or submit ID for manual review</li>
-            <li>3. Add your licence and profile photos</li>
-            <li>4. Book a 15-minute onboarding call. We decide in the call, without waiting for the extract.</li>
+            <li>1. Answer a few questions about you and your availability</li>
+            <li>2. Follow the document checklist and verify your ID</li>
+            <li>3. Book your onboarding call and follow your application status</li>
+            <li>4. Once accepted, choose a suitable first drive in the app</li>
           </ul>
         </Card>
         <PrivacyNotice />
@@ -235,6 +235,7 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
 
   return (
     <div className="space-y-4">
+      <button type="button" onClick={() => setStarted(false)} className="flex items-center gap-1 text-sm font-semibold text-indigo"><ChevronLeft size={15} /> Back</button>
       <Title icon={<Sparkles size={16} />} sub="Four quick questions. They decide nothing on their own.">
         A few questions first
       </Title>
@@ -470,7 +471,7 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump, onDecide }: { a: 
           </Card>
           <p className="text-sm text-muted">You can ask us in the chat to explain the decision and to review it. You get the result of the review within two weeks.</p>
           <button type="button" onClick={onInbox} className="text-sm font-semibold text-indigo hover:underline">
-            Open your messages
+            Open AI assistant
           </button>
         </div>
       );
@@ -640,7 +641,7 @@ function SlotGrid({ slots, onPick }: { slots: number[]; onPick: (t: number) => v
     const day = new Date(t).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
     byDay.set(day, [...(byDay.get(day) ?? []), t]);
   }
-  if (!slots.length) return <p className="mt-1.5 text-sm">No free time before the drive. Ask in Messages and we'll find one.</p>;
+  if (!slots.length) return <p className="mt-1.5 text-sm">No free time before the drive. Ask the AI assistant and we'll find one.</p>;
   return (
     <div className="mt-1.5 space-y-2">
       {[...byDay.entries()].map(([day, ts]) => (
@@ -836,7 +837,7 @@ function BackNext({ list, shown, onGo }: { list: ReviewKey[]; shown: ReviewKey |
 /** A step already done: what was sent, and what can still be changed. */
 function Review({ k, a, apps, now, onUpdate }: { k: ReviewKey; a: Applicant; apps: Applicant[]; now: number; onUpdate: (a: Applicant) => void }) {
   const [editing, setEditing] = useState(false);
-  const locked = <p className="text-xs text-muted">A person is reviewing your file, so this can't be changed now. Ask in Messages if something is wrong.</p>;
+  const locked = <p className="text-xs text-muted">A person is reviewing your file, so this can't be changed now. Ask the AI assistant if something is wrong.</p>;
   const doneCard = (text: string) => (
     <Card tone="ok">
       <p className="flex items-center gap-1.5 text-sm font-semibold text-ok">
@@ -911,7 +912,7 @@ function Review({ k, a, apps, now, onUpdate }: { k: ReviewKey; a: Applicant; app
               Move the call
             </button>
           ) : (
-            <p className="text-xs text-muted">Less than two hours to go: ask in Messages if you need to move it.</p>
+            <p className="text-xs text-muted">Less than two hours to go: ask the AI assistant if you need to move it.</p>
           )}
         </div>
       );

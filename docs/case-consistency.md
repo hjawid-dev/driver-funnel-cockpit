@@ -11,7 +11,7 @@ Implemented locally on 26 October 2026 from Lite commit `39a498f62c07157fad62bbd
 | 04–05 | First document submission and initial decisions are preserved. Resubmission does not rewrite earlier throughput. A prequalifying rejection does not invent document completion. |
 | 06–07 | Pending stages are not labelled lost. Document completion is explicitly defined as completion within seven calendar days among mature registrations. Each metric states its population/window. |
 | 08 | Acceptance and first-drive quality are visible guardrails; the report includes review-rejection reasons and separates prequalifying exits. |
-| 09–10 | Explicit logged onboarding, licence verification and distinct backup review are required. Accepted candidates can receive a later generic pre-drive rejection. No extract content is collected. |
+| 09–10 | Explicit logged onboarding, licence verification and a distinct Operations Manager / Team Lead confirmation are required. Accepted candidates can receive a later generic pre-drive rejection. No extract content is collected. |
 | 11–14 | Ops, driver and chat booking share matching/eligibility checks and reservations. Rebooking selects another real job. Structured availability distinguishes weekends from weekday evenings. Completion requires a matching booked job and chronological delivery evidence. |
 | 15 | Current booking takes precedence over stale activation reasons. Available jobs are not described as proven offers or declines. Automated copy does not promise three jobs. Reserved jobs are excluded from open demand. |
 | 16–18 | Dispatch readiness validates contacts, key location and pre-drive checks. T−24 and T−60 phone confirmations are separate. Missing keys are visible on check-in. The feed does not claim a contact text without the appropriate send action. |
@@ -41,7 +41,7 @@ Browser verification covers: disabled acceptance until checks/call are logged; a
 ## Demo scope and remaining external work
 
 - External calls, SMS, BankID/manual checks, account-owner contact, review bookings and compensation are simulated/logged. No live customer messages or payments were sent.
-- The backup reviewer is an explicitly labelled demo role, not a separate authenticated account. Real identity/authorization and cross-device reservation transactions require a backend.
+- The consulted Operations Manager / Team Lead is an explicitly labelled demo role, not a separate authenticated account. Real identity/authorization and cross-device reservation transactions require a backend.
 - Data model version 9 resets older demo saves; it does not migrate them. Subsequent version-9 reloads preserve absolute history. Use Reset demo in the demo menu to explicitly start a new scenario.
 - The accompanying Google Slides update distinguishes the 59-volume gap from identified lost individuals, uses a comparable mean decision time, defines proposed cohort windows and labels the ~46 scenario as illustrative.
 - The brief's platform wording should be clarified with the interviewer; the submission note accurately names the tools used. No rebuild in another platform was performed.

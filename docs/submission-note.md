@@ -4,7 +4,7 @@ Driver Ops supports the two operational problems in the case: a driver stuck at 
 
 Ops uses Live Ops before pickup to confirm the contact, backup and key location, and during an incident to record calls, customer updates, the customer's decision and follow-up. A closed incident does not hide an unfinished delivery. Rescheduling creates an owned task and then a linked replacement transport.
 
-The driver funnel helps ops collect documents, decide within 48 calendar hours of registration and book a suitable first job in the onboarding call. The driver can follow the same application and booking in the phone view. Acceptance, booking and activation are separate: activation requires delivery of the booked first job.
+The driver funnel helps ops collect documents, decide within 48 calendar hours of registration and immediately offer suitable first jobs for the driver to book independently in the app. The driver can follow the same application and booking in the phone view. Acceptance, booking and activation are separate: activation requires delivery of the booked first job.
 
 The dashboard distinguishes the 30-day flow from cohort conversion and includes acceptance and first-drive quality as guardrails. Missing customer feedback remains unknown.
 

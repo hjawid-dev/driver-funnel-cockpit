@@ -30,7 +30,7 @@ import { Proposed } from './components/ui';
 import { FunnelKpis, FunnelStages } from './components/FunnelOverview';
 import { WorkQueue } from './components/WorkQueue';
 import { filterItems, QUEUE_FILTER_LABEL, queueCounts, workItems, type QueueFilter } from './lib/workQueue';
-import { docsTarget, PRESENT_STEPS, reviewTarget, guideDestination, focusGuideStep, presentEvidence } from './lib/present';
+import { docsTarget, PRESENT_STEPS, reviewTarget, guideDestination, focusGuideStep, presentEvidence, guideStatus, followUpTargets } from './lib/present';
 
 /**
  * Two connected jobs, one page each.
@@ -62,6 +62,7 @@ export default function App() {
   const [showHubspot, setShowHubspot] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [present, setPresent] = useState<number | null>(null);
+  const [guideApplicantId, setGuideApplicantId] = useState<string | null>(null);
   // Bumped when the cockpit opens the phone on the chat; 0 opens it on the steps.
   const [chatRequest, setChatRequest] = useState(0);
   const [phoneOpen, setPhoneOpen] = useState(false);
@@ -206,10 +207,11 @@ export default function App() {
   const onDriverCreate = useCallback(
     (a: Applicant) => {
       add(a);
+      if (present !== null && PRESENT_STEPS[present].key === 'onboarding') setGuideApplicantId(a.id);
       setPhoneId(a.id);
       toast.notify(`New applicant: ${a.name} registered in the driver app.`);
     },
-    [add, toast.notify],
+    [add, toast.notify, present],
   );
 
   const onDriverUpdate = useCallback(
@@ -358,7 +360,7 @@ export default function App() {
   const goStep = (i: number) => {
     const step = PRESENT_STEPS[i];
     if (!step) return;
-    const target = guideDestination(step.key, presentData);
+    const target = guideDestination(step.key, presentData, guideApplicantId);
     setPresent(i);
     setShowReport(false);
     setShowHubspot(false);
@@ -387,18 +389,16 @@ export default function App() {
       }, 100);
     } else if (view === 'criteria') {
       setPage('funnel'); setOpenId(reviewTarget(apps)?.id ?? null);
+    } else if (view === 'followup_reminder' || view === 'followup_call') {
+      const examples = followUpTargets(presentData, now);
+      setPage('funnel'); setFilter('awaiting'); setOpenId((view === 'followup_reminder' ? examples.reminder : examples.call)?.id ?? null);
     } else if (view === 'job') {
       setPage('live'); setLiveSel(jobs.find(j => j.firstDrive && j.driverId === reviewTarget(apps)?.id)?.id ?? null);
     }
   };
-  const guideJob = jobs.find(j => j.firstDrive && j.driverId === reviewTarget(apps)?.id);
   const guideIncident = jobs.find(j => j.asInCase);
-  const guideJumpAt = currentPresent?.key === 'decision'
-    ? guideIncident ? incidentClock(guideIncident, now).decideBy : null
-    : currentPresent?.key === 'deliver' && guideJob && !guideJob.deliveredAt
-      ? guideJob.departedAt ? guideJob.departedAt + guideJob.driveMin * 60000 : guideJob.pickupAt
-      : null;
-  const guideJumpLabel = guideJumpAt && guideJumpAt > now ? currentPresent?.key === 'decision' ? 'Move demo time to 10:15 decision point' : guideJob?.departedAt ? 'Move demo time to delivery' : 'Move demo time to pickup' : null;
+  const guideJumpAt = currentPresent?.key === 'decision' && guideIncident && !guideIncident.incident?.outcome ? incidentClock(guideIncident, now).decideBy : null;
+  const guideJumpLabel = guideJumpAt && guideJumpAt > now ? `Move demo time to decision point (${new Date(guideJumpAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })})` : null;
   // While presenting, the header and the bar stick to the top; drawers and dialogs open below them.
   const topRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -433,6 +433,7 @@ export default function App() {
     setPage('live');
     setLiveSel(null);
     setPresent(0);
+    setGuideApplicantId(null);
     window.scrollTo({ top: 0 });
     toast.notify('Case demo started: fresh data, Tuesday 09:30.');
   };
@@ -440,7 +441,7 @@ export default function App() {
   return (
     <div className="min-h-screen flex">
       <div className="min-w-0 flex-1 flex flex-col">
-        <div ref={topRef} className={present !== null ? `sticky top-0 z-[60] ${phoneOpen ? 'lg:w-[calc(100%+420px)]' : ''}` : ''}>
+        <div ref={topRef} className={present !== null ? 'sticky top-0 z-[60]' : ''}>
         <header className="bg-navy text-white">
           <div className="mx-auto max-w-7xl px-4 h-14 flex items-center gap-3">
             <span className="hidden sm:inline font-semibold tracking-tight whitespace-nowrap">Driver Ops</span>
@@ -488,7 +489,7 @@ export default function App() {
             </div>
           </div>
         </header>
-        {present !== null && <PresentBar step={present} onStep={goStep} onExit={() => { setPresent(null); clock.resume(); }} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} onExplore={guideExplore} jumpLabel={guideJumpLabel} onJump={() => { if (guideJumpAt && guideJumpAt > now) onAdvance(guideJumpAt - now); }} />}
+        {present !== null && <PresentBar step={present} onStep={goStep} onExit={() => { setPresent(null); clock.resume(); }} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} status={currentPresent ? guideStatus(currentPresent.key, presentData, guideApplicantId) : { kind: 'explore', text: '' }} onExplore={guideExplore} jumpLabel={guideJumpLabel} onJump={() => { if (guideJumpAt && guideJumpAt > now) onAdvance(guideJumpAt - now); }} />}
         </div>
 
         <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-6 space-y-6">
@@ -505,7 +506,7 @@ export default function App() {
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <h2 id="queue-title" className="flex items-center gap-1.5 text-sm font-semibold">
                     Candidates
-                    <Proposed title="The follow-up rules are my proposal, not given in the case: reminders at 2, 24 and 72 h, close after 14 days without a reply, two review slots a day, book a first gig at 7 days, call at 14." />
+                    <Proposed title="The follow-up rules are my proposal, not given in the case: reminders at 2, 24 and 72 h, close after 14 days without a reply, two review slots a day, the driver books from matching offers, reminder at 7 days without booking, call at 14." />
                   </h2>
                   <span className="flex items-center gap-1.5 text-xs text-muted">
                     <CalendarClock size={14} className="text-indigo" aria-hidden />

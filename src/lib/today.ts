@@ -5,7 +5,7 @@ import { slaStatus } from './sla';
 import { isNoResponse } from './nudges';
 import { activationBucket } from './activation';
 import { checkMissed, needsExtract } from './extract';
-import { assistedJobs, needsConfirmation, openIncidents, siteCallDue, type Job } from './liveOps';
+import { assistedJobs, needsConfirmation, openIncidents, type Job } from './liveOps';
 
 export type TodayTab = 'live' | 'review' | 'missing' | 'awaiting' | 'chat';
 
@@ -25,7 +25,7 @@ export const isOverdueReview = (a: Applicant, now: number) => deriveStage(a) ===
 export const isToChase = (a: Applicant, now: number) => {
   if (deriveStage(a) !== 'accepted') return false;
   const b = activationBucket(a.decision!.at, now);
-  return b === 'call' || b === 'book';
+  return !a.firstGig?.bookedFor && b === 'call';
 };
 /** A 5-minute extract check is booked and not done yet: the last step before a first drive. */
 export const isExtractCheck = (a: Applicant, now: number) => needsExtract(a) && a.extractCheckAt !== undefined && !checkMissed(a, now);
@@ -62,7 +62,6 @@ export function todayItems(apps: Applicant[], threads: ChatThread[], now: number
     item('assistant', 'live', assisted.map((j) => j.id), 'handled by the assistant', 'handled by the assistant', false),
     item('toclose', 'live', toClose.map((j) => j.id), 'incident to close', 'incidents to close', false),
     item('pickups', 'live', pickups.map((j) => j.id), 'pickup not confirmed', 'pickups not confirmed', false),
-    item('sitecall', 'live', jobs.filter((j) => !onIncident.has(j.driverId) && siteCallDue(j, now)).map((j) => j.id), 'new site to call', 'new sites to call', false),
     item('overdue', 'review', appIds(isOverdueReview), 'review overdue', 'reviews overdue', true),
     item('questions', 'chat', questions.map((t) => t.id), 'question waiting', 'questions waiting', false),
     item('extract', 'awaiting', appIds(isExtractCheck), 'extract check booked', 'extract checks booked', false),

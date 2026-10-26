@@ -174,6 +174,6 @@ export function completeOnboarding(a: Applicant, now: number): Applicant {
 
 export function confirmSecondReview(a: Applicant, reason: NonNullable<Applicant['decision']>['reason'], by: string, now: number): Applicant {
   const identity = (name: string) => name.replace(/\([^)]*\)/g, '').trim().toLowerCase();
-  if (!reason || !by.trim() || identity(by) === identity(a.owner ?? REVIEWER) || (a.backup && identity(by) !== identity(a.backup))) return a;
+  if (!reason || !by.trim() || identity(by) === identity(a.owner ?? REVIEWER)) return a;
   return withLog({ ...a, secondReview: { by: by.trim(), at: now, reason } }, now, `Second review confirmed by ${by.trim()}: ${reason}`);
 }

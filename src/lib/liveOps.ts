@@ -65,9 +65,9 @@ export interface Job {
   dispatchReady?: boolean;
   /** The Part 1 case as given: no pre-pickup check was in place for this drive. */
   asInCase?: boolean;
-  /** Our first drive from this address. With a pilot customer, the same: a person calls the site the day before. */
+  /** Our first drive from this address; the same confirmation process applies. */
   newSite?: boolean;
-  /** When ops called the site and agreed who hands over the keys, and where. */
+  /** Legacy demo field; no routine site-call requirement remains. */
   siteCalledAt?: number;
   incident?: Incident;
 }
@@ -186,27 +186,6 @@ export function pickupChecks(j: Job, now: number): Check[] {
     check('24h', Math.max(j.pickupAt - CHECK_24_MS, j.bookedAt ?? -Infinity), REPLY_WAIT_24_MS, j.confirmed24At, j, now),
     check('60min', Math.max(j.pickupAt - CHECK_60_MS, j.bookedAt ?? -Infinity), REPLY_WAIT_60_MS, j.confirmed60At, j, now),
   ];
-}
-
-// ---------- A new site or a pilot customer: a person calls the day before ----------
-
-/**
- * Texts reach a contact, not the customer's own routine. "Nobody on site knows about the transport"
- * is that routine failing, so for a new address or a pilot customer a person calls the site the day
- * before: who hands over the keys, and where. Due from 24 hours before the pickup.
- */
-export const SITE_CALL_LEAD_MS = 24 * HOUR;
-
-export function needsSiteCall(j: Job): boolean {
-  return !j.asInCase && !j.firstDrive && (j.pilot || !!j.newSite);
-}
-
-export function siteCallDue(j: Job, now: number): boolean {
-  return needsSiteCall(j) && j.siteCalledAt === undefined && now >= j.pickupAt - SITE_CALL_LEAD_MS && now < j.pickupAt && !done(j.arrivedAt, now);
-}
-
-export function callSite(j: Job, now: number): Job {
-  return { ...j, siteCalledAt: now };
 }
 
 /** A pickup nobody has confirmed: ops calls the backup contact now, before the driver is at the gate. */

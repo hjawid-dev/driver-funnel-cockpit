@@ -42,7 +42,7 @@ export function guideSteps(apps: Applicant[], progress: GuideProgress): GuideSte
     {
       key: 'chat',
       title: 'Ask the assistant',
-      hint: `Open Messages on ${applied ? `${firstSelf.name.split(' ')[0]}'s` : "Elin's"} phone. Ask anything, or write "Can we take the call on an afternoon?" and tap Confirm.`,
+      hint: `Open AI assistant on ${applied ? `${firstSelf.name.split(' ')[0]}'s` : "Elin's"} phone. Ask anything, or write "Can we take the call on an afternoon?" and tap Confirm.`,
       action: 'chat',
       targetId: applied ? firstSelf.id : (elin?.id ?? null),
       done: progress.chatTried,
@@ -51,8 +51,8 @@ export function guideSteps(apps: Applicant[], progress: GuideProgress): GuideSte
       key: 'accept',
       title: 'Decide',
       hint: applied
-        ? `Open ${firstSelf.name} or Elin Johansson, tick the photo (and the extract, if it was shown in the call), log the completed onboarding call, then Accept and book a matching drive. Watch the phone and the numbers.`
-        : 'Elin Johansson: tick the photo (and the extract, if it was shown in the call), log the completed onboarding call, then Accept and book a matching drive. Watch the numbers move.',
+        ? `Open ${firstSelf.name} or Elin Johansson, tick the photo (and the extract, if it was shown in the call), log the completed onboarding call, then Accept. The driver chooses a matching first drive in the app. Watch the phone and the numbers.`
+        : 'Elin Johansson: tick the photo (and the extract, if it was shown in the call), log the completed onboarding call, then Accept. The driver chooses a matching first drive in the app. Watch the numbers move.',
       action: 'open',
       targetId: firstSelf?.docsCompleteAt && !firstSelf.decision ? firstSelf.id : (elin?.id ?? null),
       done: apps.some((a) => byMe(a) && a.decision?.type !== 'rejected'),

@@ -4,7 +4,7 @@ import { NUDGE_OFFSETS, NO_RESPONSE_MS, nudgeMessage, reminderSilenced } from '.
 import { DAY, HOUR, atLocal, formatDateTime } from './time';
 import type { ChatThread } from './chat/types';
 import { slaFor } from './chat/threads';
-import { assistStart, jobAlert, needsSiteCall, pickupChecks, REPLY_WAIT_24_MS, REPLY_WAIT_60_MS, SITE_CALL_LEAD_MS, type Job } from './liveOps';
+import { assistStart, jobAlert, pickupChecks, REPLY_WAIT_24_MS, REPLY_WAIT_60_MS, type Job } from './liveOps';
 import { SHOW_BY_MS } from './extract';
 
 /**
@@ -123,9 +123,6 @@ function deriveAutomationEvents(apps: Applicant[], from: number, to: number): Au
         : `Hi ${first(a)}, you're accepted! One thing before your first drive: show us your criminal-record extract in a 5-minute video check when it arrives. Pick your first drive below; it starts at least 5 days from now so the extract has time to arrive.`,
     );
     push(d.at, 'driver', 'offers', 'First-gig offers ready', 'Check the current matching jobs in your application. If none fit, your owner follows up; no job is guaranteed until booked.');
-    // The first drive is normally booked in the onboarding call; only if it wasn't does ops call within 24 h.
-    if (!a.firstGig?.bookedFor) push(d.at + HOUR, 'ops', 'welcome_task', `Task: no first drive booked in the call. Welcome call to ${a.name}, due within 24 h`);
-
     // The 5-minute extract check, when the extract arrived after the decision.
     if (a.extractCheckAt) {
       push(a.extractCheckAt - HOUR, 'driver', 'extract_check', 'Your extract check is in 1 hour', `5 minutes on video at ${time(a.extractCheckAt)}. Have your extract at hand; we only look at it and never keep a copy.`);
@@ -154,9 +151,10 @@ function deriveAutomationEvents(apps: Applicant[], from: number, to: number): Au
     if (gig?.doneAt) push(gig.doneAt, 'driver', 'activated', 'You are now an active driver', 'Great first drive. New jobs show up in the app every day.');
 
     const booked = !!gig?.bookedFor;
+    const bookedBy = (t: number) => booked && (gig?.bookedAt ?? d.at) <= t;
     const done = (t: number) => !!gig?.doneAt && gig.doneAt <= t;
-    if (!booked && !done(d.at + 7 * DAY)) push(d.at + 7 * DAY, 'ops', 'book_task', `Task: book a first gig for ${a.name} (7 days since acceptance)`);
-    if (!done(d.at + 14 * DAY)) push(d.at + 14 * DAY, 'ops', 'call_task', `Task: call ${a.name}, no first gig after 14 days`);
+    if (!bookedBy(d.at + 7 * DAY) && !done(d.at + 7 * DAY)) push(d.at + 7 * DAY, 'driver', 'book_task', 'Choose your first drive', `Hi ${first(a)}, ready to get started? Open your application to see the current short, easy jobs near you and pick one that fits. If none fit, contact Ops through the AI assistant.`);
+    if (!bookedBy(d.at + 14 * DAY) && !done(d.at + 14 * DAY)) push(d.at + 14 * DAY, 'ops', 'call_task', `Task: call ${a.name}, no first booking after 14 days`);
     if (!booked && !done(d.at + 30 * DAY)) push(d.at + 30 * DAY, 'ops', 'dormant', `${a.name} marked dormant (label only, nothing is blocked)`);
   }
   return out.sort((x, y) => x.at - y.at);
@@ -229,11 +227,7 @@ export function liveOpsEvents(jobs: Job[], from: number, to: number): AutoEvent[
         out.push({ ...base, at: deadline, kind: 'pickup_task', title: `Task: no reply to the ${c.label} message for ${j.id}. Call the ${j.backup.role.toLowerCase()}.` });
       }
     }
-    // A new address or a pilot customer: a person calls the site the day before.
-    const siteAt = j.pickupAt - SITE_CALL_LEAD_MS;
-    if (needsSiteCall(j) && inWindow(siteAt) && !(j.siteCalledAt !== undefined && j.siteCalledAt <= siteAt)) {
-      out.push({ ...base, at: siteAt, kind: 'pickup_task', title: `Task: call the site for ${j.id} (${j.newSite ? 'new address' : 'pilot customer'}): who hands over the keys tomorrow, and where.` });
-    }
+
     // The assistant takes a missing key by itself; a person comes in when its minutes run out (taps and chat are logged where they happen).
     const start = assistStart(j, to);
     if (start !== null && start !== j.problemAt && inWindow(start)) {

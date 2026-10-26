@@ -14,7 +14,8 @@ import { isNoResponse } from './nudges';
  * - Reason codes are generic, so a rejection never reveals an offence.
  * - The system supports the decision; a human always makes it and can explain it.
  */
-export const MIN_LICENCE_YEARS = 2;
+export const MIN_LICENCE_YEARS = 1;
+export const STANDARD_LICENCE_YEARS = 2;
 export const BORDERLINE_LICENCE_YEARS = 1;
 
 /** 'later': required, but before the first drive, so it doesn't block the decision. */
@@ -53,7 +54,7 @@ export function evaluate(a: Applicant): Evaluation {
   const y = a.licenceYears;
   const licence: MustHave = {
     key: 'licence',
-    label: `Valid B licence, held ≥ ${MIN_LICENCE_YEARS} years`,
+    label: `Valid B licence, held ≥ ${MIN_LICENCE_YEARS} year`,
     ...(a.docs.licence === 'failed'
       ? { result: 'fail', detail: 'No valid B licence' }
       : a.docs.licence === 'missing' || a.docs.licence === 'pending'
@@ -62,9 +63,7 @@ export function evaluate(a: Applicant): Evaluation {
         ? { result: 'manual', detail: 'Reviewer must verify the licence validity and years held' }
         : y >= MIN_LICENCE_YEARS
           ? { result: 'pass', detail: `${fmtYears(y)} held` }
-          : y >= BORDERLINE_LICENCE_YEARS
-            ? { result: 'borderline', detail: `${fmtYears(y)} held: borderline rule applies` }
-            : { result: 'fail', detail: `${fmtYears(y)} held: under 1 year` }),
+          : { result: 'fail', detail: `${fmtYears(y)} held: under 1 year` }),
   };
 
   const id: MustHave = {
@@ -100,7 +99,7 @@ export function evaluate(a: Applicant): Evaluation {
   };
 
   const borderline: BorderlineRule[] = [];
-  if (y >= BORDERLINE_LICENCE_YEARS && y < MIN_LICENCE_YEARS) {
+  if (y >= BORDERLINE_LICENCE_YEARS && y < STANDARD_LICENCE_YEARS) {
     borderline.push({
       key: 'licence_1_2',
       chip: `Licence ${fmtYears(y)}`,
@@ -171,7 +170,7 @@ export function validateDecision(a: Applicant, input: DecisionInput, now: number
     // A pre-qualifying requirement that isn't met is closed by a person, not automatically.
     if (stage !== 'review' && !(stage === 'registered' && a.prequalIssue) && !(stage === 'accepted' && input.reason === 'requirements_not_met')) return 'Only applicants under review or awaiting a pre-drive check can be decided.';
     if (NEEDS_SECOND_REVIEWER.includes(input.reason) && (!a.secondReview || a.secondReview.reason !== input.reason || a.secondReview.by !== input.secondReviewer?.trim() || a.secondReview.at > now || a.secondReview.by.trim().toLowerCase() === by.trim().toLowerCase())) {
-      return 'A suitability rejection needs a second reviewer to confirm.';
+      return 'A suitability rejection must be checked with an Operations Manager or Team Lead.';
     }
     return null;
   }
@@ -224,7 +223,7 @@ export function fmtYears(y: number): string {
 
 /**
  * The onboarding call: a short interview where the extract is one part, not the point. The decision
- * is made in the call, and the first drive is booked in the same call, so no separate welcome call is needed.
+ * is made in the call; after acceptance the driver selects a matching first drive independently.
  */
 export const CALL_AGENDA = [
   'How a job works: pickup, photos, handover',
@@ -232,5 +231,5 @@ export const CALL_AGENDA = [
   'When you can drive',
   'Your extract: shown now if it has arrived, otherwise before your first drive',
   'Your questions, and the decision',
-  'Book your first drive together',
+  'Show where to choose a matching first drive in the app',
 ] as const;

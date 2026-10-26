@@ -40,14 +40,14 @@ Details sit behind a click: the main view shows the problem and the step to take
 
    Each shows the live demo number, its target, and the case's own baseline on a separate line, so the two are never mixed.
 2. **Where candidates get stuck.** Registered → Docs submitted → Reviewed → Accepted → Active, with all-history reach, ratios that include work in progress, and the current queues. Waiting applicants are not labelled lost. A click on a stage opens the people who are there now.
-3. **One candidate queue.** Each row shows who, where they are, why now and the next action: request documents, review and decide, book a first gig, call the driver. Filters: Needs action, Missing documents, In review, Awaiting first gig, All applicants. The first 8 rows show, the rest behind "Show all".
+3. **One candidate queue.** Each row shows who, where they are, why now and the next action: request documents, review and decide, send a first-drive reminder, call the driver. Filters: Needs action, Missing documents, In review, Awaiting first gig, All applicants. The first 8 rows show, the rest behind "Show all".
 4. **Candidate panel.** It shows the next step at the top, then the written criteria:
    - **Must-have:** licence, ID verified with BankID or manually, photo, and the criminal-record extract shown before the first drive, never stored.
    - **Borderline:** a written rule decides.
    - **Reject:** always with a reason code.
 
    Only the decisions the rules allow are possible, and a person makes every one. History, documents and logs are folded away until needed.
-5. **Accepted, not yet active.** The panel says why there is no first drive yet, and only the step to do now is open: welcome call, book a first gig, first gig completed.
+5. **Accepted, not yet active.** The panel says why there is no first drive yet, and only the step to do now is open: matching offers for self-booking, reminder at 7 days without a booking, personal follow-up at 14 days.
 
 ## From the case, and what is proposed
 
@@ -65,7 +65,7 @@ Details sit behind a click: the main view shows the problem and the step to take
 - BankID for the ID, and the criminal-record extract shown by the driver and never stored. The exact check, and how sensitive data is handled, must be validated with company policy and legal.
 - the reminders at 2, 24 and 72 hours, and closing a file after 14 days
 - two review slots a day
-- for a first gig: book at 7 days, call at 14
+- for a first gig: driver self-books, reminder at 7 days without booking, call at 14
 - the 10:15 cut-off for the customer's decision
 - the playbook and the pre-pickup check
 

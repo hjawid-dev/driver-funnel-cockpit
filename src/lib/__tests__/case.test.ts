@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { caseTime, DAY, MIN } from '../time';
 import { generateSeed } from '../seed';
-import { callSite, cancelPayFor, closeIncident as rawCloseIncident, driverUpdate, incidentClock, jobAlert, needsSiteCall, pickupChecks, seedJobs, setOutcome, siteCallDue, tellAccountOwner, type Outcome } from '../liveOps';
+import { cancelPayFor, closeIncident as rawCloseIncident, driverUpdate, incidentClock, jobAlert, pickupChecks, seedJobs, setOutcome, tellAccountOwner, type Outcome } from '../liveOps';
 import { seedThreads } from '../chat/threads';
 import { todayItems } from '../today';
 import { liveOpsEvents } from '../automation';
@@ -68,21 +68,12 @@ describe('prevention that reaches the cause: the site, the account owner, the dr
   const linnea = jobs.find((j) => j.driverName === 'Linnea Björk')!;
   const julia = jobs.find((j) => j.driverName === 'Julia Lindgren')!;
 
-  it('a new address gets a site call the day before, in Today, until someone calls', () => {
+  it('new sites use the same two confirmations without an extra site-call task', () => {
     expect(linnea.newSite).toBe(true);
-    expect(siteCallDue(linnea, NOW)).toBe(true);
-    expect(siteCallDue(linnea, linnea.pickupAt - 25 * 60 * MIN)).toBe(false); // not yet
-    const item = todayItems(apps, [], NOW, jobs).find((i) => i.key === 'sitecall')!;
-    expect(item.ids).toEqual([linnea.id]);
-    const called = callSite(linnea, NOW);
-    expect(siteCallDue(called, NOW)).toBe(false);
-    expect(todayItems(apps, [], NOW, jobs.map((j) => (j === linnea ? called : j))).some((i) => i.key === 'sitecall')).toBe(false);
-  });
-
-  it('the case had no check, so it gets no site call either; a first drive has ops on standby instead', () => {
-    const caseJulia = seedJobs(generateSeed(caseTime(NOW)), caseTime(NOW), { asInCase: true }).find((j) => j.driverName === 'Julia Lindgren')!;
-    expect(needsSiteCall(caseJulia)).toBe(false);
-    expect(needsSiteCall({ ...linnea, firstDrive: true })).toBe(false);
+    expect(pickupChecks(linnea, NOW)).toHaveLength(2);
+    expect(todayItems(apps, [], NOW, jobs).some(i => i.key === 'sitecall')).toBe(false);
+    const tasks = liveOpsEvents(jobs, NOW - 24 * 60 * MIN, NOW).filter(e => e.kind === 'pickup_task');
+    expect(tasks.every(e => e.title.includes('No reply') || e.title.includes('no reply'))).toBe(true);
   });
 
   it('the driver gets the waiting time and half the reward when the drive does not happen', () => {

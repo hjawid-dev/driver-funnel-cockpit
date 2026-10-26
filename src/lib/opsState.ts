@@ -1,4 +1,4 @@
-import { incidentClock, pickupReadinessErrors, assisting, driverStatus, jobAlert, needsConfirmation, PLAYBOOK, siteCallDue, type Job, type PlaybookStep } from './liveOps';
+import { incidentClock, pickupReadinessErrors, assisting, driverStatus, jobAlert, needsConfirmation, PLAYBOOK, type Job, type PlaybookStep } from './liveOps';
 
 /**
  * One operational state per pickup, so the list can put exceptions first:
@@ -45,7 +45,7 @@ export function opsState(j: Job, now: number): OpsState {
   if (j.incident?.closedAt !== undefined && j.incident.closedAt <= now && j.incident.outcome?.type !== 'keys_found') return 'resolved';
   if (s === 'driving') return 'on_the_way';
   if (s === 'arrived' || s === 'keys') return 'at_pickup';
-  if (needsConfirmation(j, now) || siteCallDue(j, now)) return 'check_due';
+  if (needsConfirmation(j, now)) return 'check_due';
   return 'upcoming';
 }
 

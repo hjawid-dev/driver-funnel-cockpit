@@ -85,8 +85,8 @@ export function ApplicantDrawer({ applicant: a, apps, gigs, now, onClose, onUpda
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
           {next && (
             <div className={`rounded-xl px-3.5 py-2.5 text-sm ${next.needsAction ? 'bg-indigo text-white' : 'bg-card'}`}>
-              <div className={`text-xs ${next.needsAction ? 'text-white/75' : 'text-muted'}`}>Next step · {next.status}</div>
-              <div className="font-semibold">{next.next}</div>
+              <div className="font-semibold">Next step: {next.next}</div>
+              <div className={`mt-1 text-xs ${next.needsAction ? 'text-white/75' : 'text-muted'}`}>{next.status}</div>
             </div>
           )}
           <Facts a={a} now={now} />

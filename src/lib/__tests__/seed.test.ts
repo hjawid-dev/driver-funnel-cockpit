@@ -67,7 +67,7 @@ describe('the 8 review cases behave as described', () => {
   });
   it('Sara: a suitability rejection needs a second reviewer', () => {
     const r = { type: 'rejected' as const, reason: 'requirements_not_met' as const };
-    expect(validateDecision(approve('Sara Lindqvist'), r, NOW)).toMatch(/second reviewer/);
+    expect(validateDecision(approve('Sara Lindqvist'), r, NOW)).toMatch(/Operations Manager or Team Lead/);
     expect(validateDecision(confirmSecondReview(approve('Sara Lindqvist'), 'requirements_not_met', 'Sofia', NOW), { ...r, secondReviewer: 'Sofia' }, NOW)).toBeNull();
     expect(validateDecision(approve('Sara Lindqvist'), { type: 'accepted' }, NOW)).toBeNull();
   });

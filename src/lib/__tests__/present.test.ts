@@ -29,12 +29,12 @@ describe('case walkthrough navigation', () => {
     const ids = ['incident', 'playbook', 'decision'].map(k => guideDestination(k as 'incident', data).liveId);
     expect(new Set(ids).size).toBe(1);
     expect(data.jobs.find(j => j.id === ids[0])?.asInCase).toBe(true);
-    expect(data.jobs.find(j => j.id === guideDestination('prevent', data).liveId)?.newSite).toBe(true);
+    expect(data.jobs.find(j => j.id === guideDestination('prevent', data).liveId)?.driverName).toBe('Omar Khalil');
   });
-  it('shows the same Nora first in onboarding and then in her actual message inbox', () => {
+  it('starts onboarding empty and uses Nora as a separate unfinished-application example', () => {
     const data = fixture(), app = guideDestination('onboarding', data), messages = guideDestination('reminders', data);
-    expect(app.driverId).toBe(messages.driverId);
-    expect(data.apps.find(a => a.id === app.driverId)?.name).toBe('Nora Axelsson');
+    expect(app.driverId).toBeNull();
+    expect(data.apps.find(a => a.id === messages.driverId)?.name).toBe('Nora Axelsson');
     expect(app.phone).toBe('steps'); expect(messages.phone).toBe('chat');
   });
   it('keeps Ahmed after a normal human acceptance and normal matching-job booking', () => {
@@ -52,23 +52,23 @@ describe('case walkthrough navigation', () => {
     data.jobs = syncFirstDrive(data.jobs, booked.applicant, data.gigs);
     expect(guideDestination('criteria', data).applicantId).toBe(a.id);
     expect(guideDestination('activate', data).driverId).toBe(a.id);
-    expect(guideDestination('deliver', data).driverId).toBe(a.id);
-    expect(guideDestination('deliver', data).liveId).toBe(offers[0].id);
+    expect(guideDestination('followup', data).filter).toBe('awaiting');
+    expect(booked.applicant.firstGig?.gigId).toBe(offers[0].id);
     expect(booked.applicant.firstGig?.doneAt).toBeUndefined();
   });
   it('keeps manual rejection and explains why offers are unavailable without replacing the decision', () => {
     const data = fixture(), a = reviewTarget(data.apps)!;
     a.decision = { type: 'rejected', reason: 'id_unverified', by: 'Hjalmar', at };
     const before = JSON.stringify(data);
-    guideDestination('activate', data); guideDestination('deliver', data);
+    guideDestination('activate', data); guideDestination('followup', data);
     expect(presentEvidence('activate', data)).toContain('rejected');
     expect(JSON.stringify(data)).toBe(before);
   });
   it('does not invent a job or activation when a visitor skips ahead', () => {
     const data = fixture();
-    const destination = guideDestination('deliver', data);
+    const destination = guideDestination('followup', data);
     expect(destination.liveId).toBeNull();
-    expect(presentEvidence('deliver', data)).toContain('Book Ahmed');
+    expect(presentEvidence('followup', data)).toContain('follow-up');
     expect(reviewTarget(data.apps)?.decision).toBeUndefined();
     expect(data.jobs.some(j => j.driverId === destination.driverId && j.firstDrive)).toBe(false);
   });

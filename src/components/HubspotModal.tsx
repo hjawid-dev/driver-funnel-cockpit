@@ -24,7 +24,7 @@ const ROWS: { cockpit: string; hubspot: string; required: string; workflow: stri
     cockpit: 'Awaiting first gig',
     hubspot: 'Accepted',
     required: 'accept_variant (standard / simple drives first / activation flag) · extract_shown_at (yes/no only) · extract_check_at · welcome_call_at · first_gig_booked_for · activation_reason',
-    workflow: 'Extract shown in a 5-minute check, by the day before the first drive, or the drive is released · welcome-call task only if no first drive was booked in the call · alert at 7 d without booking · call task at 14 d · dormant at 30 d',
+    workflow: 'Extract shown in a 5-minute check, by the day before the first drive, or the drive is released · matching offers after acceptance · driver reminder at 7 d without booking · call task at 14 d · dormant at 30 d',
   },
   {
     cockpit: 'Active',
@@ -146,7 +146,7 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
                   <strong>First-gig matching:</strong> needs the open jobs from the order system, matched on area, availability and an easy first drive
                 </li>
                 <li>
-                  <strong>Decision rules:</strong> only the accept variant the written criteria allow, second reviewer on suitability rejections
+                  <strong>Decision rules:</strong> only the accept variant the written criteria allow, Operations Manager / Team Lead confirmation on suitability rejections
                 </li>
                 <li>
                   <strong>Self-service in the chat:</strong> actions on the driver's own file that the assistant proposes and the driver confirms,
@@ -173,7 +173,7 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
               </li>
               <li>
                 <strong>Humans decide.</strong> The system blocks what the written rules don't allow, but a person makes every decision.
-                Suitability rejections need a second reviewer.
+                Suitability rejections are checked with an Operations Manager or Team Lead.
               </li>
               <li>
                 <strong>Reasons can be explained.</strong> Generic reason codes, a right to an explanation and a review, answered within two

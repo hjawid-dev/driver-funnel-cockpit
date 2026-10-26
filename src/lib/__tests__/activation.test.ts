@@ -32,14 +32,14 @@ import { HOUR } from '../time';
 
 describe('welcomeCallState', () => {
   const acc = (hAgo: number) => mk({ decision: { type: 'accepted', at: NOW - hAgo * HOUR, by: 'x' } });
-  it('due within 24 h of acceptance', () => {
-    expect(welcomeCallState(acc(6), NOW)).toEqual({ state: 'due', label: 'Due in 18 h' });
+  it('does not create a mandatory call immediately after acceptance', () => {
+    expect(welcomeCallState(acc(6), NOW)).toEqual({ state: 'not_needed', label: 'Driver books in app' });
   });
-  it('overdue after 24 h', () => {
-    expect(welcomeCallState(acc(30), NOW)).toEqual({ state: 'overdue', label: 'Overdue 6 h' });
+  it('does not create an overdue welcome call after 24 h', () => {
+    expect(welcomeCallState(acc(30), NOW)).toEqual({ state: 'not_needed', label: 'Driver books in app' });
   });
-  it('missed, not overdue, once the driver is dormant', () => {
-    expect(welcomeCallState(acc(34 * 24), NOW)).toEqual({ state: 'missed', label: 'Missed' });
+  it('does not invent a missed welcome call for dormant drivers', () => {
+    expect(welcomeCallState(acc(34 * 24), NOW)).toEqual({ state: 'not_needed', label: 'Driver books in app' });
   });
   it('not needed once the first drive is booked (in the onboarding call)', () => {
     expect(welcomeCallState({ ...acc(30), firstGig: { bookedFor: NOW + 20 * HOUR } }, NOW).state).toBe('not_needed');

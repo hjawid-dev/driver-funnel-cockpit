@@ -100,10 +100,8 @@ export function Activation({ apps, all, gigs, now, onOpen }: Props) {
   const CallCell = ({ call }: { call: (typeof rows)[number]['call'] }) =>
     call.state === 'done' ? (
       <span className="text-ok font-medium">Done {shortDate(call.at)}</span>
-    ) : call.state === 'not_needed' ? (
-      <span className="text-muted">Not needed</span>
     ) : (
-      <span className={call.state === 'overdue' ? 'text-bad font-semibold' : call.state === 'missed' ? 'text-muted' : 'text-warn font-semibold'}>{call.label}</span>
+      <span className="text-muted">Driver books in app</span>
     );
 
   const GigCell = ({ a }: { a: Applicant }) =>
@@ -119,7 +117,7 @@ export function Activation({ apps, all, gigs, now, onOpen }: Props) {
         info={
           <>
             <p>Accepted drivers without a first gig. Target: a first gig within 14 days.</p>
-            <p className="text-muted">The first drive is booked in the onboarding call. If not: welcome call within 24 h. No gig booked after 7 days → book one with them. No gig in 14 days → call. After 30 days → dormant, re-engaged in a monthly batch.</p>
+            <p className="text-muted">The driver chooses a matching first drive in the app. No booking after 7 days → automatic reminder. No booking after 14 days → call. After 30 days → dormant, re-engaged in a monthly batch.</p>
             <p className="text-muted">A driver accepted before their extract arrived shows it in a 5-minute check, at the latest the day before the first drive; otherwise the drive goes to another driver.</p>
           </>
         }
@@ -160,7 +158,7 @@ export function Activation({ apps, all, gigs, now, onOpen }: Props) {
               <th className="px-4 py-2.5 font-semibold">Driver</th>
               <th className="px-4 py-2.5 font-semibold">Accepted</th>
               <th className="px-4 py-2.5 font-semibold">Status</th>
-              <th className="px-4 py-2.5 font-semibold">Welcome call</th>
+              <th className="px-4 py-2.5 font-semibold">Self-service</th>
               <th className="px-4 py-2.5 font-semibold">First gig</th>
               <th className="px-4 py-2.5 font-semibold">Why not yet</th>
               <th className="px-4 py-2.5 font-semibold">Flags</th>
@@ -214,7 +212,7 @@ export function Activation({ apps, all, gigs, now, onOpen }: Props) {
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
                 <div>
-                  <div className="text-muted">Welcome call</div>
+                  <div className="text-muted">Self-service</div>
                   <CallCell call={call} />
                 </div>
                 <div>

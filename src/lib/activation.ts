@@ -1,5 +1,5 @@
 import type { Applicant, Gig, OpsActivationReason } from './types';
-import { DAY, HOUR, formatDuration } from './time';
+import { DAY } from './time';
 import { deriveStage } from './stage';
 import { needsExtract } from './extract';
 import { firstGigOffers } from './gigs';
@@ -8,7 +8,7 @@ export type ActivationBucket = 'on_track' | 'book' | 'call' | 'dormant';
 
 export const ACTIVATION_LABEL: Record<ActivationBucket, string> = {
   on_track: 'On track',
-  book: 'Book first gig',
+  book: 'First-drive reminder',
   call: 'Call driver',
   dormant: 'Dormant',
 };
@@ -34,22 +34,10 @@ export function activationFlags(a: Applicant): ActivationFlags {
   };
 }
 
-/** Welcome call within 24 h of acceptance, only when no first drive was booked in the onboarding call. */
-export type WelcomeCall =
-  | { state: 'done'; at: number }
-  | { state: 'not_needed'; label: string }
-  | { state: 'due'; label: string }
-  | { state: 'overdue'; label: string }
-  | { state: 'missed'; label: string };
-
-export function welcomeCallState(a: Applicant, now: number): WelcomeCall {
-  if (a.welcomeCallAt) return { state: 'done', at: a.welcomeCallAt };
-  // The first drive was booked (in the call or by the driver): nothing to chase.
-  if (a.firstGig?.bookedFor) return { state: 'not_needed', label: 'Not needed' };
-  // Dormant: the welcome call is no longer the next step; the monthly re-engagement batch is.
-  if (activationBucket(a.decision!.at, now) === 'dormant') return { state: 'missed', label: 'Missed' };
-  const due = a.decision!.at + 24 * HOUR;
-  return due > now ? { state: 'due', label: `Due in ${formatDuration(due - now)}` } : { state: 'overdue', label: `Overdue ${formatDuration(now - due)}` };
+/** Retained for legacy history; acceptance now leads to self-service offers, not a mandatory welcome call. */
+export type WelcomeCall = { state: 'done'; at: number } | { state: 'not_needed'; label: string };
+export function welcomeCallState(a: Applicant, _now: number): WelcomeCall {
+  return a.welcomeCallAt ? { state: 'done', at: a.welcomeCallAt } : { state: 'not_needed', label: 'Driver books in app' };
 }
 
 const PRIORITY: Record<ActivationBucket, number> = { call: 0, book: 1, on_track: 2, dormant: 3 };
@@ -65,8 +53,8 @@ export function byActivationPriority(now: number) {
 
 export const ACTIVATION_RULE: Record<ActivationBucket, string> = {
   on_track: 'Accepted under 7 days ago. Target: first gig within 14 days.',
-  book: '7–14 days since acceptance. Book a curated first gig now.',
-  call: 'No gig in 14 days. Call the driver: still interested, what is in the way?',
+  book: '7–14 days since acceptance without a booking. The driver receives a reminder to choose a matching first drive.',
+  call: 'No booking in 14 days. Call the driver: still interested, what is in the way?',
   dormant: 'Over 30 days without a first gig. Marked dormant; re-engage in a monthly batch.',
 };
 

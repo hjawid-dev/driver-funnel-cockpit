@@ -24,7 +24,7 @@ describe('todayItems', () => {
     ];
     const threads = [thread({ id: '1', status: 'waiting', reason: 'urgent' }), thread({ id: '2', status: 'waiting', reason: 'asked' }), thread({ id: '3' })];
     const items = todayItems(apps, threads, NOW);
-    expect(items.map((i) => i.key)).toEqual(['urgentchat', 'overdue', 'questions', 'activation']);
+    expect(items.map((i) => i.key)).toEqual(['urgentchat', 'overdue', 'questions']);
     expect(items[0]).toMatchObject({ tab: 'chat', label: '1 urgent question', urgent: true, ids: ['1'] });
     expect(items[1]).toMatchObject({ tab: 'review', label: '1 review overdue' });
   });
