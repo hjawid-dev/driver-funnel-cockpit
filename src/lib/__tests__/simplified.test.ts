@@ -6,7 +6,7 @@ import { deriveStage } from '../stage';
 import { closeIncident, markStep, problemSummary, seedJobs, setOutcome } from '../liveOps';
 import { filterItems, queueCounts, workItems } from '../workQueue';
 import { byOpsPriority, currentStep, firstToOpen, opsState } from '../opsState';
-import { activationTarget, incidentTarget, PRESENT_STEPS, reviewTarget } from '../present';
+import { activationTarget, checkTarget, docsTarget, incidentTarget, PRESENT_STEPS, reviewTarget, siteCallTarget } from '../present';
 import { inReview, mk, NOW } from './helpers';
 
 describe('the candidate queue', () => {
@@ -92,9 +92,15 @@ describe('presentation mode', () => {
   const gigs = generateGigs(at);
   const jobs = seedJobs(apps, at, { asInCase: true });
 
-  it('has five steps: Part 1 first, each part the problem before the fix', () => {
-    expect(PRESENT_STEPS.map((s) => s.key)).toEqual(['incident', 'playbook', 'funnel', 'review', 'activate']);
-    expect(PRESENT_STEPS.map((s) => `${s.part}${s.kind}`)).toEqual(['1Problem', '1Fix', '2Problem', '2Fix', '2Fix']);
+  it('runs Part 1 first, and each part shows the problem before its fixes', () => {
+    expect(PRESENT_STEPS.map((s) => s.key)).toEqual(['incident', 'playbook', 'prevent', 'sitecall', 'funnel', 'docs', 'queue', 'review', 'activate']);
+    expect(PRESENT_STEPS.map((s) => `${s.part}${s.kind}`)).toEqual(['1Problem', '1Fix', '1Fix', '1Fix', '2Problem', '2Fix', '2Fix', '2Fix', '2Fix']);
+  });
+
+  it('opens a pickup nobody confirmed, a new site to call, and a file with documents missing', () => {
+    expect(checkTarget(jobs, at)?.driverName).toBe('Omar Khalil');
+    expect(siteCallTarget(jobs, at)?.driverName).toBe('Linnea Björk');
+    expect(docsTarget(apps, gigs, at)?.name).toBe('Nora Axelsson');
   });
 
   it('opens Elin for review, a driver who needs a push to a first gig, and the case', () => {

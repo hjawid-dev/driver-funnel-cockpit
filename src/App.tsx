@@ -29,7 +29,7 @@ import { Proposed } from './components/ui';
 import { FunnelKpis, FunnelStages } from './components/FunnelOverview';
 import { WorkQueue } from './components/WorkQueue';
 import { filterItems, QUEUE_FILTER_LABEL, queueCounts, workItems, type QueueFilter } from './lib/workQueue';
-import { activationTarget, incidentTarget, PRESENT_STEPS, reviewTarget } from './lib/present';
+import { activationTarget, checkTarget, docsTarget, incidentTarget, PRESENT_STEPS, reviewTarget, siteCallTarget } from './lib/present';
 
 /**
  * Two connected jobs, one page each.
@@ -350,15 +350,35 @@ export default function App() {
     setShowReport(false);
     setShowHubspot(false);
     setOpenId(null);
-    if (step.key === 'incident' || step.key === 'playbook') {
+    const top = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+    const live = (id: string | null) => {
       setPage('live');
-      setLiveSel(incidentTarget(jobs, now)?.id ?? null);
-      if (step.key === 'incident') window.scrollTo({ top: 0, behavior: 'smooth' });
-      else setTimeout(() => document.getElementById('playbook')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+      setLiveSel(id);
+    };
+    if (step.key === 'incident') {
+      live(incidentTarget(jobs, now)?.id ?? null);
+      top();
+    } else if (step.key === 'playbook') {
+      live(incidentTarget(jobs, now)?.id ?? null);
+      setTimeout(() => document.getElementById('playbook')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    } else if (step.key === 'prevent') {
+      live(checkTarget(jobs, now)?.id ?? null);
+      top();
+    } else if (step.key === 'sitecall') {
+      live(siteCallTarget(jobs, now)?.id ?? null);
+      top();
     } else if (step.key === 'funnel') {
       setPage('funnel');
       setFilter('action');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      top();
+    } else if (step.key === 'docs') {
+      setPage('funnel');
+      setFilter('missing');
+      setOpenId(docsTarget(apps, gigs, now)?.id ?? null);
+    } else if (step.key === 'queue') {
+      setPage('funnel');
+      setFilter('review');
+      setTimeout(() => document.getElementById('queue')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
     } else if (step.key === 'review') {
       setPage('funnel');
       setFilter('review');
@@ -437,7 +457,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={startPresenting}
-                  title="Presentation mode: five steps through the case, from fresh demo data"
+                  title="Presentation mode: the case step by step, from fresh demo data"
                   className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white"
                 >
                   <Presentation size={15} aria-hidden /> <span className="hidden sm:inline">Present</span>
@@ -470,7 +490,7 @@ export default function App() {
             <>
               <FunnelKpis kpis={kpis} baseline={baseline} onReport={() => setShowReport(true)} />
               <FunnelStages funnel={funnel} onStage={onStage} />
-              <section id="queue" aria-labelledby="queue-title" className="scroll-mt-4">
+              <section id="queue" aria-labelledby="queue-title" className="scroll-mt-[calc(var(--present-top,0px)+1rem)]">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <h2 id="queue-title" className="flex items-center gap-1.5 text-sm font-semibold">
                     Candidates

@@ -7,6 +7,7 @@ import {
   CAUSE_LABEL,
   causeFromReason,
   cancelPayFor,
+  ASSIST_MS,
   CHECK_24_MS,
   CHECK_60_MS,
   closeIncident,
@@ -15,11 +16,13 @@ import {
   customerUpdate,
   driverStatus,
   escalate,
+  ESCALATE_BEFORE_DECIDE_MS,
   ESCALATION_LABEL,
   escalation,
   incidentClock,
   jobAlert,
   markStep,
+  NO_KEYS_ASSIST_MS,
   needsConfirmation,
   needsSiteCall,
   OUTCOME_LABEL,
@@ -486,7 +489,7 @@ function CasePrevention({ j, open }: { j: Job; open?: boolean }) {
           Reconfirm. No reply by <span className="num">{hm(t60 + REPLY_WAIT_60_MS)}</span>: call the {j.backup.role.toLowerCase()}, and warn the customer early.
         </li>
         <li>
-          <strong>4 · On arrival.</strong> {firstName(j)} taps "I'm here". No keys: ops knows at once, not after 25 minutes.
+          <strong>4 · On arrival.</strong> {firstName(j)} taps "I'm here". No keys after {NO_KEYS_ASSIST_MS / 60_000} minutes: the assistant texts the contact from a fixed template, and a person takes over {ASSIST_MS / 60_000} minutes later, at the latest {ESCALATE_BEFORE_DECIDE_MS / 60_000} minutes before the customer must decide. Ops knows at once, not after 25 minutes.
         </li>
       </ol>
     </CollapsibleSection>

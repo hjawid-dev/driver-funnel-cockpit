@@ -75,7 +75,7 @@ Details sit behind a click: the main view shows the problem and the step to take
 - **Driver's phone and chat:** from a candidate ("Driver's view") or a pickup ("Driver's chat").
 - **Driver questions:** in Live Ops. The assistant says it is an AI. Its weekly numbers are folded away.
 - **Demo menu:** the clock icon. It holds the simulated time (+2 h, +1 day, +3 days), what ran by itself, the automated-texts switch, the HubSpot mapping, and Reset demo.
-- **Present:** five steps through the case, Part 1 first. Each part shows the problem, then the fix: a stuck driver, the playbook; the funnel, review within 48 h, from accepted to active. The app stays usable at every step. ← and → move between steps.
+- **Present:** the case step by step, Part 1 first, each part the problem before its fixes. Part 1: a stuck driver; the playbook; a check before every pickup; a call to new sites and pilots the day before. Part 2: the funnel; reminders for missing documents; review within 48 h; the written criteria; from accepted to active. The app stays usable at every step. ← and → move between steps.
 
 ## Run it
 
