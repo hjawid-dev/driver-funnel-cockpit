@@ -1,8 +1,8 @@
-# Driver Ops
+# Driver Funnel Cockpit
 
-A clickable prototype for a car-relocation service's operations case. Demo data only, no real people. Built by Hjalmar Widlund with Claude Code.
+A clickable workspace for Live Ops, driver onboarding and activation in a car-relocation service's operations case. Demo data only, no real people. Built by Hjalmar Widlund with Claude Code and Codex.
 
-**Live:** https://driver-funnel-cockpit-lite.vercel.app
+**Live:** https://driver-funnel-cockpit.vercel.app
 
 Two connected jobs, one page each:
 

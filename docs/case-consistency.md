@@ -1,6 +1,6 @@
 # Case consistency: implementation and verification
 
-Implemented locally on 26 October 2026 from Lite commit `39a498f62c07157fad62bbd3ca6034a425c87a7b`. This is the same application and visual system, with corrected domain rules and supporting controls.
+Domain rules and supporting controls for Live Ops, driver onboarding and activation, implemented on 26 October 2026.
 
 ## Changes against the review
 
@@ -46,4 +46,4 @@ Browser verification covers: disabled acceptance until checks/call are logged; a
 - The accompanying Google Slides update distinguishes the 59-volume gap from identified lost individuals, uses a comparable mean decision time, defines proposed cohort windows and labels the ~46 scenario as illustrative.
 - The brief's platform wording should be clarified with the interviewer; the submission note accurately names the tools used. No rebuild in another platform was performed.
 - Live AI/model credentials and real integrations were not certified by these frontend/domain tests. Existing numerical report checks remain limited to numbers; generated interpretation should still be reviewed.
-- Published from the reviewed Lite source. Production verification is recorded separately after deployment.
+- Published from the reviewed source. Production verification is recorded separately after deployment.

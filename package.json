@@ -1,5 +1,6 @@
 {
   "name": "driver-funnel-cockpit",
+  "description": "Driver Funnel Cockpit — Live Ops, driver onboarding and activation for the Flovi Operations Specialist case.",
   "private": true,
   "version": "0.1.0",
   "type": "module",
