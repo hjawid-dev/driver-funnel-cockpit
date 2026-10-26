@@ -23,13 +23,13 @@ export function reminderSilenced(a: Applicant, t: number): boolean {
 
 export function nudgeState(a: Applicant, now: number): NudgeState {
   // Scheduled nudges stop once the file is complete, or when the driver pauses or stops them.
-  const cutoff = Math.min(now, a.docsCompleteAt ?? Infinity);
+  const cutoff = Math.min(now, a.firstDocsSubmittedAt ?? a.docsCompleteAt ?? Infinity, a.decision?.at ?? Infinity);
   const scheduled = NUDGE_OFFSETS.map((o) => a.registeredAt + o).filter((t) => !reminderSilenced(a, t));
   const snooze = a.reminders?.snooze;
   if (snooze && !reminderSilenced({ ...a, reminders: { offAt: a.reminders?.offAt } }, snooze.until)) scheduled.push(snooze.until);
   scheduled.sort((x, y) => x - y);
   const autoSent = scheduled.filter((t) => t <= cutoff);
-  const pending = a.docsCompleteAt ? [] : scheduled.filter((t) => t > now);
+  const pending = a.firstDocsSubmittedAt || a.docsCompleteAt || a.decision ? [] : scheduled.filter((t) => t > now);
   const nextAt = pending[0] ?? null;
   const stopped = a.reminders?.offAt !== undefined && a.reminders.offAt <= now;
   const label = stopped
@@ -51,13 +51,13 @@ export function isNoResponse(a: Applicant, now: number): boolean {
 /** Items still outstanding, the extract first (slowest to arrive, so it gets asked for first). */
 export function outstandingDocs(a: Applicant): DocKey[] {
   const order: DocKey[] = ['extract', 'id', 'licence', 'photo'];
-  return order.filter((k) => a.docs[k] === 'missing' || a.docs[k] === 'pending');
+  return order.filter((k) => a.docs[k] === 'missing' || (k !== 'extract' && a.docs[k] === 'pending'));
 }
 
 const ASK: Record<DocKey, { missing: string; pending: string }> = {
   extract: {
-    missing: 'Order your own extract from the criminal record (belastningsregistret) at polisen.se. It takes a few days, so start today. You will show it to us in the onboarding call; we never keep a copy.',
-    pending: 'Your extract is on its way from Polisen. Tell us when it arrives and we book your onboarding call, where you also show it. We never keep a copy.',
+    missing: 'Order your own extract from the criminal record (belastningsregistret) at polisen.se. It takes a few days, so start today. Show it in the onboarding call if it has arrived, otherwise in a short check before your first drive. Do not wait for it to book your call. We never keep a copy.',
+    pending: 'Your extract is on its way. Book your onboarding call now; show the extract before your first drive, without sending a copy; we never keep a copy.',
   },
   id: { missing: 'Verify your ID with BankID. It takes one minute.', pending: 'Finish your BankID verification.' },
   licence: { missing: 'Upload a photo of the front and back of your driving licence.', pending: 'Finish uploading your driving licence.' },

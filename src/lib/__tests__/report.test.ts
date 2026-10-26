@@ -125,7 +125,7 @@ describe('the template report', () => {
     const text = reportToSlack(goodReport(), wf, { gaps: ['Do you have van jobs?'], source: 'ai', numbers: 12 });
     expect(text).toMatch(/^\*Driver funnel · week 43\*/);
     expect(text).toContain('“Do you have van jobs?”');
-    expect(text).toContain('all 12 numbers match the data');
+    expect(text).toContain('12 numbers occur in the cited facts');
   });
 });
 

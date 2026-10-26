@@ -49,14 +49,14 @@ export interface AutoEvent {
 const first = (a: Applicant) => a.name.split(' ')[0];
 const time = (ts: number) => formatDateTime(ts);
 
-export function automationEvents(apps: Applicant[], from: number, to: number): AutoEvent[] {
+function deriveAutomationEvents(apps: Applicant[], from: number, to: number): AutoEvent[] {
   const out: AutoEvent[] = [];
   for (const a of apps) {
     const push = (at: number, audience: AutoEvent['audience'], kind: AutoKind, title: string, body?: string) => {
       if (at > from && at <= to) out.push({ at, applicantId: a.id, name: a.name, audience, kind, title, ...(body ? { body } : {}) });
     };
     const decidedBy = (t: number) => !!a.decision && a.decision.at <= t;
-    const completeBy = (t: number) => !!a.docsCompleteAt && a.docsCompleteAt <= t;
+    const completeBy = (t: number) => (a.firstDocsSubmittedAt ?? a.docsCompleteAt ?? Infinity) <= t;
 
     // Reminders while the file is incomplete (2 h, 24 h, 72 h after registration).
     NUDGE_OFFSETS.forEach((o, i) => {
@@ -85,9 +85,9 @@ export function automationEvents(apps: Applicant[], from: number, to: number): A
     }
 
     // Review SLA alerts to owner + backup.
-    if (a.docsCompleteAt) {
-      const t24 = a.docsCompleteAt + 24 * HOUR;
-      const t48 = a.docsCompleteAt + 48 * HOUR;
+    if (!a.prequalIssue || !a.decision) {
+      const t24 = a.registeredAt + 24 * HOUR;
+      const t48 = a.registeredAt + 48 * HOUR;
       if (!decidedBy(t24)) push(t24, 'ops', 'sla_24', `SLA alert: ${a.name} has 24 h left for a decision`);
       if (!decidedBy(t48)) push(t48, 'ops', 'sla_overdue', `Overdue: ${a.name} has waited 48 h for a decision`);
     }
@@ -122,7 +122,7 @@ export function automationEvents(apps: Applicant[], from: number, to: number): A
         ? `Hi ${first(a)}, you're accepted. Pick your first drive below: short, easy jobs with ops on standby.`
         : `Hi ${first(a)}, you're accepted! One thing before your first drive: show us your criminal-record extract in a 5-minute video check when it arrives. Pick your first drive below; it starts at least 5 days from now so the extract has time to arrive.`,
     );
-    push(d.at, 'driver', 'offers', 'First-gig offers ready', 'Three easy jobs near you. Pick one and it is booked.');
+    push(d.at, 'driver', 'offers', 'First-gig offers ready', 'Check the current matching jobs in your application. If none fit, your owner follows up; no job is guaranteed until booked.');
     // The first drive is normally booked in the onboarding call; only if it wasn't does ops call within 24 h.
     if (!a.firstGig?.bookedFor) push(d.at + HOUR, 'ops', 'welcome_task', `Task: no first drive booked in the call. Welcome call to ${a.name}, due within 24 h`);
 
@@ -136,13 +136,13 @@ export function automationEvents(apps: Applicant[], from: number, to: number): A
     if (booking) {
       const by = booking - SHOW_BY_MS;
       if (!shownBy(by - DAY) && d.at < by - DAY) {
-        push(by - DAY, 'driver', 'extract_due', 'Show your extract by tomorrow', `Your first drive is ${time(booking)}. Show your extract by ${time(by)} in a 5-minute check, or the drive goes to another driver. Your acceptance stays.`);
+        push(by - DAY, 'driver', 'extract_due', 'Show your extract by tomorrow', `Your first drive is ${time(booking)}. Show your extract by ${time(by)} in a 5-minute check, or the drive is released for reassignment. Your acceptance stays.`);
         push(by - DAY, 'ops', 'extract_due', `Task: ${a.name} must show the extract by ${time(by)}, or the first drive is released`);
       }
     }
     const released = a.firstGig?.released;
     if (released) {
-      push(released.at, 'driver', 'released', 'Your first drive went to another driver', `The extract wasn't shown by the day before, so the drive ${time(released.bookedFor)} went to another driver. You're still accepted: show your extract and pick a new drive.`);
+      push(released.at, 'driver', 'released', 'Your first drive was released for reassignment', `The extract wasn't shown by the day before, so the drive ${time(released.bookedFor)} was released for reassignment. You're still accepted: show your extract and pick a new drive.`);
       push(released.at, 'ops', 'released', `First drive released: ${a.name} hadn't shown the extract (${time(released.bookedFor)})`);
     }
 
@@ -157,9 +157,25 @@ export function automationEvents(apps: Applicant[], from: number, to: number): A
     const done = (t: number) => !!gig?.doneAt && gig.doneAt <= t;
     if (!booked && !done(d.at + 7 * DAY)) push(d.at + 7 * DAY, 'ops', 'book_task', `Task: book a first gig for ${a.name} (7 days since acceptance)`);
     if (!done(d.at + 14 * DAY)) push(d.at + 14 * DAY, 'ops', 'call_task', `Task: call ${a.name}, no first gig after 14 days`);
-    if (!done(d.at + 30 * DAY)) push(d.at + 30 * DAY, 'ops', 'dormant', `${a.name} marked dormant (label only, nothing is blocked)`);
+    if (!booked && !done(d.at + 30 * DAY)) push(d.at + 30 * DAY, 'ops', 'dormant', `${a.name} marked dormant (label only, nothing is blocked)`);
   }
   return out.sort((x, y) => x.at - y.at);
+}
+
+/** Materialize notifications before a mutation so later state cannot rewrite a sent message. */
+export function materializeAutomation(a: Applicant, now: number, afterMutation = false): Applicant {
+  if (a.automationRecordedUntil === now && !afterMutation) return a;
+  const key = (e: AutoEvent) => `${e.kind}:${e.audience}:${e.at}`;
+  const history = new Map((a.automationHistory ?? []).map(e => [key(e), e]));
+  for (const event of deriveAutomationEvents([a], afterMutation ? now - 1 : a.automationRecordedUntil ?? a.registeredAt - 1, now)) if (!history.has(key(event))) history.set(key(event), event);
+  return { ...a, automationHistory: [...history.values()].sort((a,b) => a.at-b.at), automationRecordedUntil: now };
+}
+
+export function automationEvents(apps: Applicant[], from: number, to: number): AutoEvent[] {
+  return apps.flatMap(a => [
+    ...(a.automationHistory ?? []).filter(e => e.at > from && e.at <= to),
+    ...deriveAutomationEvents([a], Math.max(from, a.automationRecordedUntil ?? -Infinity), to),
+  ]).sort((a,b) => a.at-b.at);
 }
 
 /** A question handed to a person and still unanswered alerts ops: after 15 minutes, or 5 when something is wrong on a drive. */
@@ -221,7 +237,7 @@ export function liveOpsEvents(jobs: Job[], from: number, to: number): AutoEvent[
     // The assistant takes a missing key by itself; a person comes in when its minutes run out (taps and chat are logged where they happen).
     const start = assistStart(j, to);
     if (start !== null && start !== j.problemAt && inWindow(start)) {
-      out.push({ ...base, at: start, kind: 'live_assist', title: `The assistant took a stuck pickup (${j.id}): texted the ${j.contact.role.toLowerCase()} and the ${j.backup.role.toLowerCase()}.` });
+      out.push({ ...base, at: start, kind: 'live_assist', title: `The assistant took a stuck pickup (${j.id}): asked the driver what is wrong. No contact message is recorded until the driver confirms it.` });
     }
     const alert = jobAlert(j, to);
     if (alert && (alert.kind === 'not_arrived' || alert.why === 'time' || alert.why === 'deadline') && inWindow(alert.at)) {

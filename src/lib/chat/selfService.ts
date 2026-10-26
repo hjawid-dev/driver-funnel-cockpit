@@ -155,7 +155,7 @@ export function applyChatAction(a: Applicant, action: ChatAction, apps: Applican
     }
     case 'pick_gig': {
       const g = gigs.find((x) => x.id === action.gigId)!;
-      return { ok: true, applicant: log(bookOffer(a, g, now)), done: `Your first drive is booked: ${g.from} to ${g.to}, ${formatDateTime(g.at)}. Ops calls you before it.` };
+      return { ok: true, applicant: log(bookOffer(a, g, now, apps)), done: `Your first drive is booked: ${g.from} to ${g.to}, ${formatDateTime(g.at)}. Ops calls you before it.` };
     }
     case 'remind_later':
       return {

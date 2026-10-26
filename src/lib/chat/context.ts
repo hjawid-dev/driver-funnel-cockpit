@@ -9,7 +9,7 @@ import { extractState, needsExtract, showBy } from '../extract';
  * What the assistant gets to know about the driver: first name and where they are in the flow.
  * Nothing else leaves the app: no ID numbers, no notes, nothing from the extract.
  */
-const DOC_LABEL = { id: 'BankID', licence: 'licence photo', photo: 'profile photo', extract: 'criminal-record extract' } as const;
+const DOC_LABEL = { id: 'identity check', licence: 'licence photo', photo: 'profile photo', extract: 'criminal-record extract' } as const;
 
 export function driverContext(a: Applicant | null, gigs: Gig[], now: number, jobs: Job[] = []): DriverContext {
   if (!a) return {};
@@ -17,12 +17,13 @@ export function driverContext(a: Applicant | null, gigs: Gig[], now: number, job
   const facts: string[] = [];
   const missing = (Object.keys(DOC_LABEL) as (keyof typeof DOC_LABEL)[]).filter((k) => {
     const s = a.docs[k];
+    if (k === 'id' && a.idMethod === 'manual' && s === 'uploaded') return false;
     return k === 'extract' ? s === 'missing' : s === 'missing' || s === 'failed' || s === 'pending';
   });
 
   const status: Record<typeof step, string> = {
     prequal_review: 'Applied; one basic requirement may not be met, a person is reviewing it',
-    id: 'Applying: next step is BankID',
+    id: 'Applying: verify identity with BankID or submit ID for manual review',
     licence: 'Applying: next step is the licence photo',
     photo: 'Applying: next step is the profile photo',
     extract: 'Applying: next step is ordering the criminal-record extract',

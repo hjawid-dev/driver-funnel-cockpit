@@ -3,7 +3,7 @@ import { Camera, CircleAlert, CircleCheck, CircleX, Clock, Scale, ShieldCheck, S
 import type { Applicant, RejectReason } from '../lib/types';
 import { REJECT_REASONS } from '../lib/types';
 import { CALL_AGENDA, DECISION_LABEL, evaluate, NEEDS_SECOND_REVIEWER, noteLooksSensitive, type CheckResult } from '../lib/criteria';
-import { applyDecision, requestNewPhoto, setExtractShown, setPhotoApproved, type ActionResult } from '../lib/actions';
+import { completeOnboarding, confirmSecondReview, receiveDocument, applyDecision, requestNewPhoto, setExtractShown, setPhotoApproved, type ActionResult } from '../lib/actions';
 import { CollapsibleSection, DrawerSection, Proposed } from './ui';
 import { InfoTip } from './InfoTip';
 
@@ -12,12 +12,13 @@ export const BACKUP_REVIEWER = 'Sofia (backup)';
 interface Props {
   a: Applicant;
   now: number;
+  preDrive?: boolean;
   onUpdate: (next: Applicant) => void;
   onResult: (r: ActionResult, close?: boolean) => void;
 }
 
 const VARIANT_HINT = {
-  accepted: 'All must-haves pass and no borderline rule applies.',
+  accepted: 'Decision checks passed; any pre-drive condition is shown on the next step.',
   accepted_simple: 'Licence 1–2 years: the driver starts on simple drives first.',
   accepted_flagged: 'Limited availability: flagged for activation follow-up.',
 } as const;
@@ -28,28 +29,28 @@ const firstSentence = (s: string) => {
   return i === -1 ? s : s.slice(0, i + 1);
 };
 
-export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
+export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Props) {
   const ev = evaluate(a);
   const [secondConfirmed, setSecondConfirmed] = useState(false);
   const [secondName, setSecondName] = useState(BACKUP_REVIEWER);
-  const [reason, setReason] = useState<RejectReason | ''>(ev.suggestedReject ?? '');
+  const [reason, setReason] = useState<RejectReason | ''>(preDrive ? 'requirements_not_met' : ev.suggestedReject ?? '');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   // Reject starts folded away unless the rules already point to a reason.
-  const [showReject, setShowReject] = useState(!!ev.suggestedReject);
+  const [showReject, setShowReject] = useState(preDrive || !!ev.suggestedReject);
 
   const photoSubmitted = a.docs.photo !== 'missing' && a.docs.photo !== 'pending';
   const extractReady = a.docs.extract === 'ready';
   const needsSecond = !!reason && NEEDS_SECOND_REVIEWER.includes(reason);
-  const secondOk = !needsSecond || (secondConfirmed && secondName.trim().length > 0);
+  const secondOk = !needsSecond || (!!a.secondReview && a.secondReview.reason === reason && a.secondReview.by === secondName && a.secondReview.at <= now);
   const sensitive = noteLooksSensitive(note);
-  const canAccept = ev.acceptBlockedBy.length === 0;
+  const canAccept = ev.acceptBlockedBy.length === 0 && !!a.onboardingCompletedAt && a.onboardingCompletedAt <= now;
   const canReject = !!reason && (reason !== 'other' || note.trim().length > 0) && secondOk && !sensitive;
 
   const run = (r: ActionResult) => {
     if (!r.ok) return setError(r.error);
     setError(null);
-    onResult(r, true);
+    onResult(r, r.applicant.decision?.type === 'rejected');
   };
 
   const accept = () => run(applyDecision(a, { type: ev.acceptType }, now));
@@ -58,7 +59,7 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
 
   return (
     <>
-      <DrawerSection
+      {!preDrive && <DrawerSection
         title="Criteria"
         aside={<Proposed title="My proposed written criteria, not given in the case: to agree with the team, and to check with policy and legal." />}
         info={
@@ -94,6 +95,8 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
                       Extract shown in call (nothing stored)
                     </Tick>
                   )}
+                  {m.key === 'licence' && a.docs.licence === 'uploaded' && <button type="button" onClick={() => onUpdate(receiveDocument(a, 'licence', 'verified', now))} className="mt-1 text-xs font-semibold text-indigo">Log licence validity and years verified</button>}
+                  {m.key === 'id' && a.docs.id === 'uploaded' && <button type="button" onClick={() => onUpdate(receiveDocument({ ...a, idMethod: 'manual' }, 'id', 'verified', now))} className="mt-1 text-xs font-semibold text-indigo">Log manual identity check completed</button>}
                   {m.key === 'photo' && photoSubmitted && (
                     <Tick checked={!!a.photoApproved} onChange={(v) => onUpdate(setPhotoApproved(a, v, now))}>
                       Photo meets the standard
@@ -118,9 +121,9 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
             </ul>
           )}
         </div>
-      </DrawerSection>
+      </DrawerSection>}
 
-      <CollapsibleSection title="Onboarding call agenda" summary="15 min · 6 points">
+      {!preDrive && <CollapsibleSection title="Onboarding call agenda" summary="15 min · 6 points">
         <ol className="space-y-1 text-sm">
           {CALL_AGENDA.map((x, i) => (
             <li key={x} className="flex gap-2">
@@ -129,7 +132,9 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
             </li>
           ))}
         </ol>
-      </CollapsibleSection>
+      </CollapsibleSection>}
+
+      {!preDrive && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!a.onboardingCompletedAt} disabled={!!a.onboardingCompletedAt} onChange={() => onUpdate(completeOnboarding(a, now))} />Log onboarding call completed; ready to decide and book first drive</label>}
 
       <DrawerSection
         title="Decision"
@@ -137,7 +142,7 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
       >
         <div className="space-y-4">
           {/* Accept */}
-          <div className="rounded-lg border border-lavender p-3">
+          {!preDrive && <div className="rounded-lg border border-lavender p-3">
             <button
               type="button"
               disabled={!canAccept}
@@ -155,10 +160,10 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
                 ))}
               </ul>
             )}
-          </div>
+          </div>}
 
           {/* Request new photo */}
-          {photoSubmitted && (
+          {!preDrive && photoSubmitted && (
             <button
               type="button"
               onClick={() => run(requestNewPhoto(a, now))}
@@ -202,8 +207,8 @@ export function ReviewPanel({ a, now, onUpdate, onResult }: Props) {
               <div className="rounded-md bg-warn-bg p-2.5 text-sm">
                 <p className="font-semibold text-warn">Suitability rejections are decided by owner + backup together</p>
                 <label className="mt-2 flex items-center gap-2">
-                  <input type="checkbox" checked={secondConfirmed} onChange={(e) => setSecondConfirmed(e.target.checked)} className="h-4 w-4 accent-indigo" />
-                  Second reviewer confirmed
+                  <input type="checkbox" checked={secondConfirmed} onChange={(e) => { setSecondConfirmed(e.target.checked); if (e.target.checked && reason) onUpdate(confirmSecondReview(a, reason, secondName, now)); }} className="h-4 w-4 accent-indigo" />
+                  Confirm as backup reviewer (demo role): separate logged check
                 </label>
                 <label className="mt-2 flex items-center gap-2 text-xs">
                   <span className="text-muted">Backup reviewer</span>

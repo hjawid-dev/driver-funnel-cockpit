@@ -30,7 +30,8 @@ export function buildTimeline(a: Applicant, now: number): TimelineEvent[] {
   n.manual.forEach((t) => ev.push({ at: t, kind: 'nudge', label: 'Manual nudge', detail: 'Logged by ops' }));
   if (n.nextAt) ev.push({ at: n.nextAt, kind: 'nudge', label: `Auto-nudge ${n.autoSent.length + 1}`, detail: 'Scheduled', upcoming: true });
 
-  if (a.docsCompleteAt) ev.push({ at: a.docsCompleteAt, kind: 'complete', label: 'File complete', detail: 'Auto-queued for review' });
+  const submitted = a.firstDocsSubmittedAt ?? a.docsCompleteAt;
+  if (submitted) ev.push({ at: submitted, kind: 'complete', label: 'File complete', detail: 'Auto-queued for review' });
 
   if (a.decision) {
     const d = a.decision;

@@ -181,7 +181,7 @@ export function templateReport(wf: WeeklyFacts): WeeklyReport {
   const rate = get(wf, 'biggest_drop_rate');
   const lost = get(wf, 'biggest_drop_lost');
   const leak: ReportItem = rate && lost
-    ? { text: `${rate.label.split(', share')[0]}: ${fmt(rate)} get through, ${lost.value} people lost so far.`, facts: [rate.id, lost.id] }
+    ? { text: `${lost.label}: ${lost.value} waiting. This is current work, not measured loss.`, facts: [lost.id] }
     : { text: `Files waiting for a decision: ${get(wf, 'review_queue')?.value ?? 0}.`, facts: ['review_queue'] };
 
   const actions: ReportItem[] = [];
@@ -211,7 +211,7 @@ export function reportToSlack(r: WeeklyReport, wf: WeeklyFacts, extras: { gaps: 
     '*What changed*',
     ...r.changes.map((c) => `${TONE_ICON[c.tone]} ${c.text}`),
     '',
-    `*Biggest leak*\n${r.leak.text}`,
+    `*Largest pending stage*\n${r.leak.text}`,
     '',
     '*Suggested this week*',
     ...r.actions.map((a) => `• ${a.text}`),
@@ -220,7 +220,7 @@ export function reportToSlack(r: WeeklyReport, wf: WeeklyFacts, extras: { gaps: 
   lines.push(
     '',
     extras.source === 'ai'
-      ? `_Written by AI from the cockpit's numbers. Number check: all ${extras.numbers} numbers match the data._`
+      ? `_Written by AI from the cockpit's numbers. Numeric check: ${extras.numbers} numbers occur in the cited facts; narrative meaning still needs review._`
       : `_Written from the cockpit's numbers by a template._`,
   );
   return lines.join('\n');

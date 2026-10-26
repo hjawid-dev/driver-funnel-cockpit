@@ -1,3 +1,4 @@
+import { bookFirstGig } from './actions';
 import type { Applicant, Gig } from './types';
 import { deriveStage } from './stage';
 import { formatDateTime } from './time';
@@ -12,6 +13,7 @@ export interface Application {
   meetsMinAge: boolean;
   availability: 'full' | 'limited';
   availabilityNote?: string;
+  availabilitySlots?: Slot[];
 }
 
 /** A new applicant from the driver view. Nobody is rejected here: an unmet requirement is flagged for a person. */
@@ -28,6 +30,8 @@ export function createApplicant(input: Application, apps: Applicant[], now: numb
     availability: input.availability,
     ...(input.availability === 'limited' && input.availabilityNote ? { availabilityNote: input.availabilityNote } : {}),
     registeredAt: now,
+    owner: 'Hjalmar', backup: 'Sofia',
+    ...(input.availabilitySlots ? { availabilitySlots: input.availabilitySlots } : {}),
     docs: { licence: 'missing', id: 'missing', extract: 'missing', photo: 'missing' },
     nudges: [],
     log,
@@ -45,11 +49,11 @@ export const SLOT_LABEL: Record<Slot, string> = {
   weekend: 'Weekends',
 };
 
-export function availabilityFrom(slots: Slot[]): Pick<Application, 'availability' | 'availabilityNote'> {
-  if (slots.includes('weekday_day')) return { availability: 'full' };
+export function availabilityFrom(slots: Slot[]): Pick<Application, 'availability' | 'availabilityNote' | 'availabilitySlots'> {
+  if (slots.includes('weekday_day')) return { availability: 'full', availabilitySlots: [...slots] };
   const order: Slot[] = ['weekday_evening', 'weekend'];
   const note = order.filter((s) => slots.includes(s)).map((s) => SLOT_LABEL[s].toLowerCase()).join(' and ');
-  return { availability: 'limited', availabilityNote: note.charAt(0).toUpperCase() + note.slice(1) };
+  return { availability: 'limited', availabilitySlots: [...slots], availabilityNote: note.charAt(0).toUpperCase() + note.slice(1) };
 }
 
 const issueFor = (licenceYears: number, meetsMinAge: boolean) => (licenceYears < 1 ? 'licence' : !meetsMinAge ? 'age' : undefined);
@@ -78,7 +82,7 @@ export function remindWhenQualified(a: Applicant, now: number): Applicant {
 
 /** What an applicant can look back at: their answers, and every step before the one they're on. */
 export type ReviewKey = 'answers' | 'id' | 'licence' | 'photo' | 'extract' | 'call';
-const APPLY_STEPS = ['id', 'licence', 'photo', 'extract', 'call', 'decision'] as const;
+const APPLY_STEPS = ['extract', 'id', 'licence', 'photo', 'call', 'decision'] as const;
 
 export function reviewableSteps(a: Applicant): ReviewKey[] {
   const i = (APPLY_STEPS as readonly string[]).indexOf(driverStep(a));
@@ -121,20 +125,20 @@ export function driverStep(a: Applicant): DriverStep {
   if (stage === 'active') return 'active';
   if (stage === 'accepted') return a.firstGig?.bookedFor ? 'booked' : 'first_gig';
   if (a.prequalIssue) return 'prequal_review';
-  if (a.docs.id !== 'verified') return 'id';
+  if (a.docs.extract === 'missing') return 'extract';
+  if (a.docs.id !== 'verified' && !(a.idMethod === 'manual' && a.docs.id === 'uploaded')) return 'id';
   if (a.docs.licence === 'missing' || a.docs.licence === 'pending') return 'licence';
   if (a.docs.photo === 'missing' || a.docs.photo === 'pending') return 'photo';
-  // Ordered is enough: the extract comes by post, so the call and the decision don't wait for it.
-  if (a.docs.extract === 'missing') return 'extract';
+  // Ordered is enough: the decision does not wait for the post.
   if (!a.callAt) return 'call';
   return 'decision';
 }
 
 export const STEP_ORDER: { key: DriverStep; label: string }[] = [
+  { key: 'extract', label: 'Extract' },
   { key: 'id', label: 'ID' },
   { key: 'licence', label: 'Licence' },
   { key: 'photo', label: 'Photo' },
-  { key: 'extract', label: 'Extract' },
   { key: 'call', label: 'Call' },
   { key: 'decision', label: 'Decision' },
   { key: 'first_gig', label: 'First drive' },
@@ -152,10 +156,7 @@ export function bookCall(a: Applicant, at: number, now: number): Applicant {
   return { ...a, callAt: at, log: [...a.log, { at: now, text: `Onboarding call booked by applicant for ${formatDateTime(at)}` }] };
 }
 
-export function bookOffer(a: Applicant, gig: Gig, now: number): Applicant {
-  return {
-    ...a,
-    firstGig: { ...a.firstGig, gigId: gig.id, bookedFor: gig.at },
-    log: [...a.log, { at: now, text: `First gig picked by driver: ${gig.from} → ${gig.to}, ${formatDateTime(gig.at)}` }],
-  };
+export function bookOffer(a: Applicant, gig: Gig, now: number, apps: Applicant[] = [a]): Applicant {
+  const result = bookFirstGig(a, gig, now, apps);
+  return result.ok ? result.applicant : a;
 }

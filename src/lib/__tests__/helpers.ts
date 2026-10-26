@@ -20,5 +20,5 @@ export function mk(over: Partial<Applicant> = {}): Applicant {
 
 /** Under review with a complete file, photo approved and extract shown: a clean accept. */
 export function inReview(over: Partial<Applicant> = {}): Applicant {
-  return mk({ docsCompleteAt: NOW - 3 * 3_600_000, photoApproved: true, extractShown: true, ...over });
+  return mk({ onboardingCompletedAt: NOW - 3600000, docsCompleteAt: NOW - 3 * 3_600_000, photoApproved: true, extractShown: true, ...over });
 }

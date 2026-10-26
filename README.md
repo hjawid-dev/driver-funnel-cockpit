@@ -39,10 +39,10 @@ Details sit behind a click: the main view shows the problem and the step to take
    - **First-gig activation.**
 
    Each shows the live demo number, its target, and the case's own baseline on a separate line, so the two are never mixed.
-2. **Where candidates get stuck.** Registered → Docs submitted → Reviewed → Accepted → Active, with the share who moved on and the biggest drop-off marked. A click on a stage opens the people who are there now.
+2. **Where candidates get stuck.** Registered → Docs submitted → Reviewed → Accepted → Active, with all-history reach, ratios that include work in progress, and the current queues. Waiting applicants are not labelled lost. A click on a stage opens the people who are there now.
 3. **One candidate queue.** Each row shows who, where they are, why now and the next action: request documents, review and decide, book a first gig, call the driver. Filters: Needs action, Missing documents, In review, Awaiting first gig, All applicants. The first 8 rows show, the rest behind "Show all".
 4. **Candidate panel.** It shows the next step at the top, then the written criteria:
-   - **Must-have:** licence, BankID, photo, and the criminal-record extract shown before the first drive, never stored.
+   - **Must-have:** licence, ID verified with BankID or manually, photo, and the criminal-record extract shown before the first drive, never stored.
    - **Borderline:** a written rule decides.
    - **Reject:** always with a reason code.
 
@@ -87,3 +87,11 @@ npm run eval     # the AI checks (needs ANTHROPIC_API_KEY)
 ```
 
 Stack: React 18, TypeScript, Vite, Tailwind, Claude Haiku for the assistant and the report. Every push to `main` deploys through Vercel.
+
+## Case-consistency corrections (26 October 2026)
+
+The prototype now uses the registration-based 48-hour clock, preserves first-submission history, supports manual ID review, and shares real-job booking rules across ops, driver and chat views. A booking cannot activate a driver: delivery of the booked first job is required. Live Ops separates incident resolution from transport completion and retains rescheduling as owned work until a replacement transport is booked.
+
+See [implementation and metric definitions](docs/case-consistency.md) and the [short submission note](docs/submission-note.md). The four primary metrics have two visible guardrails. Document completion is defined within seven days; pending stages are not labelled lost. Mean decision time, cohort conversion and unknown customer feedback are reported explicitly.
+
+Data model v9 starts a fresh demo for older saves; v9 reloads preserve absolute timestamps. External services remain simulated. Nothing is deployed by running the local checks.

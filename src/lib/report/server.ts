@@ -34,7 +34,7 @@ You get this week's facts as JSON, one per line: id, label, value, unit, previou
 Write in English, plain and specific, like a teammate posting in Slack:
 - headline: one sentence with the most important thing this week.
 - changes: exactly 3 items: the biggest movements, or statuses that matter most. Give each a tone that matches its facts: "good" only if every fact it cites is good news or neither, and at least one is good; "bad" the same way for bad news; "neutral" when the facts are mixed or neither.
-- leak: one sentence on where the funnel loses the most people right now.
+- leak: one sentence on the largest pending stage. Counts include work in progress; never call waiting people lost or assume they dropped out.
 - actions: exactly 3 concrete things ops can do this week, each tied to the facts.
 
 Rules for numbers (a check rejects the report otherwise):
@@ -51,7 +51,7 @@ const num = (v: unknown, max = 100_000) => typeof v === 'number' && Number.isFin
 export function validateFacts(body: unknown): WeeklyFacts | null {
   const wf = (body as { facts?: WeeklyFacts })?.facts;
   if (!wf || !Number.isInteger(wf.week) || wf.week < 1 || wf.week > 53 || !num(wf.from, 1e13) || !num(wf.to, 1e13)) return null;
-  if (!Array.isArray(wf.facts) || wf.facts.length < 1 || wf.facts.length > 40) return null;
+  if (!Array.isArray(wf.facts) || wf.facts.length < 1 || wf.facts.length > 64) return null;
   const facts: Fact[] = [];
   for (const f of wf.facts) {
     if (!f || typeof f.id !== 'string' || !ID.test(f.id) || typeof f.label !== 'string' || f.label.length > 120) return null;

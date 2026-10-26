@@ -205,9 +205,9 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
         <Card tone="soft">
           <p className="text-sm font-semibold">About 10 minutes, all on your phone</p>
           <ul className="mt-1.5 space-y-1 text-sm text-muted">
-            <li>1. Verify your ID with BankID</li>
-            <li>2. Photo of your licence and a profile photo</li>
-            <li>3. Order your criminal-record extract (it comes by post)</li>
+            <li>1. Order your criminal-record extract first (do not wait for the post)</li>
+            <li>2. Verify ID with BankID or submit ID for manual review</li>
+            <li>3. Add your licence and profile photos</li>
             <li>4. Book a 15-minute onboarding call. We decide in the call, without waiting for the extract.</li>
           </ul>
         </Card>
@@ -341,7 +341,7 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump, onDecide }: { a: 
     case 'prequal_review':
       return <PrequalStop a={a} now={now} onUpdate={onUpdate} first={first} />;
     case 'id':
-      return <BankIdStep onDone={() => onUpdate(receiveDocument(a, 'id', 'verified', now))} first={first} />;
+      return <BankIdStep onDone={() => onUpdate(receiveDocument({ ...a, idMethod: 'bankid' }, 'id', 'verified', now))} onManual={() => onUpdate(receiveDocument({ ...a, idMethod: 'manual' }, 'id', 'uploaded', now))} first={first} />;
     case 'licence':
       return (
         <div className="space-y-3">
@@ -425,7 +425,7 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump, onDecide }: { a: 
       return (
         <div className="space-y-3">
           <ExtractCard a={a} apps={apps} now={now} onUpdate={onUpdate} />
-          <OffersStep a={a} apps={apps} gigs={gigs} now={now} onPick={(g) => onUpdate(bookOffer(a, g, now))} />
+          <OffersStep a={a} apps={apps} gigs={gigs} now={now} onPick={(g) => onUpdate(bookOffer(a, g, now, apps))} />
         </div>
       );
     case 'booked': {
@@ -478,7 +478,7 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump, onDecide }: { a: 
   }
 }
 
-function BankIdStep({ onDone, first }: { onDone: () => void; first: string }) {
+function BankIdStep({ onDone, onManual, first }: { onDone: () => void; onManual: () => void; first: string }) {
   const [busy, setBusy] = useState(false);
   return (
     <div className="space-y-3">
@@ -494,6 +494,7 @@ function BankIdStep({ onDone, first }: { onDone: () => void; first: string }) {
       >
         {busy ? 'Waiting for BankID…' : 'Open BankID'}
       </Primary>
+      <button type="button" onClick={onManual} className="w-full text-sm font-semibold text-indigo">No BankID: submit ID for manual review</button>
       <Simulated />
     </div>
   );
@@ -563,6 +564,7 @@ function CallStep({ a, apps, now, onBook }: { a: Applicant; apps: Applicant[]; n
       <Title icon={<CalendarCheck size={16} />} sub="15 minutes on video: how jobs work, a few questions, and the decision. If your extract has arrived you can show it too; if not, you show it before your first drive.">
         Book your onboarding call
       </Title>
+      {(!slots.length || slots[0] > a.registeredAt + 48 * 3600000) && <p className="rounded-lg bg-warn-bg p-3 text-sm">The available calls exceed the 48-hour decision target. Contact ops for an earlier review; booking later does not reset the deadline.</p>}
       {[...byDay.entries()].map(([day, ts]) => (
         <div key={day}>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">{day}</p>
@@ -599,7 +601,7 @@ function ExtractCard({ a, apps, now, onUpdate }: { a: Applicant; apps: Applicant
       <p className="flex items-center gap-1.5 text-sm font-semibold">
         <Lock size={15} aria-hidden /> Before your first drive: show your extract
       </p>
-      {released && <p className="mt-1 text-sm">Your drive {formatDateTime(released.bookedFor)} went to another driver because the extract wasn't shown in time. You're still accepted.</p>}
+      {released && <p className="mt-1 text-sm">Your drive {formatDateTime(released.bookedFor)} was released for reassignment because the extract wasn't shown in time. You're still accepted.</p>}
       {state === 'ordered' && (
         <>
           <p className="mt-1 text-sm text-muted">Ordered from Polisen. When it arrives, book a 5-minute video check. We only look at it and never keep a copy.</p>
@@ -627,7 +629,7 @@ function ExtractCard({ a, apps, now, onUpdate }: { a: Applicant; apps: Applicant
           Extract check booked: <strong>{formatDateTime(a.extractCheckAt!)}</strong>, 5 minutes on video.
         </p>
       )}
-      {by && <p className="mt-1.5 text-xs font-semibold">Show it by {formatDateTime(by)}, or the drive goes to another driver.</p>}
+      {by && <p className="mt-1.5 text-xs font-semibold">Show it by {formatDateTime(by)}, or the drive is released for reassignment.</p>}
     </Card>
   );
 }
@@ -663,7 +665,7 @@ function OffersStep({ a, apps, gigs, now, onPick }: { a: Applicant; apps: Applic
     <div className="space-y-3">
       <Title
         icon={<Sparkles size={16} />}
-        sub={needsExtract(a) ? 'Pick your first drive. Short and easy, with ops on standby, from 5 days ahead so your extract has time to arrive.' : 'Pick your first drive. All three are short and easy, with ops on standby.'}
+        sub={needsExtract(a) ? 'Pick your first drive. Short and easy, with ops on standby, from 5 days ahead so your extract has time to arrive.' : 'Pick your first drive. Available matching jobs are short and easy, with ops on standby.'}
       >
         Welcome aboard, {a.name.split(' ')[0]}!
       </Title>
@@ -763,11 +765,11 @@ function JobCard({ j, now, onJob, onInbox, textsEnabled }: { j: Job; now: number
         </>
       ) : status === 'keys' ? (
         <>
-          <p className="text-sm text-muted">Leave by {hm(incidentClock(j, now).lastDeparture)} at the latest to make {hm(j.deadline)}.</p>
-          <Primary onClick={() => onJob(depart(j, now))}>On my way to the drop-off</Primary>
+          <p className="text-sm text-muted">{now > incidentClock(j, now).lastDeparture ? 'Departure cut-off passed. Contact ops for an agreed new delivery plan before leaving.' : `Leave by ${hm(incidentClock(j, now).lastDeparture)} to make ${hm(j.deadline)}.`}</p>
+          <Primary disabled={now > incidentClock(j, now).lastDeparture} onClick={() => onJob(depart(j, now))}>On my way to the drop-off</Primary>
         </>
       ) : status === 'driving' ? (
-        <Primary onClick={() => onJob(deliver(j, now))}>Delivered</Primary>
+        <><p className="text-xs text-muted">Delivery becomes available after the planned drive time. Use the demo clock to move time forward.</p><Primary disabled={now < (j.departedAt ?? now) + j.driveMin * 60000} onClick={() => onJob(deliver(j, now))}>Delivered</Primary></>
       ) : (
         <Card tone="ok">
           <p className="flex items-center gap-1.5 text-sm font-semibold text-ok">
@@ -872,7 +874,7 @@ function Review({ k, a, apps, now, onUpdate }: { k: ReviewKey; a: Applicant; app
       return (
         <div className="space-y-3">
           <Title icon={<ShieldCheck size={16} />}>Your ID</Title>
-          {doneCard('Verified with BankID')}
+          {doneCard(a.idMethod === 'manual' ? (a.docs.id === 'verified' ? 'ID verified manually by ops' : 'ID submitted: manual review pending') : 'Verified with BankID')}
         </div>
       );
     case 'licence':

@@ -3,7 +3,6 @@ import { buildTimeline } from '../timeline';
 import { restore, serialize, shiftApplicant } from '../persist';
 import { generateSeed } from '../seed';
 import { generateGigs } from '../gigs';
-import { slaStatus } from '../sla';
 import { DAY, HOUR } from '../time';
 import { mk, NOW } from './helpers';
 import { seedThreads } from '../chat/threads';
@@ -37,18 +36,9 @@ describe('persist', () => {
   it('round-trips without change when saved recently', () => {
     expect(restore(serialize(data, NOW), NOW + HOUR)).toEqual(data);
   });
-  it('moves old saves forward so SLA clocks and jobs look the same', () => {
-    const later = NOW + 5 * DAY;
-    const out = restore(serialize(data, NOW), later)!;
-    const restored = out.apps;
-    expect(out.gigs[0].at).toBe(gigs[0].at + 5 * DAY);
-    const elin = (xs: typeof seed) => xs.find((a) => a.name === 'Elin Johansson')!;
-    expect(slaStatus(elin(restored).docsCompleteAt!, later).label).toBe(slaStatus(elin(seed).docsCompleteAt!, NOW).label);
-    expect(restored[0].log[0].at).toBe(seed[0].log[0].at + 5 * DAY);
-    expect(out.threads[0].messages[0].at).toBe(threads[0].messages[0].at + 5 * DAY);
-    const waiting = threads.find((t) => t.status === 'waiting')!;
-    expect(out.threads.find((t) => t.id === waiting.id)!.waitingSince).toBe(waiting.waitingSince! + 5 * DAY);
-    expect(out.jobs[0].pickupAt).toBe(jobs[0].pickupAt + 5 * DAY);
+  it('preserves absolute history when reloading an old demo', () => {
+    const out = restore(serialize(data, NOW), NOW + 5 * DAY)!;
+    expect(out).toEqual(data);
   });
   it.each([3, 4, 5, 6, 7])('starts fresh instead of a v%i save: before v8 the decision waited for the extract', (version) => {
     expect(restore(JSON.stringify({ version, savedAt: NOW, apps: seed, gigs, threads, jobs }), NOW + HOUR)).toBeNull();

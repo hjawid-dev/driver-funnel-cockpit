@@ -34,7 +34,7 @@ describe('guideSteps', () => {
     expect(steps[1].targetId).toBe(nova.id); // the assistant opens on the visitor's own applicant
     expect(steps[2].targetId).toBe(nova.id); // and so does the next decision
     expect(steps.find((s) => s.key === 'time')!.done).toBe(true);
-    const r = applyDecision({ ...nova, photoApproved: true, extractShown: true }, { type: 'accepted' }, NOW);
+    const r = applyDecision({ ...nova, onboardingCompletedAt: NOW, photoApproved: true, extractShown: true }, { type: 'accepted' }, NOW);
     if (!r.ok) throw new Error(r.error);
     expect(guideSteps(withNova.map((a) => (a.id === nova.id ? r.applicant : a)), all)[2].done).toBe(true);
   });
@@ -51,7 +51,7 @@ describe('kpiDelta', () => {
   });
   it('a faster decision lowers time to decision, which is good', () => {
     const elin = seed.find((a) => a.name === 'Elin Johansson')!;
-    const r = applyDecision({ ...elin, photoApproved: true, extractShown: true }, { type: 'accepted' }, NOW);
+    const r = applyDecision({ ...elin, onboardingCompletedAt: NOW, photoApproved: true, extractShown: true }, { type: 'accepted' }, NOW);
     if (!r.ok) throw new Error('setup');
     const after = computeKpis(seed.map((a) => (a.id === elin.id ? r.applicant : a)), NOW);
     const ttd = after.find((k) => k.key === 'timeToDecision')!;

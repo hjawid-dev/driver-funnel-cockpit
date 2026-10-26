@@ -1,4 +1,4 @@
-import { assisting, driverStatus, jobAlert, needsConfirmation, PLAYBOOK, siteCallDue, type Job, type PlaybookStep } from './liveOps';
+import { incidentClock, pickupReadinessErrors, assisting, driverStatus, jobAlert, needsConfirmation, PLAYBOOK, siteCallDue, type Job, type PlaybookStep } from './liveOps';
 
 /**
  * One operational state per pickup, so the list can put exceptions first:
@@ -35,12 +35,14 @@ export const OPS_GROUP: Record<OpsState, OpsGroup> = {
 const RANK: Record<OpsState, number> = { needs_person: 0, to_close: 1, issue: 2, check_due: 3, at_pickup: 4, on_the_way: 5, upcoming: 6, resolved: 7, delivered: 8 };
 
 export function opsState(j: Job, now: number): OpsState {
+  if (j.incident?.rebooking?.status === 'open' && j.incident.closedAt !== undefined && j.incident.closedAt <= now) return 'check_due';
+  if (pickupReadinessErrors(j).length) return 'check_due';
   const alert = jobAlert(j, now);
   if (alert) return j.incident?.outcome ? 'to_close' : 'needs_person';
   if (assisting(j, now)) return 'issue';
   const s = driverStatus(j, now);
   if (s === 'delivered') return 'delivered';
-  if (j.incident?.closedAt !== undefined && j.incident.closedAt <= now && s !== 'driving') return 'resolved';
+  if (j.incident?.closedAt !== undefined && j.incident.closedAt <= now && j.incident.outcome?.type !== 'keys_found') return 'resolved';
   if (s === 'driving') return 'on_the_way';
   if (s === 'arrived' || s === 'keys') return 'at_pickup';
   if (needsConfirmation(j, now) || siteCallDue(j, now)) return 'check_due';
@@ -53,7 +55,9 @@ export function byOpsPriority(jobs: Job[], now: number): Job[] {
 }
 
 /** The playbook step to do now on an open incident: the first one not done. Null when only closing is left, or nothing. */
-export function currentStep(j: Job): PlaybookStep | null {
+export function currentStep(j: Job, now?: number): PlaybookStep | null {
+  if (j.incident?.outcome) return j.incident.closedAt !== undefined ? null : PLAYBOOK.find(s => s.key === 'close')!;
+  if (now !== undefined && !j.incident?.outcome && now >= incidentClock(j, now).decideBy) return PLAYBOOK.find(s => s.key === 'decide')!;
   const steps = j.incident?.steps ?? {};
   return PLAYBOOK.find((s) => !steps[s.key] && !(s.key === 'decide' && j.incident?.outcome)) ?? null;
 }

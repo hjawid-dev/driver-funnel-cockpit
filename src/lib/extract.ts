@@ -93,7 +93,7 @@ export function releaseIfUnchecked(a: Applicant, now: number): Applicant | null 
   if (!needsExtract(a) || by === null || a.firstGig?.doneAt || now < by) return null;
   const { gigId: _g, bookedFor, ...rest } = a.firstGig!;
   return withLog(
-    { ...a, firstGig: { ...rest, released: { at: by, bookedFor: bookedFor! } } },
+    { ...a, events: [...(a.events ?? []), { kind: 'released', at: by, by: 'system', reason: 'pre_drive_check_not_completed' }], firstGig: { ...rest, released: { at: by, bookedFor: bookedFor! } } },
     by,
     `First drive ${formatDateTime(bookedFor!)} released: the extract wasn't shown by the day before`,
   );

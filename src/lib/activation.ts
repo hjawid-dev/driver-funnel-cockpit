@@ -83,7 +83,7 @@ export const ACTIVATION_REASON_LABEL: Record<ActivationReason, string> = {
   booked: 'First drive booked',
   extract: 'Extract not shown yet',
   no_fit: 'No job that fits',
-  not_picked: 'Offered, none picked yet',
+  not_picked: 'Matching jobs available; no selection yet',
   declined: 'Declined the drives offered',
   unreachable: "Can't reach them",
   not_interested: 'No longer interested',
@@ -93,8 +93,8 @@ export const ACTIVATION_REASON_LABEL: Record<ActivationReason, string> = {
 export const ACTIVATION_REASON_ORDER: ActivationReason[] = ['booked', 'extract', 'no_fit', 'not_picked', 'declined', 'unreachable', 'not_interested'];
 
 export function activationReason(a: Applicant, apps: Applicant[], gigs: Gig[], now: number): ActivationReason {
-  if (a.activationReason) return a.activationReason.reason;
   if (a.firstGig?.bookedFor) return needsExtract(a) ? 'extract' : 'booked';
+  if (a.activationReason) return a.activationReason.reason;
   if (!firstGigOffers(a, gigs, apps, now).length) return 'no_fit';
   if (needsExtract(a)) return 'extract';
   return 'not_picked';
@@ -134,7 +134,8 @@ export interface SupplyDemand {
 
 /** Open jobs in the next 14 days against the drivers we have: recruit to demand, not to a number. */
 export function supplyDemand(apps: Applicant[], gigs: Gig[], now: number): SupplyDemand {
-  const openJobs = gigs.filter((g) => g.at > now && g.at <= now + DEMAND_WINDOW_MS).length;
+  const reserved = new Set(apps.map(a => a.firstGig?.gigId).filter(Boolean));
+  const openJobs = gigs.filter((g) => !reserved.has(g.id) && g.at > now && g.at <= now + DEMAND_WINDOW_MS).length;
   const driversNeeded = Math.ceil(openJobs / JOBS_PER_DRIVER_14D);
   const stages = apps.map(deriveStage);
   const active = stages.filter((s) => s === 'active').length;

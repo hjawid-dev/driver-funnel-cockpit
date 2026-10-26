@@ -1,6 +1,7 @@
 import type { Applicant, RejectReason } from './types';
 import { REJECT_REASONS } from './types';
 import { deriveStage, isAccepted } from './stage';
+import { firstAcceptance, firstDecision, firstSubmissionAt } from './eligibility';
 import { DAY, HOUR } from './time';
 
 export type KpiStatus = 'on' | 'risk' | 'off' | 'info';
@@ -25,13 +26,12 @@ export const NORTH_STAR_WINDOW_MS = 30 * DAY;
 
 /** Reached "documents submitted" at some point. Closing as no-response means they never did. */
 export function reachedDocs(a: Applicant): boolean {
-  if (deriveStage(a) === 'closed') return false;
-  return !!a.docsCompleteAt || !!a.decision;
+  return firstSubmissionAt(a) !== undefined;
 }
 
 /** Decided after review (excludes files closed as no-response, which never reached review). */
 export function isReviewDecision(a: Applicant): boolean {
-  return !!a.decision && a.decision.reason !== 'no_response_14d' && !!a.docsCompleteAt;
+  return !!firstDecision(a) && firstDecision(a)!.reason !== 'no_response_14d' && firstSubmissionAt(a) !== undefined;
 }
 
 export function median(xs: number[]): number | null {
@@ -55,41 +55,44 @@ function band(v: number | null, on: number, risk: number, higherIsBetter = true)
 export function computeKpis(apps: Applicant[], now: number): Kpi[] {
   // 1. Document completion: registered ≥ 7 d ago → reached documents submitted
   const docCohort = apps.filter((a) => now - a.registeredAt >= DOC_COHORT_MS);
-  const docDone = docCohort.filter(reachedDocs).length;
+  const docDone = docCohort.filter(a => { const at = firstSubmissionAt(a); return at !== undefined && at >= a.registeredAt && at <= a.registeredAt + DOC_COHORT_MS && at <= now; }).length;
   const docRate = pct(docDone, docCohort.length);
 
   // 2. Time to decision: registration → decision, as the brief measures it (6 days today, target 48 h).
-  //    The ops part, complete file → decision, is shown next to it: that is what the review queue's SLA controls.
-  const decided = apps.filter(isReviewDecision);
-  const hours = decided.map((a) => (a.decision!.at - a.registeredAt) / HOUR);
+  //    The ops part, complete file → decision, is shown next to it: total and internal clocks are kept separate.
+  const reviewed = apps.filter(a => isReviewDecision(a) && firstDecision(a)!.at >= a.registeredAt && firstDecision(a)!.at <= now);
+  const decided = apps.filter(a => firstDecision(a) && firstDecision(a)!.reason !== 'no_response_14d' && firstDecision(a)!.at >= a.registeredAt && firstDecision(a)!.at <= now);
+  const hours = decided.map((a) => (firstDecision(a)!.at - a.registeredAt) / HOUR);
   const med = median(hours);
   const within48 = pct(hours.filter((h) => h <= 48).length, hours.length);
-  const opsHours = decided.map((a) => (a.decision!.at - a.docsCompleteAt!) / HOUR);
+  const mean = hours.length ? hours.reduce((n,h) => n+h, 0) / hours.length : null;
+  const opsHours = reviewed.map((a) => (firstDecision(a)!.at - firstSubmissionAt(a)!) / HOUR);
   const opsMed = median(opsHours);
   const opsWithin48 = pct(opsHours.filter((h) => h <= 48).length, opsHours.length);
   const queue = apps.filter((a) => deriveStage(a) === 'review');
   const oldest = queue.length ? Math.max(...queue.map((a) => now - a.docsCompleteAt!)) / HOUR : null;
 
   // 3. Acceptance rate + top reject reasons
-  const accepted = decided.filter(isAccepted).length;
-  const accRate = pct(accepted, decided.length);
+  const accepted = reviewed.filter(a => firstDecision(a)!.type !== 'rejected').length;
+  const accRate = pct(accepted, reviewed.length);
   const reasons = topRejectReasons(apps);
 
   // 4. Activation: accepted ≥ 14 d ago → first gig within 14 d of acceptance
-  const actCohort = apps.filter((a) => isAccepted(a) && now - a.decision!.at >= ACTIVATION_COHORT_MS);
-  const activated = actCohort.filter((a) => a.firstGig?.doneAt && a.firstGig.doneAt - a.decision!.at <= ACTIVATION_COHORT_MS).length;
+  const actCohort = apps.filter((a) => firstAcceptance(a) && now - firstAcceptance(a)!.at >= ACTIVATION_COHORT_MS);
+  const activated = actCohort.filter((a) => a.firstGig?.doneAt && a.firstGig.doneAt >= firstAcceptance(a)!.at && a.firstGig.doneAt <= now && a.firstGig.doneAt - firstAcceptance(a)!.at <= ACTIVATION_COHORT_MS).length;
   const actRate = pct(activated, actCohort.length);
 
   // 5. North star: new active drivers ÷ new applications, last 30 days (a monthly flow, not a cohort)
   const from = now - NORTH_STAR_WINDOW_MS;
-  const newApps = apps.filter((a) => a.registeredAt >= from).length;
-  const newActive = apps.filter((a) => a.firstGig?.doneAt && a.firstGig.doneAt >= from).length;
+  const newApps = apps.filter((a) => a.registeredAt >= from && a.registeredAt <= now).length;
+  const newActive = apps.filter((a) => a.firstGig?.doneAt && a.firstGig.doneAt >= from && a.firstGig.doneAt <= now && isAccepted(a) && a.firstGig.doneAt >= a.decision!.at).length;
   const northStar = pct(newActive, newApps);
 
   // 6. First-gig quality: on time and no incident / customer happy
-  const done = apps.filter((a) => a.firstGig?.doneAt);
-  const good = done.filter((a) => a.firstGig!.onTime && a.firstGig!.ok).length;
-  const quality = pct(good, done.length);
+  const done = apps.filter((a) => a.firstGig?.doneAt && a.firstGig.doneAt <= now && isAccepted(a) && a.firstGig.doneAt >= a.decision!.at);
+  const assessed = done.filter(a => a.firstGig!.customerSatisfied !== undefined);
+  const good = assessed.filter((a) => a.firstGig!.onTime && a.firstGig!.ok && a.firstGig!.customerSatisfied === true).length;
+  const quality = pct(good, assessed.length);
 
   return [
     {
@@ -98,10 +101,10 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
       value: docRate,
       display: fmtPct(docRate),
       target: 'Target 85%',
-      caption: `${docDone} of ${docCohort.length} who registered 7+ days ago`,
+      caption: `${docDone} of ${docCohort.length} registered 7+ days ago; completed within 7 days`,
       info: [
-        'Share of applicants who sent in all documents, counting those who registered at least 7 days ago (they have had time to finish).',
-        `${docDone} of ${docCohort.length} · baseline 70%`,
+        'Share completing documents within 7 calendar days, among everyone registered at least 7 days ago. All available registration history; first submission is preserved.',
+        `${docDone} of ${docCohort.length}. Case baseline 70% has no stated completion window; it is not a measured seven-day baseline.`,
       ],
       status: band(docRate, 85, 75),
     },
@@ -110,7 +113,7 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
       label: 'Median time to decision',
       value: med,
       display: fmtHours(med),
-      sub: opsMed === null ? undefined : `ops part ${Math.round(opsMed)} h`,
+      sub: mean === null ? undefined : `mean ${fmtHours(mean)} · ops median ${fmtHours(opsMed)}`,
       target: 'Target < 48 h',
       caption: `${decided.length} decisions${oldest !== null ? ` · oldest in queue ${Math.floor(oldest)} h` : ''}`,
       info: [
@@ -127,10 +130,10 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
       display: fmtPct(accRate),
       sub: reasons.length ? `top reject: ${reasons[0].short} ×${reasons[0].count}` : 'no rejects yet',
       target: '',
-      caption: `${accepted} of ${decided.length} reviewed files`,
+      caption: `${accepted} of ${reviewed.length} reviewed files`,
       info: [
         'Share of reviewed files that were accepted. It shows whether the questions before applying filter well: a low rate means people apply who were never going to qualify.',
-        `${accepted} of ${decided.length} reviewed files.${reasons.length ? ` Reject reasons: ${reasons.map((r) => `${r.short} ×${r.count}`).join(', ')}.` : ''}`,
+        `${accepted} of ${reviewed.length} reviewed files.${reasons.length ? ` Reject reasons: ${reasons.map((r) => `${r.short} ×${r.count}`).join(', ')}.` : ''}`,
       ],
       status: 'info',
     },
@@ -171,8 +174,8 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
       display: fmtPct(quality),
       sub: 'on time, no incident',
       target: 'Guardrail ≥ 95%',
-      caption: `${good} of ${done.length} first gigs`,
-      info: ['Share of first gigs on time, with no incident and a satisfied customer. The guardrail: going faster must not lower the bar.', `${good} of ${done.length} first gigs`],
+      caption: `${good} of ${assessed.length} assessed first gigs · ${done.length - assessed.length} pending customer feedback`,
+      info: ['All-history share of completed first gigs on time, without a reported incident and with customer satisfaction confirmed. Missing feedback is not assumed positive.', `${good} of ${assessed.length} assessed first gigs; ${done.length - assessed.length} pending customer feedback`],
       status: band(quality, 95, 90),
     },
   ];
@@ -189,8 +192,9 @@ const SHORT_REASON: Record<RejectReason, string> = {
 export function topRejectReasons(apps: Applicant[]) {
   const counts = new Map<RejectReason, number>();
   for (const a of apps) {
-    if (a.decision?.type === 'rejected' && a.decision.reason) {
-      counts.set(a.decision.reason, (counts.get(a.decision.reason) ?? 0) + 1);
+    const decision = firstDecision(a);
+    if (isReviewDecision(a) && decision?.type === 'rejected' && decision.reason) {
+      counts.set(decision.reason, (counts.get(decision.reason) ?? 0) + 1);
     }
   }
   return [...counts.entries()]
@@ -224,6 +228,7 @@ export interface FunnelTile {
   reached: number; // cumulative: everyone who ever got this far
   /** Always adds up to `reached`: the tile shows its own arithmetic. */
   parts: FunnelPart[];
+  currentCount?: number;
 }
 
 export interface FunnelEdge {
@@ -244,8 +249,8 @@ export interface Funnel {
 export function reachedStage(a: Applicant, key: FunnelKey): boolean {
   if (key === 'registered') return true;
   if (key === 'docs') return reachedDocs(a);
-  if (key === 'reviewed') return reachedDocs(a) && !!a.decision;
-  if (key === 'accepted') return isAccepted(a);
+  if (key === 'reviewed') return isReviewDecision(a);
+  if (key === 'accepted') return !!firstAcceptance(a);
   return deriveStage(a) === 'active';
 }
 
@@ -263,37 +268,41 @@ export function computeFunnel(apps: Applicant[]): Funnel {
     {
       key: 'registered',
       label: 'Registered',
-      reached: reached('registered'),
+      reached: reached('registered'), currentCount: now('registered'),
       parts: [
-        { label: 'missing documents', count: now('registered'), to: 'missing' },
-        { label: 'closed, not finished', count: now('closed'), to: 'closed' },
+        { label: 'missing documents', count: apps.filter(a => deriveStage(a) === 'registered' && !reachedDocs(a)).length, to: 'missing' },
+        { label: 'pre-qualifying exit', count: apps.filter(a => deriveStage(a) === 'rejected' && !reachedDocs(a)).length, to: 'rejected' },
+        { label: 'closed, not finished', count: apps.filter(a => deriveStage(a) === 'closed' && !reachedDocs(a)).length, to: 'closed' },
         { label: 'submitted', count: reached('docs'), movedOn: true },
       ],
     },
     {
       key: 'docs',
       label: 'Docs submitted',
-      reached: reached('docs'),
+      reached: reached('docs'), currentCount: now('review'),
       parts: [
         { label: 'in review', count: now('review'), to: 'review' },
+        { label: 'complement requested', count: apps.filter(a => deriveStage(a) === 'registered' && reachedDocs(a)).length, to: 'missing' },
+        { label: 'closed after submission', count: apps.filter(a => deriveStage(a) === 'closed' && reachedDocs(a) && !isReviewDecision(a)).length, to: 'closed' },
         { label: 'reviewed', count: reached('reviewed'), movedOn: true },
       ],
     },
     {
       key: 'reviewed',
       label: 'Reviewed',
-      reached: reached('reviewed'),
+      reached: reached('reviewed'), currentCount: apps.filter(a => deriveStage(a) === 'rejected' && reachedDocs(a)).length,
       parts: [
-        { label: 'rejected', count: now('rejected'), to: 'rejected' },
+        { label: 'rejected at review', count: apps.filter(a => reachedDocs(a) && isReviewDecision(a) && !firstAcceptance(a)).length, to: 'rejected' },
         { label: 'accepted', count: reached('accepted'), movedOn: true },
       ],
     },
     {
       key: 'accepted',
       label: 'Accepted',
-      reached: reached('accepted'),
+      reached: reached('accepted'), currentCount: now('accepted'),
       parts: [
         { label: 'awaiting first gig', count: now('accepted'), to: 'awaiting' },
+        { label: 'closed after acceptance', count: apps.filter(a => firstAcceptance(a) && ['rejected', 'closed'].includes(deriveStage(a))).length, to: 'rejected' },
         { label: 'active', count: reached('active'), movedOn: true },
       ],
     },
@@ -308,18 +317,7 @@ export function computeFunnel(apps: Applicant[]): Funnel {
     ...(t.key === 'reviewed' ? { pending: true } : {}),
   }));
 
-  // Biggest drop-off: the edge that loses the most people (files waiting in the review queue are not lost).
-  let worst: FunnelEdge | null = null;
-  let worstLost = 0;
-  edges.forEach((e, i) => {
-    if (e.pending) return;
-    const lost = tiles[i].reached - tiles[i + 1].reached;
-    if (lost > worstLost) {
-      worstLost = lost;
-      worst = e;
-    }
-  });
-  if (worst) (worst as FunnelEdge).biggestDrop = true;
+  // Stage differences include work in progress, so they are never labelled lost.
 
   return { tiles, edges };
 }

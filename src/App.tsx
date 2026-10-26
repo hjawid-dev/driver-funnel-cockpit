@@ -19,6 +19,7 @@ import { REASON_LABEL } from './lib/sms';
 import { waitingThreads } from './lib/chat/threads';
 import { releaseDue } from './lib/extract';
 import { assisting, currentJob, driverUpdate, escalate, firstDriveResult, jobAlert, openIncidents, reportProblem, syncFirstDrive, type Job } from './lib/liveOps';
+import { canStartDrive } from './lib/eligibility';
 import { completeFirstGig } from './lib/actions';
 import { backToAi, callRequested, emptyThread, keysFoundByDriver, opsReply, pickupReported, relayContactReply, solvedNote, textsSentNote, threadIdFor } from './lib/chat/threads';
 import { REVIEWER } from './lib/types';
@@ -49,8 +50,9 @@ const TEXTS_KEY = 'driver-funnel-cockpit-texts';
 export default function App() {
   const clock = useClock();
   const now = clock.now;
-  const { apps, gigs, threads, jobs, update, add, upsertThread, updateJob, updateJobs, reset } = useDemoData();
+  const { apps, gigs, threads, jobs, update, add, upsertThread, updateJob, updateJobs, reset, recordThrough } = useDemoData();
   const toast = useToast();
+  useEffect(() => { recordThrough(now); }, [now, recordThrough]);
 
   const [page, setPage] = useState<Page>(() => (window.location.hash === '#funnel' ? 'funnel' : 'live'));
   const [filter, setFilter] = useState<QueueFilter>('action');
@@ -231,6 +233,15 @@ export default function App() {
     // `base` is the thread as the chat just changed it (a confirmed proposal), so that change isn't lost.
     (next: Job, base?: ChatThread) => {
       const prev = jobs.find((j) => j.id === next.id);
+      const driverBefore = apps.find(a => a.id === next.driverId);
+      if (next.firstDrive && driverBefore && ((!prev?.arrivedAt && next.arrivedAt) || (!prev?.departedAt && next.departedAt) || (!prev?.deliveredAt && next.deliveredAt))) {
+        const error = canStartDrive(driverBefore);
+        if (error) return toast.notify(error);
+      }
+      if (next.firstDrive && driverBefore && !prev?.deliveredAt && next.deliveredAt) {
+        const result = completeFirstGig(driverBefore, { ...firstDriveResult(next), delivery: { jobId: next.id, at: next.deliveredAt } }, now);
+        if (!result.ok) return toast.notify(result.error);
+      }
       updateJob(next);
       const first = next.driverName.split(' ')[0];
       if (!prev) return;
@@ -273,9 +284,8 @@ export default function App() {
       else if (!prev.deliveredAt && next.deliveredAt) {
         // A first drive delivered: the driver is active, and first-gig quality counts it.
         const driver = next.firstDrive ? apps.find((x) => x.id === next.driverId) : undefined;
-        const r = driver ? completeFirstGig(driver, firstDriveResult(next), now) : null;
+        const r = driver ? completeFirstGig(driver, { ...firstDriveResult(next), delivery: { jobId: next.id, at: next.deliveredAt! } }, now) : null;
         if (r?.ok) {
-          update(r.applicant);
           toast.notify(`${first} delivered the first drive: now an active driver.`);
         } else toast.notify(`${first} delivered the car (${next.id}).`);
       }
@@ -333,7 +343,7 @@ export default function App() {
     else if (k === 'accepted') setFilter('awaiting');
     else {
       setFilter('all');
-      setStageFilter(k === 'active' ? 'active' : 'rejected');
+      setStageFilter(k === 'active' ? 'active' : 'reviewed_rejected');
     }
     toQueue();
   };

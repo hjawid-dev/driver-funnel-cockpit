@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Applicant, Gig } from './lib/types';
 import { generateSeed } from './lib/seed';
+import { firstGigOffers } from './lib/gigs';
+import { firstDriveResult, replacementJob, syncFirstDrive } from './lib/liveOps';
+import { materializeAutomation } from './lib/automation';
+import { completeFirstGig } from './lib/actions';
 import { generateGigs } from './lib/gigs';
 import { restore, serialize, STORAGE_KEY, type DemoData } from './lib/persist';
 import { seedThreads } from './lib/chat/threads';
@@ -63,9 +67,16 @@ export function useClock(intervalMs = 30_000) {
 }
 
 function fresh(now: number, asInCase = false): DemoData {
-  const apps = generateSeed(now);
+  const apps = generateSeed(now).map(a => materializeAutomation(a, now));
   const gigs = generateGigs(now);
-  return { apps, gigs, threads: seedThreads(apps, now, asInCase ? null : 9 * MIN), jobs: seedJobs(apps, now, { asInCase }) };
+  for (let i = 0; i < apps.length; i++) {
+    const a = apps[i];
+    if (a.firstGig?.bookedFor && !a.firstGig.doneAt) {
+      const available = firstGigOffers(a, gigs, apps, now)[0];
+      apps[i] = { ...a, firstGig: available ? { gigId: available.id, bookedFor: available.at, bookedAt: now - MIN } : undefined };
+    }
+  }
+  return { apps, gigs, threads: seedThreads(apps, now, asInCase ? null : 9 * MIN), jobs: apps.reduce((jobs, a) => syncFirstDrive(jobs, a, gigs), seedJobs(apps, now, { asInCase })) };
 }
 
 function load(): DemoData {
@@ -111,11 +122,22 @@ export function useDemoData() {
   }, []);
 
   const update = useCallback((next: Applicant) => {
-    setData((d) => ({ ...d, apps: d.apps.map((a) => (a.id === next.id ? next : a)) }));
+    setData((d) => {
+      const prev = d.apps.find(a => a.id === next.id);
+      const at = next.log.at(-1)?.at ?? next.registeredAt;
+      const before = prev ? materializeAutomation(prev, at) : next;
+      next = materializeAutomation({ ...next, automationHistory: before.automationHistory, automationRecordedUntil: before.automationRecordedUntil }, at, true);
+      if (next.firstGig?.gigId && next.firstGig.gigId !== prev?.firstGig?.gigId && d.apps.some(a => a.id !== next.id && a.firstGig?.gigId === next.firstGig?.gigId)) return d;
+      return { ...d, apps: d.apps.map(a => a.id === next.id ? next : a), jobs: syncFirstDrive(d.jobs, next, d.gigs) };
+    });
   }, []);
 
   const add = useCallback((a: Applicant) => {
     setData((d) => ({ ...d, apps: [...d.apps, a] }));
+  }, []);
+
+  const recordThrough = useCallback((now: number) => {
+    setData(d => d.apps.every(a => a.automationRecordedUntil === now) ? d : { ...d, apps: d.apps.map(a => materializeAutomation(a, now)) });
   }, []);
 
   /** Add or replace a chat thread. */
@@ -124,7 +146,21 @@ export function useDemoData() {
   }, []);
 
   const updateJob = useCallback((next: Job) => {
-    setData((d) => ({ ...d, jobs: d.jobs.map((j) => (j.id === next.id ? next : j)) }));
+    setData((d) => {
+      let apps = d.apps;
+      const driver = next.firstDrive ? apps.find(a => a.id === next.driverId) : undefined;
+      if (driver && next.deliveredAt && !driver.firstGig?.doneAt) {
+        const result = completeFirstGig(driver, { ...firstDriveResult(next), delivery: { jobId: next.id, at: next.deliveredAt } }, next.deliveredAt);
+        if (!result.ok) return d;
+        apps = apps.map(a => a.id === driver.id ? result.applicant : a);
+      } else if (driver?.firstGig?.doneAt && next.deliveredAt && next.customerSatisfied !== undefined) {
+        apps = apps.map(a => a.id === driver.id ? { ...a, firstGig: { ...a.firstGig, customerSatisfied: next.customerSatisfied } } : a);
+      }
+      let jobs = d.jobs.map(j => j.id === next.id ? next : j);
+      const replacement = replacementJob(next);
+      if (replacement && !jobs.some(j => j.id === replacement.id)) jobs = [...jobs, replacement];
+      return { ...d, apps, jobs };
+    });
   }, []);
 
   /** Change the job list as a whole (e.g. a first drive was booked). */
@@ -139,5 +175,5 @@ export function useDemoData() {
     return next.apps;
   }, []);
 
-  return { apps: data.apps, gigs: data.gigs as Gig[], threads: data.threads, jobs: data.jobs, update, add, upsertThread, updateJob, updateJobs, reset };
+  return { apps: data.apps, gigs: data.gigs as Gig[], threads: data.threads, jobs: data.jobs, update, add, upsertThread, updateJob, updateJobs, reset, recordThrough };
 }

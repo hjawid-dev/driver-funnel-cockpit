@@ -45,13 +45,15 @@ function missingItem(a: Applicant, now: number): WorkItem {
   const base = { a, stage: 'registered' as const, detail };
   if (a.prequalIssue) return { ...base, status: "Doesn't meet a must-have", tone: 'bad', next: 'Close the file with a reason', needsAction: true, rank: 2 };
   if (isNoResponse(a, now)) return { ...base, status: 'No response in 14 days', tone: 'bad', next: 'Close the file: no response', needsAction: true, rank: 2 };
+  const sla = slaStatus(a.registeredAt, now);
+  if (sla.bucket === 'overdue') return { ...base, status: `Decision ${sla.label.toLowerCase()}`, tone: 'bad', next: 'Owner contacts applicant: resolve missing documents', needsAction: true, rank: 1 };
   const n = nudgeState(a, now);
   if (n.nextAt === null && !a.reminders?.offAt) return { ...base, status: 'All three reminders sent', tone: 'warn', next: 'Request the documents in person', needsAction: true, rank: 5 };
   return { ...base, status: n.label, tone: 'muted', next: 'Reminders run by themselves', needsAction: false, rank: 8 };
 }
 
 function reviewItem(a: Applicant, now: number): WorkItem {
-  const sla = slaStatus(a.docsCompleteAt!, now);
+  const sla = slaStatus(a.registeredAt, now);
   return {
     a,
     stage: 'review',
@@ -69,6 +71,7 @@ function awaitingItem(a: Applicant, apps: Applicant[], gigs: Gig[], now: number)
   const reason = activationReason(a, apps, gigs, now);
   const call = welcomeCallState(a, now);
   const base = { a, stage: 'accepted' as const, detail: `${ACTIVATION_REASON_LABEL[reason]} · accepted ${ago(a.decision!.at, now)}` };
+  if (a.firstGig?.bookedFor) return { ...base, status: reason === 'extract' ? 'Booked; pre-drive check outstanding' : 'First drive booked', tone: reason === 'extract' ? 'warn' : 'ok', next: reason === 'extract' ? 'Complete the pre-drive check before release deadline' : 'Track the booked drive in Live Ops', needsAction: reason === 'extract', rank: reason === 'extract' ? 2 : 7 };
   if (bucket === 'call') return { ...base, status: 'No first gig in 14 days', tone: 'bad', next: 'Call the driver', needsAction: true, rank: 1 };
   if (bucket === 'dormant') return { ...base, status: 'Dormant, 30+ days', tone: 'muted', next: 'Monthly re-engagement', needsAction: false, rank: 9 };
   if (reason === 'booked') return { ...base, status: 'First gig booked', tone: 'ok', next: 'Nothing: on track', needsAction: false, rank: 7 };
@@ -91,7 +94,7 @@ export function workItems(apps: Applicant[], gigs: Gig[], now: number): WorkItem
 }
 
 /** Oldest first within the same rank. */
-const since = (w: WorkItem) => (w.stage === 'review' ? w.a.docsCompleteAt! : w.stage === 'accepted' ? w.a.decision!.at : w.a.registeredAt);
+const since = (w: WorkItem) => (w.stage === 'review' ? w.a.registeredAt : w.stage === 'accepted' ? w.a.decision!.at : w.a.registeredAt);
 
 const STAGE_OF: Record<Exclude<QueueFilter, 'action' | 'all'>, WorkItem['stage']> = { missing: 'registered', review: 'review', awaiting: 'accepted' };
 

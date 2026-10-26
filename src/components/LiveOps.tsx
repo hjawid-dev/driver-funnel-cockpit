@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Bot, Check, CircleCheck, Copy, MessageSquare, PhoneCall, Smartphone, TriangleAlert } from 'lucide-react';
 import {
+  pickupReadinessErrors, recordOwnError, agreeDeliveryDeadline, bookReplacement,
   assistantLog,
   assisting,
   callSite,
@@ -41,7 +42,7 @@ import {
   type StepKey,
 } from '../lib/liveOps';
 import { byOpsPriority, currentStep, OPS_GROUP, OPS_STATE_LABEL, opsState, type OpsGroup, type OpsState } from '../lib/opsState';
-import { formatDuration } from '../lib/time';
+import { formatDateTime, formatDuration } from '../lib/time';
 import type { ChatThread } from '../lib/chat/types';
 import { ChatQueue } from './ChatQueue';
 import { CollapsibleSection, Proposed } from './ui';
@@ -64,9 +65,10 @@ interface Props {
   focus?: 'playbook' | null;
 }
 
+const localInputTime = (ts: number) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 const hm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 const firstName = (j: Job) => j.driverName.split(' ')[0];
-const dayLabel = (ts: number, now: number) => (ts > now ? 'tmrw' : 'ystd');
+const dayLabel = (ts: number, now: number) => { const day = (t: number) => { const d = new Date(t); return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()); }; const diff = (day(ts) - day(now)) / 86400000; return diff === 1 ? 'tmrw' : diff === -1 ? 'ystd' : new Date(ts).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }); };
 
 const STATE_STYLE: Record<OpsState, string> = {
   needs_person: 'bg-bad text-white',
@@ -231,12 +233,14 @@ function JobDetail({ j, now, onJob, onViewChat, focus }: { j: Job; now: number; 
 
       <div className="space-y-5 px-4 py-4 sm:px-5">
         <Facts j={j} />
+        {j.incident?.nextCustomerUpdateAt && !closed && !j.incident.outcome && <p className={`rounded-lg p-3 text-sm ${now >= j.incident.nextCustomerUpdateAt ? 'bg-bad-bg text-bad' : 'bg-card text-muted'}`}>Customer update {now >= j.incident.nextCustomerUpdateAt ? 'overdue' : 'due'} at {hm(j.incident.nextCustomerUpdateAt)} · owner Hjalmar. Log a new update in the playbook.</p>}
+        {j.deliveredAt && j.deliveredAt <= now && <section className="rounded-lg bg-card p-3 text-sm"><p className="font-semibold">Customer feedback: {j.customerSatisfied === undefined ? 'not yet collected' : j.customerSatisfied ? 'satisfied' : 'follow-up needed'}</p><div className="mt-2 flex gap-2"><button type="button" onClick={() => onJob({ ...j, customerSatisfied: true }, 'Customer feedback logged: satisfied (demo).')} className={BTN_SM}>Log satisfied</button><button type="button" onClick={() => onJob({ ...j, customerSatisfied: false }, 'Customer feedback logged: follow-up needed (demo).')} className={BTN_SM}>Log follow-up needed</button></div></section>}
         {incident ? (
           <IncidentWork j={j} now={now} onJob={onJob} focus={focus} />
         ) : s === 'issue' ? (
           <AssistWork j={j} now={now} onJob={onJob} />
         ) : closed ? (
-          <Resolution j={j} />
+          <Resolution j={j} now={now} onJob={onJob} />
         ) : (
           <PrePickupCheck j={j} now={now} onJob={onJob} />
         )}
@@ -308,7 +312,7 @@ function Facts({ j }: { j: Job }) {
 function IncidentWork({ j, now, onJob, focus }: { j: Job; now: number; onJob: Props['onJob']; focus: Props['focus'] }) {
   const c = incidentClock(j, now);
   const steps = j.incident?.steps ?? {};
-  const next = currentStep(j);
+  const next = currentStep(j, now);
   const nextKey = next?.key ?? null;
   // null follows the step to do now; 'none' means the presenter folded it away.
   const [openKey, setOpenKey] = useState<StepKey | 'none' | null>(null);
@@ -489,7 +493,7 @@ function CasePrevention({ j, open }: { j: Job; open?: boolean }) {
           Reconfirm. No reply by <span className="num">{hm(t60 + REPLY_WAIT_60_MS)}</span>: call the {j.backup.role.toLowerCase()}, and warn the customer early.
         </li>
         <li>
-          <strong>4 · On arrival.</strong> {firstName(j)} taps "I'm here". No keys after {NO_KEYS_ASSIST_MS / 60_000} minutes: the assistant texts the contact from a fixed template, and a person takes over {ASSIST_MS / 60_000} minutes later, at the latest {ESCALATE_BEFORE_DECIDE_MS / 60_000} minutes before the customer must decide. Ops knows at once, not after 25 minutes.
+          <strong>4 · On arrival.</strong> {firstName(j)} taps "I'm here". No keys after {NO_KEYS_ASSIST_MS / 60_000} minutes: the issue is visible to ops; the assistant asks what is wrong and offers a fixed contact message, and a person takes over {ASSIST_MS / 60_000} minutes later, at the latest {ESCALATE_BEFORE_DECIDE_MS / 60_000} minutes before the customer must decide. Ops knows at once, not after 25 minutes.
         </li>
       </ol>
     </CollapsibleSection>
@@ -549,15 +553,16 @@ function AssistWork({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJo
 
 // ---------- A closed incident: what happened, and what we learn ----------
 
-function Resolution({ j }: { j: Job }) {
+function Resolution({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJob'] }) {
+  const [pickup, setPickup] = useState(localInputTime(now + (j.incident?.outcome?.type === 'new_date' ? 24 : 2) * 3600000));
   const i = j.incident!;
   const rows: [string, string][] = [
     ['Decision', i.by === 'assistant' ? 'Keys found while the assistant had it' : i.outcome ? OUTCOME_LABEL[i.outcome.type] : '–'],
     ['Cause', i.cause ? CAUSE_LABEL[i.cause] + (i.causeNote ? `: ${i.causeNote}` : '') : '–'],
-    ['Waiting time', i.waitPaid ? 'Paid to the driver' : 'Not paid'],
+    ['Waiting time', `${Math.round(incidentClock(j, now).waitedMs / 60000)} min · ${i.waitPaid ? 'compensation confirmed by ops (demo)' : 'not confirmed'}`],
     ...(i.cancelPay ? ([['Drive cancelled', `${i.cancelPay} SEK to the driver`]] as [string, string][]) : []),
     ['Fee', i.feeWaived ? 'Waived' : 'Charged'],
-    ['Follow-up', i.reviewBooked ? '15 minutes booked with the booker' : 'None booked'],
+    ['Follow-up', i.reviewAt ? `15 min · ${formatDateTime(i.reviewAt)} · ${i.reviewOwner}` : 'None booked'],
   ];
   return (
     <>
@@ -572,6 +577,8 @@ function Resolution({ j }: { j: Job }) {
           </div>
         ))}
       </dl>
+      {i.rebooking && <section className="rounded-lg bg-warn-bg p-3 text-sm"><p className="font-semibold">{i.rebooking.status === 'open' ? 'Replacement pickup still needs booking' : `Replacement booked: ${i.rebooking.replacementId}`}</p><p className="text-xs">Owner {i.rebooking.owner} · due {formatDateTime(i.rebooking.dueAt)}</p>{i.rebooking.status === 'open' && <div className="mt-2 flex flex-wrap gap-2"><label className="text-xs">Customer-agreed pickup<input aria-label="Replacement pickup time" type="datetime-local" value={pickup} onChange={e => setPickup(e.target.value)} className="block rounded border p-1" /></label><button type="button" disabled={!pickup || bookReplacement(j, new Date(pickup).getTime(), now) === j} onClick={() => onJob(bookReplacement(j, new Date(pickup).getTime(), now), 'Replacement pickup booked from customer agreement (demo).')} className={BTN}>Log agreed replacement booking</button></div>}</section>}
+      {i.outcome?.type === 'keys_found' && !j.deliveredAt && <p className="rounded-lg bg-card p-3 text-sm font-semibold">Incident resolved; transport is still open. Track departure and delivery in the driver's view.</p>}
       <p className="text-xs text-muted">The cause feeds the weekly report: the same cause twice is a prevention task, not bad luck.</p>
       <CollapsibleSection title="Incident log" summary={`${i.log.length} entries`}>
         <TimeList entries={i.log} />
@@ -598,7 +605,7 @@ function PrePickupCheck({ j, now, onJob }: { j: Job; now: number; onJob: Props['
   const arrived = j.arrivedAt !== undefined && j.arrivedAt <= now;
   const keys = j.keysAt !== undefined && j.keysAt <= now;
   const rows: { when: string; what: string; state: ReactNode; action?: ReactNode; done: boolean }[] = [
-    { when: 'At booking', what: 'Contact, backup and key location in the booking', state: <span className="text-ok">In the booking</span>, done: true },
+    { when: 'At booking', what: 'Contact, backup and key location required before dispatch', state: <span className={pickupReadinessErrors(j).length ? 'text-bad' : 'text-ok'}>{pickupReadinessErrors(j).length ? `Dispatch blocked: ${pickupReadinessErrors(j).join(', ')}` : 'Booking ready'}</span>, done: pickupReadinessErrors(j).length === 0 },
     ...(needsSiteCall(j)
       ? [
           {
@@ -626,8 +633,8 @@ function PrePickupCheck({ j, now, onJob }: { j: Job; now: number; onJob: Props['
       done: c.state === 'confirmed' || c.state === 'by_phone',
       action:
         call && c.state === 'no_reply' ? (
-          <button type="button" onClick={() => onJob(confirmByPhone(j, now), `${j.id}: pickup confirmed by phone with the ${j.backup.role.toLowerCase()}.`)} className={BTN_SM}>
-            <PhoneCall size={13} aria-hidden /> Confirmed by phone
+          <button type="button" onClick={() => onJob(confirmByPhone(j, now, c.key), `${j.id}: pickup confirmed by phone with the ${j.backup.role.toLowerCase()}.`)} className={BTN_SM}>
+            <PhoneCall size={13} aria-hidden /> Log this check confirmed by phone
           </button>
         ) : undefined,
     })),
@@ -666,6 +673,7 @@ function PrePickupCheck({ j, now, onJob }: { j: Job; now: number; onJob: Props['
           </li>
         ))}
       </ol>
+      {call && <button type="button" onClick={() => onJob({ ...j, customerWarnedAt: now }, 'Early warning to customer logged (demo).')} className="mt-2 text-sm font-semibold text-indigo">{j.customerWarnedAt ? `Customer warning logged ${hm(j.customerWarnedAt)}` : 'Log early warning to customer'}</button>}
       {status === 'delivered' && j.deliveredAt && <p className="mt-2 text-xs text-muted">Delivered at {hm(j.deliveredAt)}.</p>}
     </section>
   );
@@ -681,6 +689,11 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
   const [waitPaid, setWaitPaid] = useState(false);
   const [feeWaived, setFeeWaived] = useState(j.pilot);
   const [reviewBooked, setReviewBooked] = useState(false);
+  const [reviewAt, setReviewAt] = useState(localInputTime(now + 24 * 3600000));
+  const [correction, setCorrection] = useState('');
+  const [correctedFrom, setCorrectedFrom] = useState(j.from);
+  const [correctedContact, setCorrectedContact] = useState(j.contact.phone);
+  const [newDeadline, setNewDeadline] = useState('');
   // The likely cause from what the driver reported; ops confirms or changes it.
   const [cause, setCause] = useState<IncidentCause>(causeFromReason(j.problemReason));
   const [causeNote, setCauseNote] = useState('');
@@ -709,9 +722,12 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
             <dt className="text-muted">Confirmations</dt>
             <dd>{j.asInCase ? <span className="text-muted">None: no pre-pickup check was in place</span> : checks.map((c) => `${c.label}: ${CHECK_TEXT[c.state].text.toLowerCase()}`).join(' · ')}</dd>
           </dl>
-          <button type="button" disabled={done} onClick={() => mark('checked our own details')} className={BTN}>
-            <Check size={14} aria-hidden /> Checked, our details are right
+          <button type="button" disabled={done} onClick={() => onJob(recordOwnError(j, false, '', now), 'Booking details checked and correct.')} className={BTN}>
+            <Check size={14} aria-hidden /> Log checked: our details are right
           </button>
+          <label className="block text-xs">Corrected pickup address<input aria-label="Corrected pickup address" value={correctedFrom} onChange={e => setCorrectedFrom(e.target.value)} maxLength={150} className="block w-full rounded border p-2" /></label><label className="block text-xs">Corrected contact phone<input aria-label="Corrected contact phone" value={correctedContact} onChange={e => setCorrectedContact(e.target.value)} maxLength={30} className="block w-full rounded border p-2" /></label>
+          <label className="block text-xs">Or record an error and what was corrected<input aria-label="Booking correction" value={correction} onChange={e => setCorrection(e.target.value)} maxLength={300} className="mt-1 block w-full rounded border p-2 text-sm" /></label>
+          <button type="button" disabled={!correction.trim()} onClick={() => onJob(recordOwnError({ ...j, from: correctedFrom.trim(), contact: { ...j.contact, phone: correctedContact.trim() } }, true, correction, now), 'Our booking error and correction logged. Call the booker with the corrected details.')} className={BTN}>Log error found and corrected</button>
         </>
       );
     }
@@ -755,8 +771,8 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
             >
               <Copy size={14} aria-hidden /> {copied ? 'Copied' : 'Copy'}
             </button>
-            <button type="button" disabled={done} onClick={() => mark('sent the customer an update')} className={BTN}>
-              <Check size={14} aria-hidden /> Sent to the customer
+            <button type="button" onClick={() => mark('customer update logged')} className={BTN}>
+              <Check size={14} aria-hidden /> Log customer update sent
             </button>
           </div>
           <p className="text-xs text-muted">A template filled from the job, not AI. You send it yourself.</p>
@@ -785,7 +801,7 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
               <button
                 key={o}
                 type="button"
-                disabled={!!chosen}
+                disabled={!!chosen || (o === 'keys_found' && now > incidentClock(j, now).lastDeparture)}
                 onClick={() => onJob(setOutcome(j, o, now), `${j.id}: ${OUTCOME_LABEL[o].toLowerCase()}.`)}
                 className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${
                   chosen === o ? 'border-ok bg-ok-bg text-ok' : 'border-lavender hover:border-indigo hover:text-indigo disabled:opacity-50 disabled:hover:border-lavender disabled:hover:text-navy'
@@ -795,7 +811,8 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
               </button>
             ))}
           </div>
-          <p className="text-xs text-muted">The customer picks. The driver never leaves or cancels on their own.</p>
+          {now > incidentClock(j, now).lastDeparture && !chosen && <div className="space-y-2 rounded-lg bg-bad-bg p-3"><p className="text-sm font-semibold text-bad">Original departure cut-off passed. Agree a feasible new delivery deadline or rebook/cancel.</p><label className="text-xs">Customer-agreed delivery deadline<input type="datetime-local" value={newDeadline} onChange={e => setNewDeadline(e.target.value)} className="block rounded border p-1" /></label><button type="button" disabled={!newDeadline || new Date(newDeadline).getTime() < now + j.driveMin * 60000 + 20 * 60000} onClick={() => onJob(agreeDeliveryDeadline(j, new Date(newDeadline).getTime(), now), 'Revised delivery deadline agreed with customer and logged (demo).')} className={BTN}>Log customer agreement to new deadline</button></div>}
+          <p className="text-xs text-muted">Log the customer's confirmed choice. A replacement choice leaves an open owned booking task.</p>
         </>
       );
     }
@@ -805,14 +822,15 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={waitPaid} onChange={(e) => setWaitPaid(e.target.checked)} className="h-4 w-4 accent-indigo" />
             <span>
-              {first}'s waiting time is paid from {hm(Math.max(j.pickupAt, j.arrivedAt ?? j.pickupAt))}
+              {first}'s waiting-time compensation is confirmed by ops (demo), from {hm(Math.max(j.pickupAt, j.arrivedAt ?? j.pickupAt))}
               {cancelPayFor(j) > 0 ? `, plus ${cancelPayFor(j)} SEK (half the reward: the drive didn't happen)` : ''}
             </span>
           </label>
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={reviewBooked} onChange={(e) => setReviewBooked(e.target.checked)} className="h-4 w-4 accent-indigo" />
-            15 minutes booked with the booker: what went wrong on site, and the fix
+            Schedule 15 minutes with the booker: what went wrong and the fix
           </label>
+          <label className="block text-xs">Booker review time (owner Hjalmar)<input aria-label="Booker review time" type="datetime-local" value={reviewAt} onChange={e => setReviewAt(e.target.value)} className="mt-1 block rounded border p-1 text-sm" /></label>
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={feeWaived} onChange={(e) => setFeeWaived(e.target.checked)} className="h-4 w-4 accent-indigo" />
             Fee waived{j.pilot ? ' (pilot: raise it after the pilot)' : ''}
@@ -843,7 +861,7 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
           <button
             type="button"
             onClick={() => {
-              const r = closeIncident(j, { waitPaid, feeWaived, cause, note: causeNote, reviewBooked }, now);
+              const r = closeIncident(j, { waitPaid, feeWaived, cause, note: causeNote, reviewBooked, reviewAt: reviewAt ? new Date(reviewAt).getTime() : undefined }, now);
               if (!r.ok) return setError(r.error);
               setError(null);
               onJob(r.job, `${j.id}: incident closed and logged.`);

@@ -12,7 +12,7 @@ export interface Sla {
   label: string; // "31 h left" / "Overdue 3 h"
 }
 
-/** Review SLA: 48 h from complete file to decision. < 24 h green, 24–48 h amber, > 48 h red. */
+/** Total decision SLA: 48 calendar hours from registration to decision. < 24 h green, 24–48 h amber, > 48 h red. */
 export function slaStatus(docsCompleteAt: number, now: number): Sla {
   const elapsedMs = Math.max(0, now - docsCompleteAt);
   const remainingMs = SLA_HOURS * HOUR - elapsedMs;
@@ -23,7 +23,7 @@ export function slaStatus(docsCompleteAt: number, now: number): Sla {
 
 /** Review queue order: most urgent (least time left) first. */
 export function byUrgency(a: Applicant, b: Applicant): number {
-  return (a.docsCompleteAt ?? Infinity) - (b.docsCompleteAt ?? Infinity);
+  return a.registeredAt - b.registeredAt;
 }
 
 /** Two fixed review slots a day. */

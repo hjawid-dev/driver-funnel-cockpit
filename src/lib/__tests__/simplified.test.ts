@@ -1,9 +1,10 @@
+import { tellAccountOwner } from '../liveOps';
 import { describe, expect, it } from 'vitest';
 import { caseTime, DAY, HOUR } from '../time';
 import { generateSeed } from '../seed';
 import { generateGigs } from '../gigs';
 import { deriveStage } from '../stage';
-import { closeIncident, markStep, problemSummary, seedJobs, setOutcome } from '../liveOps';
+import { closeIncident as rawCloseIncident, markStep, problemSummary, seedJobs, setOutcome } from '../liveOps';
 import { filterItems, queueCounts, workItems } from '../workQueue';
 import { byOpsPriority, currentStep, firstToOpen, opsState } from '../opsState';
 import { activationTarget, checkTarget, docsTarget, incidentTarget, PRESENT_STEPS, reviewTarget, siteCallTarget } from '../present';
@@ -11,8 +12,8 @@ import { inReview, mk, NOW } from './helpers';
 
 describe('the candidate queue', () => {
   it('puts an overdue review first and says what to do', () => {
-    const fresh = inReview({ id: 'A', docsCompleteAt: NOW - 3 * HOUR });
-    const late = inReview({ id: 'B', docsCompleteAt: NOW - 60 * HOUR });
+    const fresh = inReview({ id: 'A', registeredAt: NOW - 4 * HOUR, docsCompleteAt: NOW - 3 * HOUR });
+    const late = inReview({ id: 'B', registeredAt: NOW - 80 * HOUR, docsCompleteAt: NOW - 60 * HOUR });
     const [first, second] = workItems([fresh, late], [], NOW);
     expect(first.a.id).toBe('B');
     expect(first).toMatchObject({ stage: 'review', tone: 'bad', next: 'Review and decide', needsAction: true });
@@ -77,7 +78,7 @@ describe('Live Ops states', () => {
     expect(opsState(decided, at + 10 * 60_000)).toBe('to_close');
     const r = closeIncident(decided, { waitPaid: true, feeWaived: true, cause: 'customer_keys', reviewBooked: true }, at + 12 * 60_000);
     expect(r.ok).toBe(true);
-    if (r.ok) expect(opsState(r.job, at + 12 * 60_000)).toBe('resolved');
+    if (r.ok) expect(opsState(r.job, at + 12 * 60_000)).toBe('check_due');
   });
 
   it('shows a delivered drive as delivered', () => {
@@ -115,3 +116,8 @@ describe('presentation mode', () => {
     expect(problemSummary(incidentTarget(jobs, at)!, at)).toEqual(['Waited 25 min', 'No keys', 'Contact not answering']);
   });
 });
+
+// These tests isolate other gates; the new missing-review/account gates are exercised in caseConsistency.test.ts.
+function closeIncident(j: Parameters<typeof rawCloseIncident>[0], opts: Parameters<typeof rawCloseIncident>[1], now: number) {
+  return rawCloseIncident(tellAccountOwner(j, now), { reviewBooked: true, reviewAt: now + DAY, ...opts }, now);
+}

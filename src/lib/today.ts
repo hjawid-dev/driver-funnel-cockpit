@@ -21,7 +21,7 @@ export interface TodayItem {
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-export const isOverdueReview = (a: Applicant, now: number) => deriveStage(a) === 'review' && slaStatus(a.docsCompleteAt!, now).bucket === 'overdue';
+export const isOverdueReview = (a: Applicant, now: number) => deriveStage(a) === 'review' && slaStatus(a.registeredAt, now).bucket === 'overdue';
 export const isToChase = (a: Applicant, now: number) => {
   if (deriveStage(a) !== 'accepted') return false;
   const b = activationBucket(a.decision!.at, now);

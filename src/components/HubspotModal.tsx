@@ -18,7 +18,7 @@ const ROWS: { cockpit: string; hubspot: string; required: string; workflow: stri
     cockpit: 'Review queue',
     hubspot: 'Under review',
     required: 'decision · generic reject_reason · second_reviewer for suitability rejections · decided_at · extract_shown (yes/no only) if it has arrived',
-    workflow: 'Onboarding call booked by the applicant · SLA alert to owner + backup at 24 h and 48 h after docs complete',
+    workflow: 'Onboarding call booked by the applicant · SLA alert to owner + backup at 24 h and 48 calendar hours after registration',
   },
   {
     cockpit: 'Awaiting first gig',
@@ -42,7 +42,7 @@ const ROWS: { cockpit: string; hubspot: string; required: string; workflow: stri
     cockpit: 'Rejected',
     hubspot: 'Closed (rejected)',
     required: 'reject_reason (required, generic) · decided_at · decided_by · delete_after',
-    workflow: 'Top reject reasons in the weekly report · personal data deleted 2 years after the decision',
+    workflow: 'Top reject reasons in the weekly report · proposed delete_after: 2 years after the decision',
   },
 ];
 
@@ -180,7 +180,7 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
                 weeks.
               </li>
               <li>
-                <strong>Retention.</strong> Incomplete applications deleted after 6 months, rejected after 2 years.
+                <strong>Retention.</strong> Proposed schedule: incomplete after 6 months, rejected after 2 years. Actual deletion is not implemented in this demo.
               </li>
               <li>
                 <strong>Fair criteria.</strong> Minimum age and licence years are tied to insurance and safety; the photo standard is the

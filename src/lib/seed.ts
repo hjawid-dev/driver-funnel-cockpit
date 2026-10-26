@@ -95,6 +95,9 @@ function build(
     availability: b.limited ? 'limited' : 'full',
     ...(b.limited ? { availabilityNote: b.limited } : {}),
     registeredAt: t.reg,
+    owner: 'Hjalmar', backup: 'Sofia',
+    ...(t.complete ? { firstDocsSubmittedAt: t.complete } : {}),
+    ...(decision ? { onboardingCompletedAt: decision.at, decisionHistory: [decision] } : {}),
     docs,
     docTimes,
     ...(b.docNote ? { docNote: b.docNote } : {}),
@@ -111,8 +114,8 @@ function build(
     ...(t.booked || t.done
       ? {
           firstGig: {
-            ...(t.booked ? { bookedFor: t.booked } : {}),
-            ...(t.done ? { doneAt: t.done, onTime: t.onTime ?? true, ok: t.ok ?? true } : {}),
+            ...(t.booked ? { bookedFor: t.booked, bookedAt: Math.min(t.booked, decision!.at + HOUR), gigId: `HIST-${b.name.replace(/[^a-z]/gi, '')}` } : {}),
+            ...(t.done ? { doneAt: t.done, onTime: t.onTime ?? true, ok: t.ok ?? true, customerSatisfied: t.ok ?? true } : {}),
           },
         }
       : {}),

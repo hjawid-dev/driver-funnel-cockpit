@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { caseTime, MIN } from '../time';
+import { caseTime, DAY, MIN } from '../time';
 import { generateSeed } from '../seed';
-import { callSite, cancelPayFor, closeIncident, driverUpdate, incidentClock, jobAlert, needsSiteCall, pickupChecks, seedJobs, setOutcome, siteCallDue, tellAccountOwner, type Outcome } from '../liveOps';
+import { callSite, cancelPayFor, closeIncident as rawCloseIncident, driverUpdate, incidentClock, jobAlert, needsSiteCall, pickupChecks, seedJobs, setOutcome, siteCallDue, tellAccountOwner, type Outcome } from '../liveOps';
 import { seedThreads } from '../chat/threads';
 import { todayItems } from '../today';
 import { liveOpsEvents } from '../automation';
@@ -103,3 +103,8 @@ describe('prevention that reaches the cause: the site, the account owner, the dr
     expect(j.incident!.log.at(-1)!.text).toMatch(/Account owner told/);
   });
 });
+
+// These tests isolate other gates; the new missing-review/account gates are exercised in caseConsistency.test.ts.
+function closeIncident(j: Parameters<typeof rawCloseIncident>[0], opts: Parameters<typeof rawCloseIncident>[1], now: number) {
+  return rawCloseIncident(tellAccountOwner(j, now), { reviewBooked: true, reviewAt: now + DAY, ...opts }, now);
+}

@@ -1,5 +1,6 @@
 import type { Applicant, Gig } from './types';
 import { DAY, atLocal } from './time';
+import { deriveStage } from './stage';
 import { earliestFirstDrive } from './extract';
 
 /** Rough geography for matching: same area first, then the same part of Stockholm. */
@@ -80,13 +81,35 @@ export const OFFER_COUNT = 3;
  * limited availability, nearest first, then soonest.
  */
 export function firstGigOffers(a: Applicant, gigs: Gig[], apps: Applicant[], now: number): Gig[] {
+  if (deriveStage(a) !== 'accepted') return [];
   const taken = new Set(apps.filter((x) => x.id !== a.id).map((x) => x.firstGig?.gigId).filter(Boolean));
   return gigs
     .filter((g) => !taken.has(g.id))
     .filter((g) => g.at >= earliestFirstDrive(a, now) && g.at <= now + 10 * DAY)
     .filter(isEasy)
     .filter((g) => distanceScore(a.area, g.area) <= 1)
-    .filter((g) => a.availability === 'full' || isWeekendOrEvening(g.at))
+    .filter((g) => matchesAvailability(a, g.at))
     .sort((x, y) => distanceScore(a.area, x.area) - distanceScore(a.area, y.area) || x.at - y.at)
     .slice(0, OFFER_COUNT);
+}
+
+/** Older demo records retain descriptive notes; new applications store the exact selected slots. */
+export function matchesAvailability(a: Applicant, at: number): boolean {
+  const d = new Date(at);
+  const slot = d.getDay() === 0 || d.getDay() === 6 ? 'weekend' : d.getHours() >= 17 ? 'weekday_evening' : 'weekday_day';
+  if (a.availabilitySlots?.length) return a.availabilitySlots.includes(slot);
+  if (a.availability === 'full') return true;
+  const note = (a.availabilityNote ?? '').toLowerCase();
+  if (note.includes('weekend') && !note.includes('evening')) return slot === 'weekend';
+  if (note.includes('evening') && !note.includes('weekend')) return slot === 'weekday_evening';
+  return slot === 'weekend' || slot === 'weekday_evening';
+}
+
+export function bookingError(a: Applicant, gig: Gig, apps: Applicant[], now: number): string | null {
+  if (deriveStage(a) !== 'accepted') return 'Only accepted drivers awaiting a first drive can book.';
+  if (a.firstGig?.bookedFor && a.firstGig.bookedFor <= now) return 'The booked drive has started; resolve it in Live Ops before rebooking.';
+  if (!Number.isFinite(gig.at) || gig.at < earliestFirstDrive(a, now)) return 'Choose a future drive with enough time for the pre-drive check.';
+  if (!isEasy(gig) || distanceScore(a.area, gig.area) > 1 || !matchesAvailability(a, gig.at)) return 'This job does not match the first-drive criteria, area or availability.';
+  if (apps.some(x => x.id !== a.id && x.firstGig?.gigId === gig.id)) return 'That drive has already been reserved by another driver.';
+  return null;
 }

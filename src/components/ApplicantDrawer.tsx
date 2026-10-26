@@ -65,7 +65,7 @@ export function ApplicantDrawer({ applicant: a, apps, gigs, now, onClose, onUpda
             </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted">
               <span className="num">{a.id}</span>
-              {stage === 'review' && <SlaChip {...slaStatus(a.docsCompleteAt!, now)} />}
+              {stage === 'review' && <SlaChip {...slaStatus(a.registeredAt, now)} />}
             </div>
           </div>
           {onViewAsDriver && (
@@ -91,7 +91,7 @@ export function ApplicantDrawer({ applicant: a, apps, gigs, now, onClose, onUpda
           )}
           <Facts a={a} now={now} />
           {stage === 'registered' && <MissingPanel a={a} now={now} onResult={onResult} />}
-          {stage === 'accepted' && <ActivationPanel key={a.id} a={a} apps={apps} gigs={gigs} now={now} onUpdate={onUpdate} onResult={onResult} />}
+          {stage === 'accepted' && <ActivationPanel key={a.id} a={a} apps={apps} gigs={gigs} now={now} onUpdate={onUpdate} onResult={onResult} onViewAsDriver={onViewAsDriver} />}
           {stage !== 'review' && <Documents a={a} />}
           {stage === 'review' && <ReviewPanel key={a.id} a={a} now={now} onUpdate={onUpdate} onResult={onResult} />}
           <Timeline a={a} now={now} />
@@ -105,7 +105,9 @@ export function ApplicantDrawer({ applicant: a, apps, gigs, now, onClose, onUpda
 function Facts({ a, now }: { a: Applicant; now: number }) {
   const rows: [string, ReactNode][] = [
     ['Area', a.area],
-    ['Licence', `${fmtYears(a.licenceYears)} · valid B`],
+    ['Licence', `${fmtYears(a.licenceYears)} · ${a.docs.licence === 'verified' ? 'verified B' : 'not verified'}`],
+    ['Owner / backup', `${a.owner ?? 'Hjalmar'} / ${a.backup ?? 'Sofia'}`],
+    ['Decision deadline (48 calendar hours)', formatDateTime(a.registeredAt + 48 * 3600000)],
     ['Availability', a.availability === 'full' ? 'Full' : `Limited${a.availabilityNote ? `: ${a.availabilityNote}` : ''}`],
     ['File complete', a.docsCompleteAt ? <When ts={a.docsCompleteAt} now={now} /> : <span className="text-muted">Not yet</span>],
     ...(a.callAt ? ([['Onboarding call', <When ts={a.callAt} now={now} />]] as [string, ReactNode][]) : []),
@@ -118,7 +120,7 @@ function Facts({ a, now }: { a: Applicant; now: number }) {
         <>
           <p>The licence is checked with Transportstyrelsen and the ID with BankID.</p>
           <p className="text-muted">
-            Data retention: <RetentionText a={a} />
+            Proposed retention schedule (demo does not delete data): <RetentionText a={a} />
           </p>
         </>
       }

@@ -2,15 +2,15 @@ import type { Applicant, Gig } from './types';
 import { DOC_KEYS, REJECT_REASONS } from './types';
 import { HOUR } from './time';
 import type { ChatThread } from './chat/types';
-import { isThread, shiftThread } from './chat/threads';
-import { isJob, shiftJob, type Job } from './liveOps';
+import { isThread } from './chat/threads';
+import { isJob, type Job } from './liveOps';
 
 export const STORAGE_KEY = 'driver-funnel-cockpit-v1';
 /**
  * Bump when the data model changes. Saves from older versions are discarded and the demo starts fresh:
  * v8 decides without waiting for the extract, so an older save's files would sit in the wrong stage.
  */
-export const DATA_VERSION = 8;
+export const DATA_VERSION = 9;
 /** If the saved demo is older than this, move every timestamp forward so clocks still look live. */
 export const REBASE_AFTER_MS = 12 * HOUR;
 
@@ -42,9 +42,14 @@ const REASONS = new Set(REJECT_REASONS.map((r) => r.value));
 export function isCurrentShape(a: unknown): a is Applicant {
   if (!a || typeof a !== 'object') return false;
   const x = a as Applicant;
-  if (typeof x.id !== 'string' || typeof x.name !== 'string' || typeof x.registeredAt !== 'number') return false;
-  if (!x.docs || !DOC_KEYS.every((k) => typeof x.docs[k] === 'string')) return false;
-  if (!Array.isArray(x.nudges) || !Array.isArray(x.log)) return false;
+  if (typeof x.id !== 'string' || typeof x.name !== 'string' || !Number.isFinite(x.registeredAt)) return false;
+  if (!Number.isFinite(x.licenceYears) || x.licenceYears < 0 || !['full', 'limited'].includes(x.availability)) return false;
+  if (!x.docs || !DOC_KEYS.every(k => ['verified', 'uploaded', 'missing', 'pending', 'ready', 'failed', 'remark'].includes(x.docs[k]))) return false;
+  if (!Array.isArray(x.nudges) || !x.nudges.every(Number.isFinite) || !Array.isArray(x.log) || !x.log.every(e => Number.isFinite(e.at) && typeof e.text === 'string')) return false;
+  for (const key of ['docsCompleteAt', 'firstDocsSubmittedAt', 'onboardingCompletedAt', 'callAt', 'extractShownAt', 'extractCheckAt'] as const) if (x[key] !== undefined && (!Number.isFinite(x[key]) || x[key]! < x.registeredAt)) return false;
+  if (x.decision && (!['accepted', 'accepted_simple', 'accepted_flagged', 'rejected'].includes(x.decision.type) || !Number.isFinite(x.decision.at) || x.decision.at < x.registeredAt)) return false;
+  if (x.firstGig?.bookedFor !== undefined && !Number.isFinite(x.firstGig.bookedFor)) return false;
+  if (x.firstGig?.doneAt !== undefined && (!Number.isFinite(x.firstGig.doneAt) || x.firstGig.doneAt < (x.decision?.at ?? x.registeredAt) || x.firstGig.doneAt < (x.firstGig.bookedFor ?? -Infinity))) return false;
   if (x.decision?.reason && !REASONS.has(x.decision.reason)) return false;
   return true;
 }
@@ -97,14 +102,8 @@ export function restore(raw: string | null, now: number): DemoData | null {
     const { threads, jobs } = saved;
     if (!Array.isArray(threads) || !threads.every(isThread)) return null;
     if (!Array.isArray(jobs) || !jobs.every(isJob)) return null;
-    const gap = now - saved.savedAt;
-    if (gap <= REBASE_AFTER_MS) return { apps: saved.apps, gigs: saved.gigs, threads, jobs };
-    return {
-      apps: saved.apps.map((a) => shiftApplicant(a, gap)),
-      gigs: saved.gigs.map((g) => ({ ...g, at: g.at + gap })),
-      threads: threads.map((t) => shiftThread(t, gap)),
-      jobs: jobs.map((j) => shiftJob(j, gap)),
-    };
+    void now;
+    return { apps: saved.apps, gigs: saved.gigs, threads, jobs };
   } catch {
     return null;
   }

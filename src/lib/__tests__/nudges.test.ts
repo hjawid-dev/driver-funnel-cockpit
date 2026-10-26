@@ -45,13 +45,13 @@ import { nudgeMessage, outstandingDocs } from '../nudges';
 describe('outstandingDocs and nudgeMessage', () => {
   const a = mk({ name: 'Wilma Eriksson', docs: { licence: 'uploaded', id: 'verified', extract: 'pending', photo: 'missing' } });
   it('lists the extract first', () => {
-    expect(outstandingDocs(a)).toEqual(['extract', 'photo']);
+    expect(outstandingDocs(a)).toEqual(['photo']);
   });
   it('writes a reminder that names what is left', () => {
     const msg = nudgeMessage(a);
     expect(msg).toMatch(/^Hi Wilma/);
-    expect(msg).toContain('2 things left');
-    expect(msg).toContain('on its way from Polisen');
+    expect(msg).toContain('One thing left');
+    expect(msg).not.toContain('when it arrives');
     expect(msg).toContain('profile photo');
   });
   it('asks the applicant to order the extract, and says no copy is kept', () => {

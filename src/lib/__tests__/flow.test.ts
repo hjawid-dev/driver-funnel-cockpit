@@ -3,7 +3,7 @@ import { distanceScore, firstGigOffers, generateGigs, isEasy, isWeekendOrEvening
 import { callSlots } from '../booking';
 import { automationEvents, driverInbox, summarize } from '../automation';
 import { availabilityFrom, bookCall, bookOffer, canMoveCall, canRetake, changePrequal, createApplicant, driverStep, progress, remindWhenQualified, retakeDocument, reviewableSteps } from '../driverFlow';
-import { applyDecision, receiveDocument, setExtractShown, setPhotoApproved } from '../actions';
+import { completeOnboarding, applyDecision, receiveDocument, setExtractShown, setPhotoApproved } from '../actions';
 import { validateDecision } from '../criteria';
 import { deriveStage } from '../stage';
 import { generateSeed } from '../seed';
@@ -33,7 +33,7 @@ describe('createApplicant', () => {
   it('the applicant can change a wrong answer and carry on; the change is logged', () => {
     const a = changePrequal(apply({ licenceYears: 0.5 }), { licenceYears: 3, meetsMinAge: true }, NOW + MIN);
     expect(a.prequalIssue).toBeUndefined();
-    expect(driverStep(a)).toBe('id');
+    expect(driverStep(a)).toBe('extract');
     expect(a.log.at(-1)?.text).toContain('requirements now met');
     expect(changePrequal(apply({ licenceYears: 0.5 }), { licenceYears: 0.5, meetsMinAge: true }, NOW).prequalIssue).toBe('licence');
   });
@@ -43,9 +43,9 @@ describe('createApplicant', () => {
     expect(a.decision).toBeUndefined();
   });
   it('availability: weekday daytime is full; anything else is limited with a note', () => {
-    expect(availabilityFrom(['weekday_day', 'weekend'])).toEqual({ availability: 'full' });
-    expect(availabilityFrom(['weekend', 'weekday_evening'])).toEqual({ availability: 'limited', availabilityNote: 'Weekday evenings and weekends' });
-    expect(availabilityFrom(['weekend'])).toEqual({ availability: 'limited', availabilityNote: 'Weekends' });
+    expect(availabilityFrom(['weekday_day', 'weekend'])).toMatchObject({ availability: 'full' });
+    expect(availabilityFrom(['weekend', 'weekday_evening'])).toMatchObject({ availability: 'limited', availabilityNote: 'Weekday evenings and weekends' });
+    expect(availabilityFrom(['weekend'])).toMatchObject({ availability: 'limited', availabilityNote: 'Weekends' });
   });
   it('a person can close a pre-qualify issue without waiting 14 days', () => {
     const r = applyDecision(apply({ licenceYears: 0.5 }), { type: 'rejected', reason: 'no_valid_licence' }, NOW);
@@ -56,20 +56,20 @@ describe('createApplicant', () => {
 describe('going back during the application', () => {
   const upTo = (n: number) => {
     let a = apply();
-    const steps: [Parameters<typeof receiveDocument>[1], Parameters<typeof receiveDocument>[2]][] = [['id', 'verified'], ['licence', 'verified'], ['photo', 'uploaded'], ['extract', 'ready']];
+    const steps: [Parameters<typeof receiveDocument>[1], Parameters<typeof receiveDocument>[2]][] = [['extract', 'ready'], ['id', 'verified'], ['licence', 'verified'], ['photo', 'uploaded']];
     for (const [k, st] of steps.slice(0, n)) a = receiveDocument(a, k, st, NOW);
     return a;
   };
   it('shows the answers and every step before the current one', () => {
     expect(reviewableSteps(upTo(0))).toEqual(['answers']);
-    expect(reviewableSteps(upTo(3))).toEqual(['answers', 'id', 'licence', 'photo']);
+    expect(reviewableSteps(upTo(3))).toEqual(['answers', 'extract', 'id', 'licence']);
   });
   it('a photo can be retaken before the file is complete, which takes the applicant back to that step', () => {
     const a = upTo(3);
     expect(canRetake(a, 'licence')).toBe(true);
     const b = retakeDocument(a, 'licence', NOW + MIN);
     expect(driverStep(b)).toBe('licence');
-    expect(b.docs.photo).toBe('uploaded');
+    expect(b.docs.photo).toBe('missing');
     expect(b.log.at(-1)?.text).toContain('retaking the licence photo');
   });
   it('nothing can be retaken once the file is complete', () => {
@@ -89,20 +89,16 @@ describe('driverStep walks the whole flow', () => {
   it('id → licence → photo → extract → call → decision → first gig → active', () => {
     let a = apply();
     const steps: string[] = [driverStep(a)];
-    a = receiveDocument(a, 'id', 'verified', NOW);
-    steps.push(driverStep(a));
-    a = receiveDocument(a, 'licence', 'verified', NOW);
-    steps.push(driverStep(a));
-    a = receiveDocument(a, 'photo', 'uploaded', NOW);
-    steps.push(driverStep(a));
-    a = receiveDocument(a, 'extract', 'pending', NOW);
-    // Ordered is enough: the file is complete and the call can be booked without waiting for the post.
+    a = receiveDocument(a, 'extract', 'pending', NOW); steps.push(driverStep(a));
+    a = receiveDocument(a, 'id', 'verified', NOW); steps.push(driverStep(a));
+    a = receiveDocument(a, 'licence', 'verified', NOW); steps.push(driverStep(a));
+    a = receiveDocument(a, 'photo', 'uploaded', NOW); steps.push(driverStep(a));
     expect(a.docsCompleteAt).toBe(NOW);
-    steps.push(driverStep(a));
     a = bookCall(a, NOW + 20 * HOUR, NOW);
     steps.push(driverStep(a));
     a = receiveDocument(a, 'extract', 'ready', NOW + 10 * HOUR);
     a = setExtractShown(setPhotoApproved(a, true, NOW), true, NOW);
+    a = completeOnboarding(a, NOW + 20 * HOUR);
     const r = applyDecision(a, { type: 'accepted' }, NOW + 20 * HOUR);
     if (!r.ok) throw new Error(r.error);
     a = r.applicant;
@@ -110,8 +106,8 @@ describe('driverStep walks the whole flow', () => {
     const offer = firstGigOffers(a, gigs, seed, NOW + 20 * HOUR)[0];
     a = bookOffer(a, offer, NOW + 21 * HOUR);
     steps.push(driverStep(a));
-    expect(steps).toEqual(['id', 'licence', 'photo', 'extract', 'call', 'decision', 'first_gig', 'booked']);
-    expect(progress('id')).toBe(0);
+    expect(steps).toEqual(['extract', 'id', 'licence', 'photo', 'call', 'decision', 'first_gig', 'booked']);
+    expect(progress('extract')).toBe(0);
     expect(progress('booked')).toBeGreaterThan(progress('first_gig'));
   });
 });
@@ -168,7 +164,7 @@ describe('automationEvents', () => {
     expect(automationEvents([a], NOW, NOW + 4 * DAY).filter((e) => e.kind === 'nudge')).toHaveLength(0);
   });
   it('raises SLA alerts at 24 h and 48 h without a decision', () => {
-    const a = mk({ docsCompleteAt: NOW });
+    const a = mk({ registeredAt: NOW, docsCompleteAt: NOW });
     const kinds = automationEvents([a], NOW, NOW + 3 * DAY).map((e) => e.kind);
     expect(kinds).toEqual(expect.arrayContaining(['sla_24', 'sla_overdue']));
   });
@@ -196,7 +192,7 @@ describe('automationEvents', () => {
   });
   it('summarize counts what ran', () => {
     const a = apply();
-    expect(summarize(automationEvents([a], NOW, NOW + DAY + HOUR))).toBe('2 nudges');
+    expect(summarize(automationEvents([a], NOW, NOW + DAY + HOUR))).toBe('2 nudges · 1 SLA alert');
     expect(summarize([])).toBe('Nothing was due in this window');
   });
 });

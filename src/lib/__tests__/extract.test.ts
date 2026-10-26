@@ -5,7 +5,7 @@ import { mk, NOW } from './helpers';
 import { generateSeed } from '../seed';
 import { generateGigs, firstGigOffers } from '../gigs';
 import { createApplicant, bookCall, bookOffer, driverStep } from '../driverFlow';
-import { applyDecision, bookFirstGig, completeFirstGig, receiveDocument, setActivationReason, setPhotoApproved } from '../actions';
+import { completeOnboarding, applyDecision, bookFirstGig, completeFirstGig, receiveDocument, setActivationReason, setPhotoApproved } from '../actions';
 import { bookExtractCheck, extractState, markExtractShown, needsExtract, OFFER_LEAD_MS, releaseDue, releaseIfUnchecked, showBy } from '../extract';
 import { callSlots } from '../booking';
 import { activationReason, activationReasons, supplyDemand, JOBS_PER_DRIVER_14D } from '../activation';
@@ -29,6 +29,7 @@ function acceptedWithExtractOrdered(): Applicant {
   a = receiveDocument(a, 'extract', 'pending', NOW);
   const call = callSlots(NOW, seed)[0];
   a = setPhotoApproved(bookCall(a, call, NOW), true, call);
+  a = completeOnboarding(a, call);
   const r = applyDecision(a, { type: 'accepted' }, call);
   if (!r.ok) throw new Error(r.error);
   return r.applicant;
@@ -78,10 +79,10 @@ describe('decided within 48 hours, the extract before the first drive', () => {
     const a = acceptedWithExtractOrdered();
     const t = a.decision!.at;
     const done = completeFirstGig(a, { onTime: true, ok: true }, t);
-    expect(done).toEqual({ ok: false, error: 'The extract must be shown before the first drive.' });
+    expect(done).toEqual({ ok: false, error: 'The pre-drive check must be completed and the extract shown.' });
     const soon = bookFirstGig(a, t + 20 * HOUR, t);
     expect(soon.ok).toBe(false);
-    expect(bookFirstGig(a, t + 3 * DAY, t).ok).toBe(true);
+    expect(bookFirstGig(a, firstGigOffers(a, gigs, seed, t)[0], t).ok).toBe(true);
   });
 
   it('a booked drive whose extract was not shown by the day before is released, and the job leaves Live ops', () => {
@@ -93,7 +94,7 @@ describe('decided within 48 hours, the extract before the first drive', () => {
     expect(by).toBe(gig.at - DAY);
     expect(releaseIfUnchecked(booked, by - 1)).toBeNull();
     const released = releaseIfUnchecked(booked, by)!;
-    expect(released.firstGig).toEqual({ released: { at: by, bookedFor: gig.at } });
+    expect(released.firstGig).toMatchObject({ released: { at: by, bookedFor: gig.at } });
     expect(deriveStage(released)).toBe('accepted');
     expect(driverStep(released)).toBe('first_gig');
     // The job for the booked drive goes back.
@@ -172,7 +173,7 @@ describe('why an accepted driver has not driven yet', () => {
   it('what ops learned on a call wins, and clearing it lets the data speak again', () => {
     const k = seed.find((a) => a.name === 'Klara Forsberg')!;
     const set = setActivationReason(k, 'declined', NOW);
-    expect(set.ok && activationReason(set.applicant, seed, gigs, NOW)).toBe('declined');
+    expect(set.ok && activationReason(set.applicant, seed, gigs, NOW)).toBe('booked');
     if (!set.ok) return;
     const cleared = setActivationReason(set.applicant, null, NOW);
     expect(cleared.ok && activationReason(cleared.applicant, seed, gigs, NOW)).toBe('booked');

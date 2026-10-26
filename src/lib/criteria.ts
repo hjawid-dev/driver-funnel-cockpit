@@ -58,6 +58,8 @@ export function evaluate(a: Applicant): Evaluation {
       ? { result: 'fail', detail: 'No valid B licence' }
       : a.docs.licence === 'missing' || a.docs.licence === 'pending'
         ? { result: 'fail', detail: 'Licence not submitted' }
+        : a.docs.licence !== 'verified'
+        ? { result: 'manual', detail: 'Reviewer must verify the licence validity and years held' }
         : y >= MIN_LICENCE_YEARS
           ? { result: 'pass', detail: `${fmtYears(y)} held` }
           : y >= BORDERLINE_LICENCE_YEARS
@@ -67,10 +69,10 @@ export function evaluate(a: Applicant): Evaluation {
 
   const id: MustHave = {
     key: 'id',
-    label: 'ID verified via personnummer (BankID)',
+    label: 'ID verified (BankID or manual ID check)',
     ...(a.docs.id === 'verified'
-      ? { result: 'pass', detail: 'Verified with BankID' }
-      : { result: 'fail', detail: a.docs.id === 'missing' ? 'ID not submitted' : 'ID could not be verified with BankID' }),
+      ? { result: 'pass', detail: a.idMethod === 'manual' ? 'ID verified manually by a reviewer' : 'Verified with BankID' }
+      : { result: 'fail', detail: a.docs.id === 'missing' ? 'ID not submitted' : a.idMethod === 'manual' && a.docs.id === 'uploaded' ? 'Manual identity check pending' : 'ID verification not completed' }),
   };
 
   const extract: MustHave = {
@@ -150,8 +152,10 @@ export interface DecisionInput {
 }
 
 /** Returns an error message, or null when the decision is allowed. */
-export function validateDecision(a: Applicant, input: DecisionInput, now: number): string | null {
+export function validateDecision(a: Applicant, input: DecisionInput, now: number, by = a.owner ?? 'Hjalmar'): string | null {
   const stage = deriveStage(a);
+  if (!Number.isFinite(now) || now < a.registeredAt) return 'Decision time cannot be before registration.';
+  if (stage === 'review' && a.docsCompleteAt! > now) return 'The complete file is not available at this decision time.';
 
   if (noteLooksSensitive(input.note)) {
     return 'Notes must not contain offence details or anything from the extract. Use the generic reason code.';
@@ -165,15 +169,16 @@ export function validateDecision(a: Applicant, input: DecisionInput, now: number
       return null;
     }
     // A pre-qualifying requirement that isn't met is closed by a person, not automatically.
-    if (stage === 'registered' && a.prequalIssue) return null;
-    if (stage !== 'review') return 'Only applicants under review can be decided.';
-    if (NEEDS_SECOND_REVIEWER.includes(input.reason) && !input.secondReviewer?.trim()) {
+    if (stage !== 'review' && !(stage === 'registered' && a.prequalIssue) && !(stage === 'accepted' && input.reason === 'requirements_not_met')) return 'Only applicants under review or awaiting a pre-drive check can be decided.';
+    if (NEEDS_SECOND_REVIEWER.includes(input.reason) && (!a.secondReview || a.secondReview.reason !== input.reason || a.secondReview.by !== input.secondReviewer?.trim() || a.secondReview.at > now || a.secondReview.by.trim().toLowerCase() === by.trim().toLowerCase())) {
       return 'A suitability rejection needs a second reviewer to confirm.';
     }
     return null;
   }
 
   if (stage !== 'review') return 'Only applicants under review can be decided.';
+  if (a.prequalIssue) return 'Resolve the pre-qualifying requirement first.';
+  if (!a.onboardingCompletedAt || a.onboardingCompletedAt < a.registeredAt || a.onboardingCompletedAt > now) return 'Complete and log the onboarding call before deciding.';
   const ev = evaluate(a);
   if (ev.acceptBlockedBy.length) return `Can't accept: ${ev.acceptBlockedBy[0]}.`;
   if (input.type !== ev.acceptType) return `The written rules call for "${DECISION_LABEL[ev.acceptType]}" here.`;

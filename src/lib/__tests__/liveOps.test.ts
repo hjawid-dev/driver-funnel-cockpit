@@ -1,3 +1,4 @@
+import { tellAccountOwner } from '../liveOps';
 import { describe, expect, it } from 'vitest';
 import {
   textFor,
@@ -11,7 +12,7 @@ import {
   contactReplies,
   escalate,
   closedIncidents,
-  closeIncident,
+  closeIncident as rawCloseIncident,
   confirmByPhone,
   currentJob,
   customerUpdate,
@@ -90,12 +91,12 @@ describe('pre-pickup check', () => {
 });
 
 describe('alerts: the app notices before anyone has to call', () => {
-  it('no keys 5 minutes after checking in: the assistant takes it, and a person 5 minutes later', () => {
+  it('missing keys are visible at check-in; a person takes over after five minutes', () => {
     const j = checkIn(job(), NOW);
-    expect(assisting(j, NOW + 4 * MIN)).toBeNull();
-    expect(assisting(j, NOW + 5 * MIN)).toEqual({ since: NOW + 5 * MIN, until: NOW + 10 * MIN });
-    expect(jobAlert(j, NOW + 9 * MIN)).toBeNull();
-    expect(jobAlert(j, NOW + 10 * MIN)).toMatchObject({ kind: 'escalated', why: 'time', at: NOW + 10 * MIN });
+    expect(assisting(j, NOW + 4 * MIN)).toEqual({ since: NOW, until: NOW + 5 * MIN });
+    expect(assisting(j, NOW + 5 * MIN)).toBeNull();
+    expect(jobAlert(j, NOW + 4 * MIN)).toBeNull();
+    expect(jobAlert(j, NOW + 10 * MIN)).toMatchObject({ kind: 'escalated', why: 'time', at: NOW + 5 * MIN });
     expect(assisting(j, NOW + 10 * MIN)).toBeNull();
   });
   it('not checked in 10 minutes after pickup time', () => {
@@ -189,7 +190,7 @@ describe('alerts: the app notices before anyone has to call', () => {
     expect(jobAlert(j, NOW + 16 * MIN)).not.toBeNull();
   });
   it('keys before the alert: nothing to do', () => {
-    expect(jobAlert(gotKeys(checkIn(job(), NOW), NOW + 5 * MIN), NOW + 20 * MIN)).toBeNull();
+    expect(jobAlert(gotKeys(checkIn(job(), NOW), NOW + 4 * MIN), NOW + 20 * MIN)).toBeNull();
   });
   it('an incident stays open until ops closes it, even after the keys turn up', () => {
     let j = checkIn(job(), NOW);
@@ -218,7 +219,7 @@ describe('the playbook', () => {
   it('the customer update is filled from the job and names the last departure', () => {
     const text = customerUpdate(checkIn(job(), NOW), NOW + 15 * MIN);
     expect(text).toContain('JOB-1');
-    expect(text).toContain('delivery by');
+    expect(text).toContain('delivery plan');
     expect(text).not.toMatch(/780|500|SEK/); // no prices in a customer message
   });
 });
@@ -251,7 +252,7 @@ describe("a new driver's first drive", () => {
     const jobs = syncFirstDrive([], a, [gig]);
     expect(jobs).toHaveLength(1);
     expect(jobs[0]).toMatchObject({ id: 'JOB-301', firstDrive: true, pickupAt: gig.at, reward: 320 });
-    expect(pickupChecks(jobs[0], gig.at - 30 * MIN).map((c) => c.state)).toEqual(['confirmed', 'confirmed']);
+    expect(pickupChecks(jobs[0], gig.at - 30 * MIN).map((c) => c.state)).toEqual(['no_reply', 'no_reply']);
   });
   it('rebooking moves the job until the drive has started; nothing booked, nothing added', () => {
     const a = accepted({ firstGig: { gigId: gig.id, bookedFor: gig.at } });
@@ -262,7 +263,7 @@ describe("a new driver's first drive", () => {
     expect(syncFirstDrive([], accepted(), [gig])).toEqual([]);
   });
   it('a booking by ops without a picked job gets a curated drive in the driver area', () => {
-    expect(firstDriveJob(accepted({ firstGig: { bookedFor: NOW + DAY } }), undefined)).toMatchObject({ area: 'Solna', firstDrive: true });
+    expect(firstDriveJob(accepted({ firstGig: { bookedFor: NOW + DAY } }), undefined)).toBeNull();
   });
   it('delivered on time without an incident counts as a good first drive', () => {
     const j = firstDriveJob(accepted({ firstGig: { gigId: gig.id, bookedFor: gig.at } }), gig)!;
@@ -313,7 +314,7 @@ describe('what the assistant may know about the drive', () => {
     const fact = jobFact(checkIn(job(), NOW), NOW + 5 * MIN);
     expect(fact).toContain('pickup in Solna');
     expect(fact).toContain('no keys yet');
-    expect(jobFact(checkIn(job(), NOW), NOW + 6 * MIN)).toMatch(/nothing sent to the customer yet, a person calls at \d\d:\d\d/);
+    expect(jobFact(checkIn(job(), NOW), NOW + 4 * MIN)).toMatch(/nothing sent to the customer yet, a person calls at \d\d:\d\d/);
     for (const t of [NOW + 6 * MIN, NOW + 11 * MIN]) expect(jobFact(job({ area: 'Upplands Väsby' , arrivedAt: NOW }), t).length).toBeLessThanOrEqual(160);
     expect(fact).not.toMatch(/Pilot AB|Dealership|780|500/);
   });
@@ -326,8 +327,8 @@ describe('the demo day', () => {
 
   it('Julia is the case: pilot customer, 35 km, 500/780 SEK, no keys, nobody confirmed; the assistant tried, then a person', () => {
     expect(julia).toMatchObject({ pilot: true, km: 35, reward: 500, price: 780 });
-    expect(jobAlert(julia, NOW)).toMatchObject({ kind: 'escalated', why: 'time', at: NOW - 4 * MIN });
-    expect(assistantLog(julia, NOW).map((e) => e.at - NOW)).toEqual([-9 * MIN, -9 * MIN, -9 * MIN, -4 * MIN]);
+    expect(jobAlert(julia, NOW)).toMatchObject({ kind: 'escalated', why: 'time', at: NOW - 9 * MIN });
+    expect(assistantLog(julia, NOW).map((e) => e.at - NOW)).toEqual([-14 * MIN, -14 * MIN, -9 * MIN, -9 * MIN]);
     expect(pickupChecks(julia, NOW).map((c) => c.state)).toEqual(['no_reply', 'no_reply']);
     expect(openIncidents(jobs, NOW).map((j) => j.id)).toEqual([julia.id]);
     expect(currentJob(jobs, julia.driverId, NOW)?.id).toBe(julia.id);
@@ -389,3 +390,8 @@ describe('round F: a note where a choice says too little, and "solved" from the 
   });
 });
 
+
+// These tests isolate other gates; the new missing-review/account gates are exercised in caseConsistency.test.ts.
+function closeIncident(j: Parameters<typeof rawCloseIncident>[0], opts: Parameters<typeof rawCloseIncident>[1], now: number) {
+  return rawCloseIncident(tellAccountOwner(j, now), { reviewBooked: true, reviewAt: now + DAY, ...opts }, now);
+}

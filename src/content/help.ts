@@ -38,7 +38,7 @@ export const HELP: HelpArticle[] = [
     body: `To drive with us you need:
 - To be at least 20 years old (our insurance requires it).
 - A valid Swedish or EU B licence (cars) held for at least 2 years. With 1–2 years you can start with simple drives first. Under 1 year we can't offer drives yet.
-- Swedish BankID, to verify who you are.
+- Verified ID/personnummer: BankID where possible, otherwise a manual identity check by ops.
 - The right to work in Sweden.
 - A smartphone with mobile data.
 - To speak Swedish or English well enough to talk with customers and ops.
@@ -51,10 +51,10 @@ Before your first drive you also show a criminal-record extract on video (we onl
     tags: ['apply', 'ansöka', 'steps', 'process', 'how long', 'application'],
     body: `Applying takes about 10 minutes of your time, all on your phone:
 1. Answer four quick questions (they decide nothing on their own).
-2. Verify your ID with BankID.
-3. Take a photo of your driving licence, front and back.
-4. Add a profile photo.
-5. Order your criminal-record extract at polisen.se. It comes by post, so you don't wait for it.
+2. Order your criminal-record extract at polisen.se first. It comes by post; do not wait for it.
+3. Verify your ID with BankID or submit ID for manual review.
+4. Take a photo of your driving licence, front and back.
+5. Add a profile photo.
 6. Book your 15-minute onboarding call (video) right away. We go through how jobs work and decide in the call.
 7. Before your first drive, show us the extract on video: in the call if it has arrived, otherwise in a 5-minute check.
 The progress bar at the top shows where you are. You can stop and continue later; we keep your progress.`,
@@ -64,7 +64,7 @@ The progress bar at the top shows where you are. You can stop and continue later
     title: 'How long until I can start driving?',
     category: 'Applying',
     tags: ['how long', 'hur lång tid', 'when', 'start', 'waiting', 'time'],
-    body: `Applying takes about 10 minutes. You book your onboarding call yourself as soon as your extract is ordered, often for the same or next day, and we decide in the call, at the latest within 48 hours.
+    body: `Applying takes about 10 minutes. You book your onboarding call yourself as soon as your extract is ordered, often for the same or next day, and we aim to decide in that call within 48 calendar hours of registration. If the available call is later, ops must arrange an earlier review; the target has not been met just because a call is booked.
 The criminal-record extract comes by post and can take up to two weeks, so we don't wait for it to decide. You show it before your first drive.
 If you're accepted you pick your first drive straight away. Until your extract is shown, first drives start at least 5 days ahead so it has time to arrive.`,
   },
@@ -103,7 +103,7 @@ You can always ask why a decision was made and ask for a review, here in the cha
     category: 'Documents',
     tags: ['bankid', 'id', 'identity', 'legitimation', 'verify'],
     body: `We use BankID to check who you are. Tap "Open BankID" in the app and approve in your BankID app. It takes about a minute.
-If you don't have Swedish BankID, you can't apply yet. Most banks in Sweden issue BankID; ask your bank.
+If you do not have Swedish BankID, choose manual ID review. Submit the ID in the dedicated application step; a person verifies it before acceptance. Do not send identity documents in the chat.
 If BankID fails, try again after a few minutes. If it still fails, ask to talk to a person in the chat.`,
   },
   {
@@ -157,7 +157,7 @@ Please don't send the extract or details from it in the chat or by email. If you
     tags: ['extract late', 'not arrived', 'inte kommit', 'delay', 'post', 'waiting'],
     body: `It comes by post, often within a week, sometimes up to two weeks. If two weeks have passed, check your order at polisen.se or order it again.
 You don't have to wait for it: finish the other steps and book your onboarding call. The decision doesn't depend on when the extract arrives.
-If you have a first drive booked, show the extract by the day before. If it hasn't arrived in time, the drive goes to another driver, you stay accepted, and you pick a new drive once it has arrived.`,
+If you have a first drive booked, show the extract by the day before. If it hasn't arrived in time, the drive is released for reassignment, you stay accepted, and you pick a new drive once it has arrived.`,
   },
   {
     id: 'reminders',
@@ -197,7 +197,7 @@ If you miss your call, ask in the chat for a new time. Missing one call doesn't 
 2. What to do if you get stuck at a pickup: stay, tell ops, your waiting time is paid.
 3. When you can drive.
 4. Your licence, and your criminal-record extract if it has arrived. We only look at the extract and keep nothing from it. If it hasn't arrived, you show it before your first drive.
-5. Your questions, and our decision. If we need to check something, you get the decision within 48 hours.
+5. Your questions, and our decision. If we need to check something, the total decision target remains 48 calendar hours from registration; it does not restart at this call.
 6. If you're accepted, we book your first drive together in the same call.
 No preparation is needed beyond having your licence at hand, and your extract if you have it.`,
   },
@@ -218,7 +218,7 @@ Some reasons we can't go into in writing. Then we offer to explain in a call.`,
     category: 'First drive',
     tags: ['first drive', 'första uppdraget', 'first job', 'first gig', 'start', 'new driver', 'show extract', 'visa utdrag', 'extract check'],
     body: `When you're accepted, the app offers up to three easy first drives: short, with a standard car, in your part of Stockholm and at times that fit you. Pick one and it is booked.
-You can't drive before your criminal-record extract has been shown, but you can book the drive before it arrives: until it is shown, the drives start at least 5 days ahead, and you show it in a 5-minute video check by the day before. Otherwise the drive goes to another driver; you stay accepted and pick a new one.
+You can't drive before your criminal-record extract has been shown, but you can book the drive before it arrives: until it is shown, the drives start at least 5 days ahead, and you show it in a 5-minute video check by the day before. Otherwise the drive is released for reassignment; you stay accepted and pick a new one.
 Someone from ops calls you within 24 hours to welcome you and go through the drive. During the whole drive ops is on standby in the chat.
 Bring your driving licence and a charged phone. The day before, you get a reminder with the address and time.`,
   },

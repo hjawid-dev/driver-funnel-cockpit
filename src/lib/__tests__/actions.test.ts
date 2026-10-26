@@ -25,7 +25,7 @@ describe('applyDecision', () => {
     expect(before.decision).toBeUndefined();
   });
   it('stores the second reviewer on a suitability rejection', () => {
-    const r = applyDecision(inReview(), { type: 'rejected', reason: 'requirements_not_met', secondReviewer: 'Backup' }, NOW);
+    const r = applyDecision(inReview({ secondReview: { by: 'Backup', at: NOW, reason: 'requirements_not_met' } }), { type: 'rejected', reason: 'requirements_not_met', secondReviewer: 'Backup' }, NOW);
     expect(r.ok && r.applicant.decision?.secondReviewer).toBe('Backup');
     expect(r.ok && r.applicant.log.at(-1)!.text).toMatch(/confirmed by Backup/);
   });
@@ -69,25 +69,25 @@ describe('nudges and no-response', () => {
 
 describe('activation actions', () => {
   const accepted = () => {
-    const r = applyDecision(inReview(), { type: 'accepted' }, NOW - 5 * DAY);
+    const r = applyDecision(inReview({ registeredAt: NOW - 8 * DAY, docsCompleteAt: NOW - 6 * DAY, onboardingCompletedAt: NOW - 5 * DAY }), { type: 'accepted' }, NOW - 5 * DAY);
     if (!r.ok) throw new Error(r.error);
     return r.applicant;
   };
   it('logs a welcome call and books a first gig', () => {
     const a1 = logWelcomeCall(accepted(), NOW);
     expect(a1.ok && a1.applicant.welcomeCallAt).toBe(NOW);
-    const a2 = bookFirstGig(accepted(), NOW + DAY, NOW);
+    const a2 = bookFirstGig(accepted(), { id: 'TEST-JOB', from: 'Solna', to: 'Solna', area: 'Solna', km: 5, minutes: 20, pay: 300, at: NOW + DAY, car: 'standard' }, NOW);
     expect(a2.ok && a2.applicant.firstGig?.bookedFor).toBe(NOW + DAY);
   });
   it('completing the first gig makes the driver active and stores quality', () => {
-    const r = completeFirstGig(accepted(), { onTime: false, ok: true }, NOW);
+    const r = completeFirstGig({ ...accepted(), firstGig: { gigId: 'TEST-JOB', bookedFor: NOW - DAY } }, { delivery: { jobId: 'TEST-JOB', at: NOW }, onTime: false, ok: true }, NOW);
     expect(r.ok && deriveStage(r.applicant)).toBe('active');
     expect(r.ok && r.applicant.firstGig).toMatchObject({ doneAt: NOW, onTime: false, ok: true });
   });
   it('an incident on the first gig needs a cause and a note about the drive', () => {
-    expect(completeFirstGig(accepted(), { onTime: true, ok: false }, NOW)).toEqual({ ok: false, error: 'Say what happened: pick a cause and write a short note about the drive.' });
-    expect(completeFirstGig(accepted(), { onTime: true, ok: false, issue: { cause: 'damage', note: '   ' } }, NOW).ok).toBe(false);
-    const r = completeFirstGig(accepted(), { onTime: true, ok: false, issue: { cause: 'damage', note: 'Scratch on the rear bumper, reported with photos.' } }, NOW);
+    expect(completeFirstGig({ ...accepted(), firstGig: { gigId: 'TEST-JOB', bookedFor: NOW - DAY } }, { delivery: { jobId: 'TEST-JOB', at: NOW }, onTime: true, ok: false }, NOW)).toEqual({ ok: false, error: 'Say what happened: pick a cause and write a short note about the drive.' });
+    expect(completeFirstGig({ ...accepted(), firstGig: { gigId: 'TEST-JOB', bookedFor: NOW - DAY } }, { delivery: { jobId: 'TEST-JOB', at: NOW }, onTime: true, ok: false, issue: { cause: 'damage', note: '   ' } }, NOW).ok).toBe(false);
+    const r = completeFirstGig({ ...accepted(), firstGig: { gigId: 'TEST-JOB', bookedFor: NOW - DAY } }, { delivery: { jobId: 'TEST-JOB', at: NOW }, onTime: true, ok: false, issue: { cause: 'damage', note: 'Scratch on the rear bumper, reported with photos.' } }, NOW);
     expect(r.ok && r.applicant.firstGig?.issue).toEqual({ cause: 'damage', note: 'Scratch on the rear bumper, reported with photos.' });
     expect(r.ok && r.applicant.log.at(-1)?.text).toContain('incident: damage or an accident, "Scratch on the rear bumper, reported with photos."');
   });

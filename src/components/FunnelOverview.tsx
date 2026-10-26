@@ -4,14 +4,14 @@ import { Proposed, StatusChip } from './ui';
 import { InfoTip } from './InfoTip';
 
 /** The four metrics the case asks about, in this order. Acceptance and first-gig quality are in the weekly report. */
-export const FUNNEL_KPIS: Kpi['key'][] = ['appToActive', 'docCompletion', 'timeToDecision', 'activation'];
+export const FUNNEL_KPIS: Kpi['key'][] = ['appToActive', 'docCompletion', 'timeToDecision', 'activation', 'acceptance', 'quality'];
 
 const LABEL: Partial<Record<Kpi['key'], string>> = { activation: 'First-gig activation' };
 
 /** The case's own numbers, kept apart from the demo sample so the two are never mixed. */
 const CASE_BASELINE: Partial<Record<Kpi['key'], string>> = {
   appToActive: 'Case: 25 of 120 ≈ 21%',
-  docCompletion: 'Case: ~70%',
+  docCompletion: 'Case: ~70% eventually; 7-day baseline unknown',
   timeToDecision: 'Case: 6 days (mean)',
   activation: 'Case: not measured',
 };
@@ -57,9 +57,10 @@ export function FunnelKpis({ kpis, baseline, onReport }: { kpis: Kpi[]; baseline
                   </span>
                 )}
               </div>
+              {k.sub && <p className="mt-1 text-xs text-muted">{k.sub}</p>}
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                 <StatusChip status={k.status} />
-                {k.key === 'timeToDecision' ? (
+                {k.key === 'acceptance' ? <span className="text-muted">Guardrail · reviewed files</span> : k.key === 'timeToDecision' ? (
                   <span className="text-muted">Case target &lt; 48 h</span>
                 ) : (
                   <span className="flex items-center gap-1 text-muted">
@@ -94,15 +95,15 @@ export function FunnelStages({ funnel, onStage }: { funnel: Funnel; onStage: (k:
       <h2 id="funnel-title" className="mb-2 flex items-center gap-1 text-sm font-semibold">
         Where candidates get stuck
         <InfoTip label="About the funnel">
-          <p>Everyone who has reached each stage. The rate between two stages is the share who moved on.</p>
-          <p className="text-muted">Click a stage to see who is there now. Files waiting in the review queue are not counted as lost.</p>
+          <p>All-history stage reach. Ratios include work still in progress; they are not mature cohort drop-off rates.</p>
+          <p className="text-muted">Click a stage to see current work. Pending documents and booked first drives are waiting, not lost.</p>
         </InfoTip>
       </h2>
       <ol className="grid grid-cols-1 overflow-hidden rounded-xl border border-lavender sm:grid-cols-5">
         {tiles.map((t, i) => {
           const edge = i > 0 ? edges[i - 1] : null;
           const biggest = !!edge?.biggestDrop;
-          const here = t.key === 'active' ? t.reached : (t.parts.find((p) => !p.movedOn && p.to)?.count ?? 0);
+          const here = t.currentCount ?? (t.key === 'active' ? t.reached : 0);
           return (
             <li key={t.key} className={`relative border-lavender sm:border-l first:sm:border-l-0 ${i > 0 ? 'border-t sm:border-t-0' : ''} ${biggest ? 'bg-bad-bg/50' : ''}`}>
               <button type="button" onClick={() => onStage(t.key)} className="group block h-full w-full px-4 py-3 text-left hover:bg-card/60">

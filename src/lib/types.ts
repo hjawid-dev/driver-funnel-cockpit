@@ -34,10 +34,12 @@ export interface Decision {
 
 export interface FirstGig {
   gigId?: string; // the open job the driver picked from their offers
+  bookedAt?: number;
   bookedFor?: number;
   doneAt?: number;
   onTime?: boolean;
   ok?: boolean; // no incident, customer happy
+  customerSatisfied?: boolean;
   /** What went wrong, when it wasn't ok: a cause and a short note about the drive, never about the person. */
   issue?: { cause: FirstGigIssue; note: string };
   /** A booked first drive given back because the extract wasn't shown by the day before. */
@@ -71,6 +73,19 @@ export interface Applicant {
   licenceYears: number; // e.g. 1.5 (valid B licence checked with Transportstyrelsen)
   availability: 'full' | 'limited';
   availabilityNote?: string; // e.g. "Weekends only"
+  availabilitySlots?: ('weekday_day' | 'weekday_evening' | 'weekend')[];
+  idMethod?: 'bankid' | 'manual';
+  owner?: string;
+  backup?: string;
+  onboardingCompletedAt?: number;
+  secondReview?: { at: number; by: string; reason: RejectReason };
+  /** First submission is historical; docsCompleteAt describes the current review round. */
+  firstDocsSubmittedAt?: number;
+  events?: { kind: 'documents_submitted' | 'documents_requested' | 'decision' | 'booked' | 'released' | 'completed'; at: number; by: string; reason?: string }[];
+  decisionHistory?: Decision[];
+  automationHistory?: import('./automation').AutoEvent[];
+  automationRecordedUntil?: number;
+  offersShownAt?: number;
   registeredAt: number; // epoch ms
   docs: Record<DocKey, DocStatus>; // id 'verified' = BankID; extract: 'missing' = not ordered, 'pending' = ordered, 'ready' = ready to show
   docTimes?: Partial<Record<DocKey, number>>; // when each document arrived (for the timeline)

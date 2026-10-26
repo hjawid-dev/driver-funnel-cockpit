@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Search } from 'lucide-react';
 import type { Applicant, Stage } from '../lib/types';
 import { deriveStage, STAGE_LABEL } from '../lib/stage';
+import { reachedDocs } from '../lib/kpis';
 import { ago } from '../lib/time';
 
-export type StageFilter = Stage | 'all';
+export type StageFilter = Stage | 'all' | 'reviewed_rejected';
 
 const STAGE_STYLE: Record<Stage, string> = {
   registered: 'bg-lavender text-navy',
@@ -19,7 +20,7 @@ export function StageChip({ stage }: { stage: Stage }) {
   return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${STAGE_STYLE[stage]}`}>{STAGE_LABEL[stage]}</span>;
 }
 
-const FILTERS: StageFilter[] = ['all', 'registered', 'review', 'accepted', 'active', 'rejected', 'closed'];
+const FILTERS: StageFilter[] = ['all', 'registered', 'review', 'accepted', 'active', 'rejected', 'reviewed_rejected', 'closed'];
 
 interface Props {
   apps: Applicant[];
@@ -32,10 +33,10 @@ interface Props {
 export function AllApplicants({ apps, now, filter, onFilter, onOpen }: Props) {
   const [q, setQ] = useState('');
   const withStage = apps.map((a) => ({ a, stage: deriveStage(a) }));
-  const count = (f: StageFilter) => (f === 'all' ? apps.length : withStage.filter((x) => x.stage === f).length);
+  const count = (f: StageFilter) => (f === 'all' ? apps.length : withStage.filter((x) => f === 'reviewed_rejected' ? x.stage === 'rejected' && reachedDocs(x.a) : x.stage === f).length);
   const query = q.trim().toLowerCase();
   const rows = withStage
-    .filter((x) => filter === 'all' || x.stage === filter)
+    .filter((x) => filter === 'all' || (filter === 'reviewed_rejected' ? x.stage === 'rejected' && reachedDocs(x.a) : x.stage === filter))
     .filter((x) => !query || x.a.name.toLowerCase().includes(query) || x.a.id.toLowerCase().includes(query))
     .sort((x, y) => y.a.registeredAt - x.a.registeredAt)
     .map((x) => ({ ...x, last: x.a.log.at(-1) }));
@@ -55,7 +56,7 @@ export function AllApplicants({ apps, now, filter, onFilter, onOpen }: Props) {
                 filter === f ? 'bg-indigo text-white' : 'bg-card text-muted hover:text-navy'
               }`}
             >
-              {f === 'all' ? 'All' : STAGE_LABEL[f]} <span className="num opacity-80">{count(f)}</span>
+              {f === 'all' ? 'All' : f === 'reviewed_rejected' ? 'Rejected after submission' : STAGE_LABEL[f]} <span className="num opacity-80">{count(f)}</span>
             </button>
           ))}
         </div>

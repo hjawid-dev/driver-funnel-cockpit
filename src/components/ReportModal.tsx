@@ -88,7 +88,7 @@ export function ReportModal({ apps, threads, jobs = [], gigs = [], now, onClose,
               Weekly report · week {wf.week}
             </h2>
             <p className="text-sm text-muted">
-              Last 7 days ({formatDateTime(wf.from)} – {formatDateTime(wf.to)}), compared with the week before. Posted every Monday at 08:00.
+              Last 7 days ({formatDateTime(wf.from)} – {formatDateTime(wf.to)}), compared with the week before. Demo snapshot; proposed production schedule: Monday 08:00.
             </p>
           </div>
           <button ref={closeRef} type="button" onClick={onClose} aria-label="Close the weekly report" className="rounded-md p-1.5 text-muted hover:bg-card hover:text-navy">
@@ -124,7 +124,7 @@ export function ReportModal({ apps, threads, jobs = [], gigs = [], now, onClose,
               </section>
 
               <section className="rounded-xl bg-warn-bg/60 p-4">
-                <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-warn">Biggest leak</h3>
+                <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-warn">Largest pending stage</h3>
                 <p className="text-sm">{reply.report.leak.text}</p>
               </section>
 
@@ -214,7 +214,7 @@ function CheckBadge({ reply }: { reply: ReportReply }) {
       <p className="flex items-start gap-2 rounded-xl bg-ok-bg px-3.5 py-2.5 text-sm text-ok">
         <ShieldCheck size={16} className="mt-0.5 shrink-0" aria-hidden />
         <span>
-          <strong>Written by AI, number check passed:</strong> all {reply.check.numbers} numbers in the text match the facts below
+          <strong>Written by AI, number check passed:</strong> {reply.check.numbers} numbers occur in the cited facts below; this checks numbers, not the full narrative
           {reply.attempts > 1 ? ' (on the second try)' : ''}.
         </span>
       </p>

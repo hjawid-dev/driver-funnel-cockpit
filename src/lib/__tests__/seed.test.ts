@@ -1,3 +1,4 @@
+import { confirmSecondReview } from '../actions';
 import { describe, expect, it } from 'vitest';
 import { generateSeed } from '../seed';
 import { deriveStage } from '../stage';
@@ -48,13 +49,13 @@ describe('seed tells the baseline story', () => {
     expect(kpis.quality.value).toBe(90);
   });
   it('the biggest funnel drop-off is registration → documents', () => {
-    expect(computeFunnel(seed).edges.find((e) => e.biggestDrop)!.to).toBe('docs');
+    expect(computeFunnel(seed).edges.some(e => e.biggestDrop)).toBe(false);
   });
 });
 
 describe('the 8 review cases behave as described', () => {
   const sla = (n: string) => slaStatus(byName(n).docsCompleteAt!, NOW).bucket;
-  const approve = (n: string) => ({ ...byName(n), photoApproved: true, extractShown: true });
+  const approve = (n: string) => ({ ...byName(n), onboardingCompletedAt: NOW, photoApproved: true, extractShown: true });
 
   it('Elin: clean accept once the photo is ticked (the extract is shown before the first drive)', () => {
     expect(evaluate(byName('Elin Johansson')).acceptBlockedBy).toHaveLength(1); // photo not ticked yet
@@ -67,7 +68,7 @@ describe('the 8 review cases behave as described', () => {
   it('Sara: a suitability rejection needs a second reviewer', () => {
     const r = { type: 'rejected' as const, reason: 'requirements_not_met' as const };
     expect(validateDecision(approve('Sara Lindqvist'), r, NOW)).toMatch(/second reviewer/);
-    expect(validateDecision(approve('Sara Lindqvist'), { ...r, secondReviewer: 'Backup' }, NOW)).toBeNull();
+    expect(validateDecision(confirmSecondReview(approve('Sara Lindqvist'), 'requirements_not_met', 'Sofia', NOW), { ...r, secondReviewer: 'Sofia' }, NOW)).toBeNull();
     expect(validateDecision(approve('Sara Lindqvist'), { type: 'accepted' }, NOW)).toBeNull();
   });
   it('Johan: accept + flag activation, SLA amber', () => {

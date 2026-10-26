@@ -5,6 +5,8 @@ import type { ChatThread } from '../chat/types';
 import { computeFunnel, computeKpis, isReviewDecision, median } from '../kpis';
 import { deriveStage, isAccepted } from '../stage';
 import { chatStats, contentGaps } from '../chat/threads';
+import { firstDecision, firstSubmissionAt } from '../eligibility';
+import { topRejectReasons } from '../kpis';
 import { DAY, HOUR } from '../time';
 
 /**
@@ -69,14 +71,14 @@ const inWindow = (t: number | undefined, from: number, to: number) => t !== unde
 
 function weekFlows(apps: Applicant[], to: number) {
   const from = to - WEEK;
-  const decided = apps.filter((a) => isReviewDecision(a) && inWindow(a.decision!.at, from, to));
+  const decided = apps.filter((a) => isReviewDecision(a) && inWindow(firstDecision(a)!.at, from, to));
   return {
     newApps: apps.filter((a) => inWindow(a.registeredAt, from, to)).length,
-    filesComplete: apps.filter((a) => inWindow(a.docsCompleteAt, from, to)).length,
+    filesComplete: apps.filter((a) => inWindow(firstSubmissionAt(a), from, to)).length,
     decisions: decided.length,
-    accepted: decided.filter(isAccepted).length,
+    accepted: decided.filter(a => firstDecision(a)!.type !== 'rejected').length,
     firstDrives: apps.filter((a) => inWindow(a.firstGig?.doneAt, from, to)).length,
-    medianDecisionH: round(median(decided.map((a) => (a.decision!.at - a.docsCompleteAt!) / HOUR))),
+    medianDecisionH: round(median(decided.map((a) => (firstDecision(a)!.at - firstSubmissionAt(a)!) / HOUR))),
   };
 }
 
@@ -91,7 +93,12 @@ export function weeklyFacts(apps: Applicant[], threads: ChatThread[], now: numbe
   const chatPrev = chatPrevRaw.questions > 0 ? chatPrevRaw : null;
   const kpi = Object.fromEntries(computeKpis(apps, now).map((k) => [k.key, round(k.value)]));
   const funnel = computeFunnel(apps);
-  const dropIdx = funnel.edges.findIndex((e) => e.biggestDrop);
+  const pending = [
+    { edge: 0, label: 'Applicants awaiting documents', count: apps.filter(a => deriveStage(a) === 'registered').length },
+    { edge: 1, label: 'Applicants awaiting a review decision', count: apps.filter(a => deriveStage(a) === 'review').length },
+    { edge: 3, label: 'Accepted drivers awaiting first delivery', count: apps.filter(a => deriveStage(a) === 'accepted').length },
+  ].sort((a,b) => b.count-a.count)[0];
+  const dropIdx = pending.count ? pending.edge : -1;
   const review = apps.filter((a) => deriveStage(a) === 'review');
   const awaiting = apps.filter((a) => deriveStage(a) === 'accepted');
   // Why the accepted drivers haven't driven, and whether there is work for them: demand, not only drivers.
@@ -99,6 +106,10 @@ export function weeklyFacts(apps: Applicant[], threads: ChatThread[], now: numbe
   const whyCount = (r: string) => why.find((x) => x.reason === r)?.count ?? 0;
   const supply = supplyDemand(apps, gigs, now);
 
+  const humanDecisions = apps.filter(a => firstDecision(a) && firstDecision(a)!.reason !== 'no_response_14d' && firstDecision(a)!.at >= a.registeredAt && firstDecision(a)!.at <= now);
+  const decisionHours = humanDecisions.map(a => (firstDecision(a)!.at-a.registeredAt)/HOUR);
+  const matureApplications = apps.filter(a => a.registeredAt <= now - 30 * DAY);
+  const converted = matureApplications.filter(a => isAccepted(a) && a.firstGig?.doneAt && a.firstGig.doneAt >= a.registeredAt && a.firstGig.doneAt <= a.registeredAt + 30 * DAY).length;
   const facts = [
     // This week against last week
     flow('new_applications', 'New applications', '', cur.newApps, prev.newApps, true),
@@ -113,8 +124,17 @@ export function weeklyFacts(apps: Applicant[], threads: ChatThread[], now: numbe
     flow('chat_self_service', 'Things drivers did themselves in the chat', '', chat.selfService, chatPrev?.selfService ?? null, true),
     flow('ops_reply_minutes', 'Median ops reply time in the chat', 'min', round(chat.medianOpsReplyMin), chatPrev ? round(chatPrev.medianOpsReplyMin) : null, false),
 
+    ...(kpi.acceptance === null ? [] : [{ id: 'acceptance_rate', label: 'Accepted share of reviewed decisions (all history)', value: kpi.acceptance, unit: '%' as const, good: null }]),
+    ...topRejectReasons(apps).filter(r => r.reason !== 'no_response_14d').map(r => ({ id: `reject_${r.reason}`, label: `Rejected: ${r.short} (all history)`, value: r.count, unit: '' as const, good: null })),
+    ...(decisionHours.length ? [
+      { id: 'mean_decision_hours', label: 'Registration to decision mean, all human decisions (case-comparable)', value: Math.round(decisionHours.reduce((n,h)=>n+h,0)/decisionHours.length), unit: 'h' as const, good: null },
+      { id: 'within_48_hours', label: 'Human decisions within 48 calendar hours of registration', value: Math.round(100*decisionHours.filter(h=>h<=48).length/decisionHours.length), unit: '%' as const, good: null },
+    ] : []),
+    ...(matureApplications.length ? [{ id: 'cohort_conversion_30d', label: 'Active within 30 days, applications with 30+ days follow-up (all mature history)', value: Math.round(100*converted/matureApplications.length), unit: '%' as const, good: null }] : []),
+    { id: 'quality_pending_feedback', label: 'Completed first drives awaiting customer feedback', value: apps.filter(a => a.firstGig?.doneAt && a.firstGig.doneAt <= now && a.firstGig.customerSatisfied === undefined).length, unit: '' as const, good: null },
+    { id: 'prequal_rejections', label: 'Pre-qualifying rejections before document submission', value: apps.filter(a => a.decision?.type === 'rejected' && !firstSubmissionAt(a) && a.decision.reason !== 'no_response_14d').length, unit: '' as const, good: null },
     // Now against target
-    status('document_completion', 'Document completion (registered 7+ days ago)', '%', kpi.docCompletion ?? null, 85, true),
+    status('document_completion', 'Documents within 7 days (mature registration cohort)', '%', kpi.docCompletion ?? null, 85, true),
     status('time_to_decision', 'Time from registration to decision, median of all decisions', 'h', kpi.timeToDecision ?? null, 48, false),
     status('activation', 'Activation: first drive within 14 days of acceptance', '%', kpi.activation ?? null, 75, true),
     status('application_to_active', 'New active drivers ÷ new applications, last 30 days (a flow, the north star)', '%', kpi.appToActive ?? null, 35, true),
@@ -123,7 +143,7 @@ export function weeklyFacts(apps: Applicant[], threads: ChatThread[], now: numbe
 
     // Where it is stuck right now
     { id: 'review_queue', label: 'Files waiting for a decision', value: review.length, unit: '', good: null },
-    { id: 'review_overdue', label: 'Files waiting more than 48 h (overdue)', value: review.filter((a) => now - a.docsCompleteAt! > 48 * HOUR).length, unit: '', good: null },
+    { id: 'review_overdue', label: 'Files waiting more than 48 h (overdue)', value: review.filter((a) => now - a.registeredAt > 48 * HOUR).length, unit: '', good: null },
     { id: 'awaiting_first_drive', label: 'Accepted drivers without a first drive', value: awaiting.length, unit: '', good: null },
     { id: 'awaiting_over_7_days', label: 'Accepted 7+ days ago without a first drive booked', value: awaiting.filter((a) => now - a.decision!.at > 7 * DAY && !a.firstGig?.bookedFor).length, unit: '', good: null },
     { id: 'awaiting_no_fit', label: 'Accepted drivers with no first drive that fits their area or times (demand, not the driver)', value: whyCount('no_fit'), unit: '', good: null },
@@ -142,14 +162,14 @@ export function weeklyFacts(apps: Applicant[], threads: ChatThread[], now: numbe
     dropIdx >= 0
       ? {
           id: 'biggest_drop_rate',
-          label: `Biggest drop-off: ${funnel.tiles[dropIdx].label} to ${funnel.tiles[dropIdx + 1].label}, share who get through`,
+          label: `All-history reach: ${funnel.tiles[dropIdx].label} to ${funnel.tiles[dropIdx + 1].label}, share who get through`,
           value: round(funnel.edges[dropIdx].rate) ?? 0,
           unit: '%' as const,
           good: null,
         }
       : null,
     dropIdx >= 0
-      ? { id: 'biggest_drop_lost', label: `People lost between ${funnel.tiles[dropIdx].label} and ${funnel.tiles[dropIdx + 1].label}`, value: funnel.tiles[dropIdx].reached - funnel.tiles[dropIdx + 1].reached, unit: '' as const, good: null }
+      ? { id: 'biggest_drop_lost', label: pending.label, value: pending.count, unit: '' as const, good: null }
       : null,
   ].filter((f): f is Fact => f !== null);
 

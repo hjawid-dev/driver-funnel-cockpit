@@ -128,7 +128,7 @@ describe('reminders the driver controls', () => {
     if (!r.ok) throw new Error('expected ok');
     const data = { apps: [r.applicant], gigs, threads: [], jobs: [] };
     const out = restore(serialize(data, NOW), NOW + 2 * DAY)!;
-    expect(out.apps[0].reminders!.snooze!.until).toBe(r.applicant.reminders!.snooze!.until + 2 * DAY);
+    expect(out.apps[0].reminders!.snooze!.until).toBe(r.applicant.reminders!.snooze!.until);
   });
 });
 

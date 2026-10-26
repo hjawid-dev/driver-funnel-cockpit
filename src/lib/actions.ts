@@ -1,9 +1,11 @@
-import type { Applicant, DocKey } from './types';
+import type { Applicant, DocKey, Gig } from './types';
 import { DECISION_LABEL, validateDecision, type DecisionInput } from './criteria';
 import { cleanNote, FIRST_GIG_ISSUE_LABEL, REJECT_REASONS, REVIEWER, type FirstGigIssue, type OpsActivationReason } from './types';
 import { allDocsSubmitted, deriveStage, isSubmitted } from './stage';
-import { markExtractShown, needsExtract, SHOW_BY_MS } from './extract';
+import { markExtractShown } from './extract';
 import { formatDateTime } from './time';
+import { appendEvent, canStartDrive, firstSubmissionAt } from './eligibility';
+import { bookingError } from './gigs';
 
 /**
  * Every action is a pure function: old applicant in, new applicant out.
@@ -18,7 +20,7 @@ function withLog(a: Applicant, at: number, text: string): Applicant {
 }
 
 export function applyDecision(a: Applicant, input: DecisionInput, now: number, by = REVIEWER): ActionResult {
-  const error = validateDecision(a, input, now);
+  const error = validateDecision(a, input, now, by);
   if (error) return { ok: false, error };
 
   const decision = {
@@ -43,7 +45,8 @@ export function applyDecision(a: Applicant, input: DecisionInput, now: number, b
     message = `Accepted: ${a.name}. Moved to Awaiting first gig${pending ? '; the extract is shown before the first drive' : ''}.`;
   }
 
-  return { ok: true, applicant: withLog({ ...a, decision }, now, `${text} · by ${by}`), message };
+  const next = { ...a, decision, decisionHistory: [...(a.decisionHistory ?? (a.decision ? [a.decision] : [])), decision], ...(input.type === 'rejected' && a.firstGig && !a.firstGig.doneAt ? { firstGig: undefined } : {}) };
+  return { ok: true, applicant: appendEvent(withLog(next, now, `${text} · by ${by}`), 'decision', now, by, input.reason ?? input.type), message };
 }
 
 export function setPhotoApproved(a: Applicant, approved: boolean, now: number): Applicant {
@@ -60,11 +63,10 @@ export function requestNewPhoto(a: Applicant, now: number): ActionResult {
   if (deriveStage(a) !== 'review') return { ok: false, error: 'Only applicants under review can be asked for a new photo.' };
   const docs = { ...a.docs, photo: 'missing' as const };
   const docTimes = { ...a.docTimes };
-  delete docTimes.photo;
-  const next: Applicant = { ...a, docs, docTimes, photoApproved: false, docsCompleteAt: undefined };
+  const next: Applicant = { ...a, docs, docTimes, firstDocsSubmittedAt: firstSubmissionAt(a), photoApproved: false, docsCompleteAt: undefined };
   return {
     ok: true,
-    applicant: withLog(next, now, `New photo requested by ${REVIEWER}`),
+    applicant: appendEvent(withLog(next, now, `New photo requested by ${REVIEWER}`), 'documents_requested', now, REVIEWER, 'photo'),
     message: `New photo requested: ${a.name}. Moved to Missing documents.`,
   };
 }
@@ -88,11 +90,11 @@ export function receiveDocument(a: Applicant, key: DocKey, status: Applicant['do
         ? 'Applicant ordered extract from Polisen'
         : 'Extract ready to show (nothing uploaded)'
       : key === 'id' && status === 'verified'
-        ? 'ID verified with BankID'
+        ? `ID verified (${a.idMethod === 'manual' ? 'manual review' : 'BankID'})`
         : `Document received: ${key}`;
   next = withLog(next, now, text);
   if (!next.docsCompleteAt && allDocsSubmitted(next)) {
-    next = withLog({ ...next, docsCompleteAt: now }, now, 'File complete, queued for review');
+    next = appendEvent(withLog({ ...next, firstDocsSubmittedAt: firstSubmissionAt(next) ?? now, docsCompleteAt: now, owner: a.owner ?? REVIEWER, backup: a.backup ?? 'Sofia' }, now, 'File complete, queued for review'), 'documents_submitted', now, a.source === 'self' ? 'driver' : REVIEWER);
   }
   return next;
 }
@@ -115,22 +117,23 @@ export function logWelcomeCall(a: Applicant, now: number): ActionResult {
   };
 }
 
-export function bookFirstGig(a: Applicant, bookedFor: number, now: number): ActionResult {
-  const error = requireAccepted(a);
+export function bookFirstGig(a: Applicant, gig: Gig | number, now: number, apps: Applicant[] = [a]): ActionResult {
+  if (typeof gig === 'number') return { ok: false, error: 'Choose an available job, not a free date.' };
+  const error = bookingError(a, gig, apps, now);
   if (error) return { ok: false, error };
-  if (needsExtract(a) && bookedFor - SHOW_BY_MS <= now) return { ok: false, error: 'The extract must be shown the day before the first drive. Pick a later date, or tick the extract first.' };
-  const date = new Date(bookedFor).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-  return {
-    ok: true,
-    applicant: withLog({ ...a, firstGig: { ...a.firstGig, bookedFor } }, now, `First gig booked for ${date}`),
-    message: `First gig booked: ${a.name}, ${date}.`,
-  };
+  const { activationReason: _reason, ...rest } = a;
+  const next = { ...rest, firstGig: { gigId: gig.id, bookedAt: now, bookedFor: gig.at } };
+  return { ok: true, applicant: appendEvent(withLog(next, now, `First gig booked: ${gig.id}, ${formatDateTime(gig.at)}`), 'booked', now, REVIEWER, gig.id), message: `First gig booked: ${a.name}, ${formatDateTime(gig.at)}.` };
 }
 
-export function completeFirstGig(a: Applicant, result: { onTime: boolean; ok: boolean; issue?: { cause: FirstGigIssue; note: string } }, now: number): ActionResult {
+export function completeFirstGig(a: Applicant, result: { onTime: boolean; ok: boolean; customerSatisfied?: boolean; delivery?: { jobId: string; at: number }; issue?: { cause: FirstGigIssue; note: string } }, now: number): ActionResult {
   const error = requireAccepted(a);
   if (error) return { ok: false, error };
-  if (needsExtract(a)) return { ok: false, error: 'The extract must be shown before the first drive.' };
+  const readiness = canStartDrive(a);
+  if (readiness) return { ok: false, error: readiness };
+  const gig = a.firstGig;
+  if (!gig?.gigId || !gig.bookedFor || !Number.isFinite(gig.bookedFor) || gig.bookedFor > now) return { ok: false, error: 'A booked first drive must have started before it can be completed.' };
+  if (!result.delivery || result.delivery.jobId !== gig.gigId || !Number.isFinite(result.delivery.at) || result.delivery.at < gig.bookedFor || result.delivery.at > now) return { ok: false, error: 'Record delivery on the booked job in Live Ops first.' };
   // An incident needs a cause and a few words on what happened: that is what anyone reading it later can act on.
   const note = result.issue ? cleanNote(result.issue.note) : '';
   if (!result.ok && (!result.issue || !note)) return { ok: false, error: 'Say what happened: pick a cause and write a short note about the drive.' };
@@ -138,7 +141,7 @@ export function completeFirstGig(a: Applicant, result: { onTime: boolean; ok: bo
   const quality = result.onTime && result.ok ? 'on time, no incident' : [!result.onTime && 'late', issue && `incident: ${FIRST_GIG_ISSUE_LABEL[issue.cause].toLowerCase()}, "${issue.note}"`].filter(Boolean).join(', ');
   return {
     ok: true,
-    applicant: withLog({ ...a, firstGig: { ...a.firstGig, doneAt: now, onTime: result.onTime, ok: result.ok, ...(issue ? { issue } : {}) } }, now, `First gig completed (${quality})`),
+    applicant: appendEvent(withLog({ ...a, firstGig: { ...a.firstGig, doneAt: result.delivery.at, onTime: result.onTime, ok: result.ok, customerSatisfied: result.customerSatisfied, ...(issue ? { issue } : {}) } }, now, `First gig completed (${quality})`), 'completed', result.delivery.at, REVIEWER, result.delivery.jobId),
     message: `${a.name} is now an active driver.`,
   };
 }
@@ -162,4 +165,15 @@ export function setActivationReason(a: Applicant, reason: OpsActivationReason | 
     applicant: withLog({ ...a, activationReason: { reason, at: now } }, now, `Why no first drive yet: ${OPS_ACTIVATION_LABEL[reason].toLowerCase()} (${REVIEWER}, ${formatDateTime(now)})`),
     message: `Noted for ${a.name}: ${OPS_ACTIVATION_LABEL[reason].toLowerCase()}.`,
   };
+}
+
+export function completeOnboarding(a: Applicant, now: number): Applicant {
+  if (deriveStage(a) !== 'review') return a;
+  return withLog({ ...a, onboardingCompletedAt: now, owner: a.owner ?? REVIEWER, backup: a.backup ?? 'Sofia' }, now, `Onboarding call completed by ${REVIEWER}`);
+}
+
+export function confirmSecondReview(a: Applicant, reason: NonNullable<Applicant['decision']>['reason'], by: string, now: number): Applicant {
+  const identity = (name: string) => name.replace(/\([^)]*\)/g, '').trim().toLowerCase();
+  if (!reason || !by.trim() || identity(by) === identity(a.owner ?? REVIEWER) || (a.backup && identity(by) !== identity(a.backup))) return a;
+  return withLog({ ...a, secondReview: { by: by.trim(), at: now, reason } }, now, `Second review confirmed by ${by.trim()}: ${reason}`);
 }

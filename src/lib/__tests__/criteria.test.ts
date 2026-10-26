@@ -72,7 +72,7 @@ describe('validateDecision', () => {
   it('a suitability rejection needs a second reviewer', () => {
     expect(validateDecision(inReview(), { type: 'rejected', reason: 'requirements_not_met' }, NOW)).toMatch(/second reviewer/);
     expect(validateDecision(inReview(), { type: 'rejected', reason: 'requirements_not_met', secondReviewer: '  ' }, NOW)).toMatch(/second reviewer/);
-    expect(validateDecision(inReview(), { type: 'rejected', reason: 'requirements_not_met', secondReviewer: 'Backup' }, NOW)).toBeNull();
+    expect(validateDecision(inReview({ secondReview: { by: 'Backup', at: NOW, reason: 'requirements_not_met' } }), { type: 'rejected', reason: 'requirements_not_met', secondReviewer: 'Backup' }, NOW)).toBeNull();
   });
   it('plain accept is refused when a borderline rule applies', () => {
     expect(validateDecision(inReview({ licenceYears: 1.5 }), { type: 'accepted' }, NOW)).toMatch(/simple drives first/);

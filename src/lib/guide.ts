@@ -34,7 +34,7 @@ export function guideSteps(apps: Applicant[], progress: GuideProgress): GuideSte
       title: 'Apply',
       hint: applied
         ? `${firstSelf.name} applied. Finish the steps and book the call: the file appears in the review queue.`
-        : 'Four questions, BankID, photo check, extract guide, then book your own onboarding call. About two minutes.',
+        : 'Four questions, extract ordered first, BankID or manual ID, photo check, then book your own onboarding call. About two minutes.',
       action: 'phone',
       targetId: null,
       done: applied && !!firstSelf.callAt,
@@ -51,8 +51,8 @@ export function guideSteps(apps: Applicant[], progress: GuideProgress): GuideSte
       key: 'accept',
       title: 'Decide',
       hint: applied
-        ? `Open ${firstSelf.name} or Elin Johansson, tick the photo (and the extract, if it was shown in the call), then Accept. Watch the phone and the numbers.`
-        : 'Elin Johansson: tick the photo (and the extract, if it was shown in the call), then Accept. Watch the numbers move.',
+        ? `Open ${firstSelf.name} or Elin Johansson, tick the photo (and the extract, if it was shown in the call), log the completed onboarding call, then Accept and book a matching drive. Watch the phone and the numbers.`
+        : 'Elin Johansson: tick the photo (and the extract, if it was shown in the call), log the completed onboarding call, then Accept and book a matching drive. Watch the numbers move.',
       action: 'open',
       targetId: firstSelf?.docsCompleteAt && !firstSelf.decision ? firstSelf.id : (elin?.id ?? null),
       done: apps.some((a) => byMe(a) && a.decision?.type !== 'rejected'),
