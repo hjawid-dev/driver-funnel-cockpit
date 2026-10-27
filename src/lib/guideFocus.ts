@@ -120,7 +120,7 @@ function focusFor(key: PresentKey, { data, now, visited, complete }: GuideFocusC
     return focus([screen], by('phone-primary', phone) ?? by('phone-photo', phone) ?? next);
   }
   if (key === 'reminders') {
-    if (dialog) return focus([section("what's-missing", dialog), section('nudges', dialog)], by('manual-followup', dialog) ?? next);
+    if (dialog) return focus([section("what's-missing", dialog), section('nudges', dialog)], by('manual-followup', dialog) ?? next, by('manual-followup', dialog) ? 'Tap “Log manual follow-up”. In the demo this stands for Ops having called Nora.' : undefined);
     const reminders = phone && chat ? all('[data-guide-auto]', phone).filter(isShown) : [];
     return focus(reminders.length ? reminders : [shown('[data-guide="inbox"]')], by('guide-reminders'), 'Read Nora’s reminders, then press “Open Nora’s Ops follow-up” in this guide.');
   }
@@ -136,7 +136,8 @@ function focusFor(key: PresentKey, { data, now, visited, complete }: GuideFocusC
   if (key === 'criteria') {
     if (!dialog) return focus([], by('guide-criteria') ?? by('guide-target'), by('guide-criteria') ? undefined : 'Ahmed’s application was closed. Press “Show this step again”.');
     const criteria = section('criteria', dialog), decision = section('decision', dialog), call = by('onboarding-call', dialog);
-    if (a?.decision || complete) return focus([by('candidate-next', dialog), section('first-drive-status', dialog) ?? decision], next);
+    // Accepted: only the driver's next step is shown; the drawer's own buttons stay shaded and locked.
+    if (a?.decision || complete) return focus([by('candidate-next', dialog) ?? decision], next);
     const unchecked = all('[data-demo-target="criteria"] input[type="checkbox"], input[data-guide="onboarding-call"]', dialog).find(el => usable(el) && !(el as HTMLInputElement).checked);
     const action = unchecked ? tick(unchecked) : textButton('Log licence validity', dialog) ?? textButton('Accept', dialog) ?? textButton('Reject…', dialog, true);
     return focus([criteria, tick(call), decision], action ?? next);
@@ -156,7 +157,7 @@ function focusFor(key: PresentKey, { data, now, visited, complete }: GuideFocusC
   if (key === 'followup') {
     const waiting = shown('[data-guide-section="queue"]');
     if (!visited.includes('followup_reminder')) return focus([waiting], by('guide-followup-reminder'), 'Compare two drivers in this list: press “Ida: day-7 reminder” in this guide.');
-    if (!visited.includes('followup_read')) return focus([phone ? shown('[data-guide="activation-reminder"]', phone) : null], by('guide-reminder-read'), 'Read Ida’s day-7 reminder, then press “Continue to Anton”.');
+    if (!visited.includes('followup_read') && !visited.includes('followup_call')) return focus([phone ? shown('[data-guide="activation-reminder"]', phone) : null], by('guide-reminder-read'), 'Read Ida’s day-7 reminder, then press “Continue to Anton”.');
     if (!visited.includes('followup_call') || !dialog) return focus([waiting], by('guide-followup-call') ?? next);
     return focus([by('candidate-next', dialog), section('first-drive-status', dialog)], next);
   }
@@ -180,6 +181,57 @@ export const getGuideHint = () => hint;
 /** True when the hint asks to reopen this step's view; the guide then shows that button. */
 export const hintNeedsView = (text: string) => text.includes('Show this step again');
 function setHint(text: string) { if (text !== hint) { hint = text; listeners.forEach(fn => fn()); } }
+
+// ---------- Only the ringed control works during the walkthrough ----------
+
+/** Guide navigation that always works: case tabs, chapters, All steps, exit, back and Continue. */
+const NAVIGATION = '.guide-panel [aria-label="Choose case"], .guide-panel [aria-label="Case chapters"], .guide-panel details, .guide-panel [aria-label="Exit case walkthrough"], .guide-panel-foot, [data-guide="guide-report"]';
+export const GUIDE_INTERACTIVE = 'button, a[href], input, select, textarea, label, summary, [role="button"], [tabindex]:not([tabindex="-1"])';
+const INTERACTIVE = GUIDE_INTERACTIVE;
+
+/** May this element be used now? The ringed control; with no ring, anything inside the lit section; and guide navigation. */
+export function guideAllows(target: Element | null): boolean {
+  if (!target) return true;
+  if (target.closest(NAVIGATION)) return true;
+  const action = document.querySelector('[data-demo-focus]');
+  if (action) return action.contains(target) || (action instanceof HTMLLabelElement && !!action.control && action.control === target);
+  return [...document.querySelectorAll('[data-guide-lit]')].some(section => section.contains(target));
+}
+
+/**
+ * Block every other click, tap, select and key press while the walkthrough runs, so the demo
+ * cannot be steered around. Scrolling still works. Outside the walkthrough nothing is blocked.
+ */
+export function installGuideLock(): () => void {
+  const nudge = () => {
+    const action = document.querySelector<HTMLElement>('[data-demo-focus]');
+    if (!action) return;
+    action.removeAttribute('data-guide-nudge');
+    void action.offsetWidth;
+    action.setAttribute('data-guide-nudge', '');
+    setTimeout(() => action.removeAttribute('data-guide-nudge'), 700);
+  };
+  const block = (event: Event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target?.closest(INTERACTIVE) && event.type !== 'click') return;
+    if (guideAllows(target)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.type === 'click' && target?.closest(INTERACTIVE)) nudge();
+  };
+  const keys = (event: KeyboardEvent) => {
+    if (!['Enter', ' ', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+    const active = document.activeElement;
+    if (!active || active === document.body || guideAllows(active)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    nudge();
+  };
+  const types = ['click', 'mousedown', 'pointerdown', 'touchstart', 'dblclick'] as const;
+  types.forEach(type => document.addEventListener(type, block, true));
+  document.addEventListener('keydown', keys, true);
+  return () => { types.forEach(type => document.removeEventListener(type, block, true)); document.removeEventListener('keydown', keys, true); };
+}
 
 // ---------- Marking and scrolling ----------
 

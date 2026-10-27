@@ -75,7 +75,8 @@ const STATE_STYLE: Record<OpsState, string> = {
   upcoming: 'border border-lavender bg-white text-muted',
   at_pickup: 'bg-lavender text-navy',
   on_the_way: 'bg-indigo text-white',
-  resolved: 'bg-ok-bg text-ok',
+  // Closed without delivery (e.g. the customer moved or cancelled): neutral, never the green of a delivery.
+  resolved: 'bg-card text-navy ring-1 ring-inset ring-muted/30',
   delivered: 'bg-ok-bg text-ok',
 };
 

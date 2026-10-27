@@ -117,6 +117,7 @@ export function MissingPanel({ a, now, onResult }: Props) {
       </>}>
         <p className="text-sm text-muted">{nudge.nextAt ? `Next: ${formatDateTime(nudge.nextAt)}` : nudge.label.replace('nudges', 'reminders')}</p>
         {justLogged !== null && <p role="status" className="mt-2 rounded-lg bg-ok-bg p-2 text-sm font-semibold text-ok">✓ Manual follow-up logged · {formatDateTime(justLogged!)}<span className="block text-xs font-normal">Recorded in demo; no message sent.</span></p>}
+        <p className="mt-2 text-xs text-muted">Demo: logging a manual follow-up stands for Ops having called the driver.</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"

@@ -23,10 +23,13 @@ interface Props {
   onJump: () => void;
   /** The app's latest confirmation, shown here instead of a floating toast during the walkthrough. */
   notice: string | null;
+  /** Undo the last click (data, time, view and step). */
+  onBack: () => void;
+  canBack: boolean;
 }
 
 /** One guide panel, fixed top left in every step. The app stays usable beside it; the spotlight marks the next control. */
-export function PresentBar({ step, onStep, onExit, evidence, status, feedback, reportBusy, intro, visited, needsDecision, firstDriveBooked, incidentClosed, onExplore, jumpLabel, onJump, notice }: Props) {
+export function PresentBar({ step, onStep, onExit, evidence, status, feedback, reportBusy, intro, visited, needsDecision, firstDriveBooked, incidentClosed, onExplore, jumpLabel, onJump, notice, onBack, canBack }: Props) {
   const hint = useSyncExternalStore(subscribeGuideHint, getGuideHint);
   const s = PRESENT_STEPS[step], last = PRESENT_STEPS.length - 1;
   const chapters = PRESENT_CHAPTERS.filter(c => c.part === s.part);
@@ -36,7 +39,6 @@ export function PresentBar({ step, onStep, onExit, evidence, status, feedback, r
   const nextChapter = nextStep && PRESENT_CHAPTERS.find(c => c.keys.includes(nextStep.key));
   const canContinue = status.kind === 'complete' || (s.part === 1 && incidentClosed) || ['prevent', 'measure'].includes(s.key)
     || (s.key === 'reminders' && feedback === 'Manual follow-up logged')
-    || (s.key === 'queue' && visited.includes('queue'))
     || (s.key === 'followup' && visited.includes('followup_read') && visited.includes('followup_call'));
   const nextLabel = s.key === 'onboarding' && status.kind === 'complete' ? 'Continue to Nora’s reminder' : step === last ? 'Finish walkthrough' : nextStep.part !== s.part ? 'Continue to Case 2' : nextChapter !== chapters[chapter] ? `Continue to ${nextChapter?.label.toLowerCase()}` : 'Continue';
   const receipt = feedback || (status.kind === 'complete' ? status.text.replace(/^Complete: /, '') : s.key === 'onboarding' && status.text.includes('Registration saved') ? status.text.replace(/^To continue: /, '') : '');
@@ -62,6 +64,7 @@ export function PresentBar({ step, onStep, onExit, evidence, status, feedback, r
         {receipt && <p role="status" className={`mt-3 text-sm font-semibold ${status.kind === 'complete' || feedback ? 'text-ok' : 'text-indigo'}`}>{status.kind === 'complete' || feedback ? '✓ ' : ''}{receipt}</p>}
         {hint && <p className="guide-hint mt-3" aria-live="polite">→ {hint}</p>}
       </div>
+      {PRESENT_STEPS.findIndex(p => p.part === s.part) === step && <p className="rounded-lg bg-card px-3 py-2 text-xs leading-relaxed text-muted"><strong className="text-navy">A sketch, not a finished policy.</strong> Assumptions, numbers and rules are estimates to show the thinking; none are validated yet. Flovi policies and industry best practice are not included and can be added later.</p>}
       <section aria-label="Why this matters" className="border-l-2 border-lavender pl-3 text-sm leading-relaxed">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Why this matters</h3>
         <p className="mt-1 text-navy/80">{s.solution}</p>
@@ -81,8 +84,9 @@ export function PresentBar({ step, onStep, onExit, evidence, status, feedback, r
     </div>
     <div className="guide-panel-foot">
       {notice && <p role="status" className="guide-notice">{notice}</p>}
-      <button type="button" disabled={step === 0} onClick={() => onStep(step - 1)} aria-label="Previous step" className="rounded p-1.5 text-muted hover:bg-card disabled:opacity-30"><ChevronLeft size={18} /></button>
-      <button data-guide="guide-next" type="button" onClick={step < last ? () => onStep(nextIndex) : onExit} className={canContinue ? 'ml-auto flex items-center gap-1 rounded-lg bg-indigo px-3.5 py-2 text-sm font-semibold text-white' : 'ml-auto text-sm text-muted underline underline-offset-2'}>{canContinue ? nextLabel : 'Skip this step'}{canContinue && <ChevronRight size={15} />}</button>
+      <button type="button" data-guide-undo disabled={!canBack} onClick={onBack} aria-label="Back: undo the last click" title="Back: undo the last click" className="flex items-center gap-0.5 rounded px-1.5 py-1.5 text-sm text-muted hover:bg-card disabled:opacity-30"><ChevronLeft size={18} />Back</button>
+      {/* No skipping: Continue unlocks when the step is done. */}
+      <button data-guide="guide-next" type="button" disabled={!canContinue} onClick={step < last ? () => onStep(nextIndex) : onExit} className="ml-auto flex items-center gap-1 rounded-lg bg-indigo px-3.5 py-2 text-sm font-semibold text-white disabled:bg-lavender disabled:text-muted">{nextLabel}<ChevronRight size={15} /></button>
     </div>
   </aside>, document.body);
 }

@@ -30,7 +30,7 @@ import { Proposed } from './components/ui';
 import { FunnelKpis, FunnelStages } from './components/FunnelOverview';
 import { WorkQueue } from './components/WorkQueue';
 import { filterItems, QUEUE_FILTER_LABEL, queueCounts, workItems, type QueueFilter } from './lib/workQueue';
-import { clearGuideFocus, highlightGuideStep, openGuideSection } from './lib/guideFocus';
+import { clearGuideFocus, GUIDE_INTERACTIVE, guideAllows, highlightGuideStep, installGuideLock, openGuideSection } from './lib/guideFocus';
 import { guideAdvance, type GuideSnapshot } from './lib/guideFlow';
 import type { DemoData } from './lib/persist';
 import { docsTarget, PRESENT_STEPS, reviewTarget, guideDestination, guideIntro, presentEvidence, guideStatus, followUpTargets, type PresentKey } from './lib/present';
@@ -358,6 +358,36 @@ export default function App() {
 
   // The guide changes views only. All decisions, bookings and delivery use the ordinary controls.
   const presentData = { apps, gigs, threads, jobs };
+  // ---- Back = undo the last click. Every click in the walkthrough saves how things were just before it. ----
+  type UndoEntry = { data: DemoData; now: number; present: number | null; visited: string[]; applicantId: string | null; feedback: string; page: Page; filter: QueueFilter; stageFilter: StageFilter; liveSel: LiveSelection; openId: string | null; phoneOpen: boolean; phoneId: string | null; phoneChat: boolean; showReport: boolean };
+  const undoStack = useRef<UndoEntry[]>([]);
+  const [undoCount, setUndoCount] = useState(0);
+  // Bumped on undo so the phone, drawer and Live Ops forget half-finished local input.
+  const [undoKey, setUndoKey] = useState(0);
+  const latestState = useRef<UndoEntry | null>(null);
+  latestState.current = { data: presentData, now, present, visited: guideVisited, applicantId: guideApplicantId, feedback: guideFeedback, page, filter, stageFilter, liveSel, openId, phoneOpen, phoneId, phoneChat: false, showReport };
+  const sameState = (x: UndoEntry, y: UndoEntry) => x.data.apps === y.data.apps && x.data.jobs === y.data.jobs && x.data.threads === y.data.threads && x.data.gigs === y.data.gigs && x.now === y.now && x.present === y.present && x.visited === y.visited && x.applicantId === y.applicantId && x.page === y.page && x.filter === y.filter && x.liveSel === y.liveSel && x.openId === y.openId && x.phoneOpen === y.phoneOpen && x.phoneId === y.phoneId && x.phoneChat === y.phoneChat && x.showReport === y.showReport;
+  const resetUndo = () => { undoStack.current = []; setUndoCount(0); };
+  const undoLast = () => {
+    const entry = undoStack.current.pop();
+    setUndoCount(undoStack.current.length);
+    if (!entry) return;
+    clearTimeout(guideTimer.current); guideRevision.current++;
+    // Only a real data or time change reaches the guide's progress check; mark that one as an undo.
+    if (entry.data.apps !== apps || entry.data.jobs !== jobs || entry.now !== now || entry.applicantId !== guideApplicantId) guideRestored.current = true;
+    for (const k of [...guideSnapshots.current.keys()]) if (entry.present !== null && k > entry.present) guideSnapshots.current.delete(k);
+    replaceDemo(entry.data);
+    clock.setTo(entry.now);
+    setPresent(entry.present);
+    setGuideVisited(entry.visited);
+    setGuideApplicantId(entry.applicantId);
+    setGuideFeedback(entry.feedback);
+    setPage(entry.page); setFilter(entry.filter); setStageFilter(entry.stageFilter); setLiveSel(entry.liveSel);
+    setOpenId(entry.openId); setPhoneId(entry.phoneId); setPhoneOpen(entry.phoneOpen); setShowReport(entry.showReport);
+    setChatRequest(entry.phoneChat ? n => n + 1 : 0);
+    setUndoKey(k => k + 1);
+    toast.dismiss();
+  };
   const currentPresent = present === null ? null : PRESENT_STEPS[present];
   const guideState = currentPresent ? guideStatus(currentPresent.key, presentData, guideApplicantId, now) : null;
   const goStep = (i: number, automatic = false) => {
@@ -372,7 +402,7 @@ export default function App() {
       for (const k of [...snapshots.keys()]) if (k > i) snapshots.delete(k);
       if (snap) {
         base = snap.data; applicantId = snap.applicantId;
-        guideRestored.current = true;
+        if (snap.data.apps !== apps || snap.data.jobs !== jobs || snap.now !== now || snap.applicantId !== guideApplicantId) guideRestored.current = true;
         replaceDemo(snap.data);
         clock.setTo(snap.now);
         setGuideVisited(snap.visited);
@@ -407,7 +437,7 @@ export default function App() {
       return;
     }
     if (view === 'report') return openReport();
-    setGuideVisited(v => [...new Set([...(view === 'followup_reminder' ? v.filter(x => x !== 'followup_read') : v), view, ...(view === 'followup_read' ? ['followup_call'] : [])])]);
+    setGuideVisited(v => [...new Set([...(view === 'followup_reminder' ? v.filter(x => x !== 'followup_read') : v), view, ...(view === 'followup_read' ? ['followup_call'] : view === 'followup_call' ? ['followup_read'] : [])])]);
     if (view === 'job') {
       setPage('live'); setLiveSel(jobs.find(j => j.firstDrive && j.id === reviewTarget(apps)?.firstGig?.gigId)?.id ?? null);
       setOpenId(null); setPhoneId(reviewTarget(apps)?.id ?? null); setPhoneOpen(true); setChatRequest(0);
@@ -465,6 +495,26 @@ export default function App() {
     }, advance.key === 'queue' ? 1100 : 700);
   }, [apps, jobs, now, guideApplicantId]);
   useEffect(() => () => clearTimeout(guideTimer.current), []);
+  // During the walkthrough only the ringed control (and guide navigation) can be used.
+  const presenting = present !== null;
+  useEffect(() => (presenting ? installGuideLock() : undefined), [presenting]);
+  useEffect(() => {
+    if (!presenting) { resetUndo(); return; }
+    const record = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.closest(GUIDE_INTERACTIVE) || target.closest('[data-guide-undo]') || !guideAllows(target)) return;
+      const entry = latestState.current;
+      if (!entry) return;
+      const phoneChat = document.querySelector<HTMLElement>('[data-demo-target="driver"]')?.dataset.phoneView === 'chat';
+      const before = { ...entry, phoneChat };
+      const top = undoStack.current.at(-1);
+      if (top && sameState(top, before)) return;
+      undoStack.current.push(before);
+      setUndoCount(undoStack.current.length);
+    };
+    document.addEventListener('click', record, true);
+    return () => document.removeEventListener('click', record, true);
+  }, [presenting]);
 
   // Local form/accordion changes update the marker too; they never reset the page or scroll to its top.
   useEffect(() => {
@@ -521,14 +571,16 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target instanceof Element ? e.target : null;
       if (t?.closest('input, textarea, select, [contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === 'ArrowRight' && present < PRESENT_STEPS.length - 1) goStep(present + 1);
-      else if (e.key === 'ArrowLeft' && present > 0) goStep(present - 1);
+      // → is the same as Continue (only when the step is done); ← undoes the last click.
+      if (e.key === 'ArrowRight') document.querySelector<HTMLButtonElement>('[data-guide="guide-next"]:not(:disabled)')?.click();
+      else if (e.key === 'ArrowLeft') undoLast();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
   const startPresenting = () => {
     guideSnapshots.current.clear();
+    resetUndo();
     setGuideRun(n => n + 1);
     clearTimeout(guideTimer.current); guideRevision.current++;
     setGuideVisited([]); setGuideFeedback(''); setShowReport(false); setReportBusy(false); setShowHubspot(false);
@@ -600,7 +652,7 @@ export default function App() {
             </div>
           </div>
         </header>
-        {present !== null && <PresentBar key={guideRun} incidentClosed={!!guideIncident?.incident?.closedAt} intro={guideIntro(PRESENT_STEPS[present].key, presentData, open?.name ?? (phoneOpen ? apps.find(a => a.id === phoneId)?.name ?? null : null))} visited={guideVisited} needsDecision={!guideDriver?.decision || guideDriver.decision.type === 'rejected'} firstDriveBooked={!!guideDriver?.firstGig?.bookedFor && !guideDriver.firstGig.doneAt} feedback={guideFeedback} reportBusy={reportBusy} step={present} onStep={goStep} onExit={() => { clearTimeout(guideTimer.current); guideRevision.current++; setPresent(null); setGuideFeedback(''); clock.resume(); }} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} status={guideState ?? { kind: 'explore', text: '' }} notice={toast.message} onExplore={guideExplore} jumpLabel={guideJumpLabel} onJump={() => { if (guideJumpAt && guideJumpAt > now) onAdvance(guideJumpAt - now); }} />}
+        {present !== null && <PresentBar key={guideRun} incidentClosed={!!guideIncident?.incident?.closedAt} intro={guideIntro(PRESENT_STEPS[present].key, presentData, open?.name ?? (phoneOpen ? apps.find(a => a.id === phoneId)?.name ?? null : null))} visited={guideVisited} needsDecision={!guideDriver?.decision || guideDriver.decision.type === 'rejected'} firstDriveBooked={!!guideDriver?.firstGig?.bookedFor && !guideDriver.firstGig.doneAt} feedback={guideFeedback} reportBusy={reportBusy} step={present} onStep={goStep} onExit={() => { clearTimeout(guideTimer.current); guideRevision.current++; setPresent(null); setGuideFeedback(''); clock.resume(); }} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} status={guideState ?? { kind: 'explore', text: '' }} notice={toast.message} onBack={undoLast} canBack={undoCount > 0} onExplore={guideExplore} jumpLabel={guideJumpLabel} onJump={() => { if (guideJumpAt && guideJumpAt > now) onAdvance(guideJumpAt - now); }} />}
         </div>
 
         <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-6 space-y-6">
@@ -649,12 +701,13 @@ export default function App() {
               </section>
             </>
           ) : (
-            <LiveOps jobs={present !== null ? jobs.filter(j => !j.asInCase) : jobs} now={now} onJob={onJob} onViewChat={openDriverChat} selected={liveSel} onSelect={setLiveSel} focus={null} threads={threads} waitingQuestions={questions} onThread={onThread} />
+            <LiveOps key={undoKey} jobs={present !== null ? jobs.filter(j => !j.asInCase) : jobs} now={now} onJob={onJob} onViewChat={openDriverChat} selected={liveSel} onSelect={setLiveSel} focus={null} threads={threads} waitingQuestions={questions} onThread={onThread} />
           )}
         </main>
 
         {open && (
           <ApplicantDrawer
+            key={undoKey}
             applicant={open}
             apps={apps}
             gigs={gigs}
@@ -672,11 +725,13 @@ export default function App() {
 
         <footer className="border-t border-lavender px-4 py-6 text-center text-xs text-muted">
           Driver Funnel builds a supply of qualified drivers. Live Ops keeps that supply delivering. · Prototype by Hjalmar Widlund · demo data, no real people
+          <span className="mt-1 block">Assumptions, numbers and rules are estimates to show the thinking and sketch a solution; none are validated yet. Flovi policies and industry best practice are not yet included and can be added to the prototype later.</span>
         </footer>
       </div>
       {present !== null && <GuideSpotlight />}
       {phoneOpen && !open && (
         <DriverPhone
+          key={undoKey}
           applicantId={phoneId}
           apps={apps}
           gigs={gigs}
