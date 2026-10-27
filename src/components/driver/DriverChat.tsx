@@ -101,7 +101,8 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
           ];
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: 'end' });
+    const list = endRef.current?.parentElement;
+    if (list) list.scrollTop = list.scrollHeight;
   }, [timeline.length, streaming]);
 
   // Opening the chat marks everything as read.
@@ -179,7 +180,7 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
         </span>
       </p>
 
-      <div className="flex-1 space-y-2.5 overflow-y-auto px-4 py-3" aria-live="polite">
+      <div data-guide="inbox" className="flex-1 space-y-2.5 overflow-y-auto px-4 py-3" aria-live="polite">
         {timeline.length === 0 && !busy && <p className="pt-2 text-sm font-semibold">Hi{a ? ` ${a.name.split(' ')[0]}` : ''}! What can I help you with?</p>}
         {timeline.map((m) => (
           <Message key={m.id} m={m} onConfirm={() => confirm(m)} onDecline={() => onThread(resolveProposal(t, m.id, 'declined', now))} />
@@ -211,6 +212,7 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
           {jobChips.map((c, i) => (
             <button
               key={c.label}
+              data-guide={c.label === 'Still waiting' ? 'chat-wait' : 'chat-choice'}
               type="button"
               onClick={c.run}
               className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${i === 0 ? 'border-indigo bg-indigo text-white hover:bg-navy' : 'border-lavender text-indigo hover:border-indigo'}`}

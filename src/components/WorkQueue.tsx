@@ -43,7 +43,7 @@ export function WorkQueue({ items, filter, onOpen }: Props) {
         <li key={w.a.id}>
           <button
             type="button"
-            onClick={() => onOpen(w.a.id)}
+            data-guide-applicant={w.a.id} onClick={() => onOpen(w.a.id)}
             className="grid w-full grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-4 py-3 text-left text-sm hover:bg-card/60 md:grid-cols-[minmax(0,1.3fr)_8.5rem_minmax(0,1.6fr)_minmax(0,1.3fr)_auto]"
           >
             <span className="min-w-0">

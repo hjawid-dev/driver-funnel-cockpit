@@ -46,7 +46,7 @@ export const checkTarget = (jobs: Job[], now = Date.now()) => jobs.find(j => !j.
 export function followUpTargets(data: DemoData, now: number) {
   const waiting = data.apps.filter(a => deriveStage(a) === 'accepted' && !a.firstGig?.bookedFor && canStartDrive(a) === null);
   return {
-    reminder: waiting.find(a => a.name === 'Ida Sjöberg' && activationBucket(a.decision!.at, now) === 'book') ?? waiting.find(a => activationBucket(a.decision!.at, now) === 'book') ?? null,
+    reminder: waiting.find(a => a.name === 'Ida Sjöberg') ?? waiting.find(a => activationBucket(a.decision!.at, now) === 'book') ?? null,
     call: waiting.find(a => a.name === 'Anton Wallin' && activationBucket(a.decision!.at, now) === 'call') ?? waiting.find(a => activationBucket(a.decision!.at, now) === 'call') ?? null,
   };
 }
@@ -86,34 +86,6 @@ export function presentEvidence(key: PresentKey, data: DemoData): string {
   if (key === 'activate' && a?.firstGig?.bookedFor) return `Ahmed: ${a.firstGig.gigId} booked ${formatDateTime(a.firstGig.bookedFor)}. He remains accepted until delivery.`;
   if (key === 'followup') return 'A booking remains accepted until delivery. This step shows follow-up for drivers without a booking; it does not undo Ahmed’s choice.';
   return '';
-}
-
-/** UI-only focus: expand a named section and bring the existing control into view. */
-export function focusGuideStep(key: PresentKey) {
-  document.querySelectorAll('[data-demo-focus]').forEach(el => el.removeAttribute('data-demo-focus'));
-  const byTarget = (name: string) => document.querySelector<HTMLElement>(`[data-demo-target="${name}"]`);
-  let target: HTMLElement | null = null;
-  if (key === 'incident') target = byTarget('job-detail');
-  const playbookKeys: Partial<Record<PresentKey, string>> = { playbook: 'keep_driver', booking_check: 'own_error', contact: 'escalate', customer: 'customer', decision: 'decide', close: 'close' };
-  if (playbookKeys[key]) {
-    const li = document.querySelector<HTMLElement>(`[data-playbook-step="${playbookKeys[key]}"]`);
-    const button = li?.querySelector<HTMLButtonElement>('button[aria-expanded]');
-    if (button?.getAttribute('aria-expanded') === 'false') button.click();
-    target = li ?? byTarget('job-detail');
-  }
-  if (key === 'assistant') target = byTarget('driver');
-  if (key === 'prevent') target = byTarget('confirmations');
-  if (key === 'onboarding' || key === 'reminders' || key === 'activate') target = byTarget('driver') ?? byTarget('job-detail');
-  if (key === 'reminders') target = byTarget('nudges') ?? target;
-  if (key === 'criteria') {
-    const criteria = byTarget('criteria');
-    const unchecked = criteria?.querySelector<HTMLInputElement>('input:not(:checked)');
-    const onboarding = byTarget('candidate')?.querySelector<HTMLInputElement>('label input[type="checkbox"]:not(:checked)');
-    target = unchecked?.closest('li') ?? onboarding?.closest('label') ?? byTarget('decision') ?? criteria;
-  }
-  if (key === 'queue' || key === 'followup') target = document.getElementById('queue');
-  if (key === 'measure') target = byTarget('metrics');
-  if (target) { target.setAttribute('data-demo-focus', 'true'); target.scrollIntoView({ behavior: 'smooth', block: target.matches('[data-demo-target="driver"]') ? 'nearest' : 'start' }); }
 }
 
 export interface GuideStatus { kind: 'explore' | 'pending' | 'complete'; text: string }

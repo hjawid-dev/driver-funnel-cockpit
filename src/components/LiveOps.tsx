@@ -199,7 +199,7 @@ function JobDetail({ j, now, onJob, onViewChat, focus }: { j: Job; now: number; 
   const problem = problemSummary(j, now);
 
   return (
-    <article data-demo-target="job-detail" className={`rounded-2xl border bg-white ${s === 'needs_person' ? 'border-bad/40' : 'border-lavender'}`}>
+    <article data-job-id={j.id} data-demo-target="job-detail" className={`rounded-2xl border bg-white ${s === 'needs_person' ? 'border-bad/40' : 'border-lavender'}`}>
       <header className={`flex flex-wrap items-start gap-3 rounded-t-2xl border-b px-4 py-3 sm:px-5 ${s === 'needs_person' ? 'border-bad/20 bg-bad-bg/40' : 'border-lavender'}`}>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -314,7 +314,7 @@ function Facts({ j }: { j: Job }) {
 function IncidentWork({ j, now, onJob, focus }: { j: Job; now: number; onJob: Props['onJob']; focus: Props['focus'] }) {
   const c = incidentClock(j, now);
   const steps = j.incident?.steps ?? {};
-  const next = currentStep(j, now);
+  const next = j.pilot && j.incident?.steps.customer && !j.incident.accountOwnerAt && !j.incident.outcome ? PLAYBOOK.find(s => s.key === 'customer')! : currentStep(j, now);
   const nextKey = next?.key ?? null;
   // null follows the step to do now; 'none' means the presenter folded it away.
   const [openKey, setOpenKey] = useState<StepKey | 'none' | null>(null);
@@ -598,7 +598,7 @@ function ReplacementForm({ j, now, onJob }: { j: Job; now: number; onJob: Props[
   if (!task) return null;
   const agreement = { deadline: new Date(delivery).getTime(), driverConfirmed: sameDriver };
   const updated = bookReplacement(j, new Date(pickup).getTime(), now, agreement);
-  return <section data-demo-target="replacement" className="space-y-2 rounded-lg bg-warn-bg p-3 text-sm">
+  return <section data-guide="replacement" data-demo-target="replacement" className="space-y-2 rounded-lg bg-warn-bg p-3 text-sm">
     <p className="font-semibold">{task.status === 'booked' ? task.driverConfirmed ? 'New time logged · same driver confirmed' : 'New time logged · Needs driver' : 'Customer chose a new time'}</p>
     <p className="text-xs">Owner {task.owner} · {task.status === 'open' ? `follow up by ${formatDateTime(task.dueAt)}` : `${formatDateTime(task.pickupAt!)} → delivery by ${formatDateTime(task.deadline!)}`}</p>
     {task.status === 'open' && <>
@@ -707,7 +707,7 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
   switch (step) {
     case 'keep_driver':
       return (
-        <button type="button" disabled={done} onClick={() => mark(`called ${first}`)} className={BTN}>
+        <button data-guide="call-driver" type="button" disabled={done} onClick={() => mark(`called ${first}`)} className={BTN}>
           <PhoneCall size={14} aria-hidden /> Called {first}
         </button>
       );
@@ -725,12 +725,12 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
             <dt className="text-muted">Confirmations</dt>
             <dd>{j.asInCase ? <span className="text-muted">None: no pre-pickup check was in place</span> : checks.map((c) => `${c.label}: ${CHECK_TEXT[c.state].text.toLowerCase()}`).join(' · ')}</dd>
           </dl>
-          <button type="button" disabled={done} onClick={() => onJob(recordOwnError(j, false, '', now), 'Booking details checked and correct.')} className={BTN}>
+          <button data-guide="booking-correct" type="button" disabled={done} onClick={() => onJob(recordOwnError(j, false, '', now), 'Booking details checked and correct.')} className={BTN}>
             <Check size={14} aria-hidden /> Log checked: our details are right
           </button>
           <label className="block text-xs">Corrected pickup address<input aria-label="Corrected pickup address" value={correctedFrom} onChange={e => setCorrectedFrom(e.target.value)} maxLength={150} className="block w-full rounded border p-2" /></label><label className="block text-xs">Corrected contact phone<input aria-label="Corrected contact phone" value={correctedContact} onChange={e => setCorrectedContact(e.target.value)} maxLength={30} className="block w-full rounded border p-2" /></label>
           <label className="block text-xs">Or record an error and what was corrected<input aria-label="Booking correction" value={correction} onChange={e => setCorrection(e.target.value)} maxLength={300} className="mt-1 block w-full rounded border p-2 text-sm" /></label>
-          <button type="button" disabled={!correction.trim()} onClick={() => onJob(recordOwnError({ ...j, from: correctedFrom.trim(), contact: { ...j.contact, phone: correctedContact.trim() } }, true, correction, now), 'Our booking error and correction logged. Call the booker with the corrected details.')} className={BTN}>Log error found and corrected</button>
+          <button data-guide="booking-correction-save" type="button" disabled={!correction.trim()} onClick={() => onJob(recordOwnError({ ...j, from: correctedFrom.trim(), contact: { ...j.contact, phone: correctedContact.trim() } }, true, correction, now), 'Our booking error and correction logged. Call the booker with the corrected details.')} className={BTN}>Log error found and corrected</button>
         </>
       );
     }
@@ -752,7 +752,7 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
             </li>
             <li>{first} asks reception, the workshop and checks the key box again.</li>
           </ul>
-          <button type="button" disabled={done} onClick={() => mark('called the contact and the backup')} className={BTN}>
+          <button data-guide="call-contacts" type="button" disabled={done} onClick={() => mark('called the contact and the backup')} className={BTN}>
             <PhoneCall size={14} aria-hidden /> Called both
           </button>
         </>
@@ -774,13 +774,13 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
             >
               <Copy size={14} aria-hidden /> {copied ? 'Copied' : 'Copy'}
             </button>
-            <button type="button" onClick={() => mark('customer update logged')} className={BTN}>
+            <button data-guide="customer-update" type="button" onClick={() => mark('customer update logged')} className={BTN}>
               <Check size={14} aria-hidden /> Log customer update sent
             </button>
           </div>
           <p className="text-xs text-muted">A template filled from the job, not AI. You send it yourself.</p>
           {j.pilot && (
-            <label className="flex items-center gap-2 text-sm">
+            <label data-guide="account-owner" className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
                 checked={j.incident?.accountOwnerAt !== undefined}
@@ -799,7 +799,7 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
       const options: Outcome[] = ['keys_found', 'later_today', 'new_date', 'cancelled', 'ops_stopped'];
       return (
         <>
-          <div className="flex flex-wrap gap-2">
+          <div data-guide="customer-outcomes" className="flex flex-wrap gap-2">
             {options.map((o) => (
               <button
                 key={o}
@@ -830,16 +830,16 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
       ].filter(Boolean);
       return (
         <>
-          {j.pilot && <label className="flex items-center gap-2"><input type="checkbox" checked={j.incident?.accountOwnerAt !== undefined} disabled={j.incident?.accountOwnerAt !== undefined} onChange={() => onJob(tellAccountOwner(j, now), `${j.id}: internal pilot account owner updated.`)} className="h-4 w-4 accent-indigo" />Internal pilot account owner updated</label>}
+          {j.pilot && <label className="flex items-center gap-2"><input data-guide="close-account-owner" type="checkbox" checked={j.incident?.accountOwnerAt !== undefined} disabled={j.incident?.accountOwnerAt !== undefined} onChange={() => onJob(tellAccountOwner(j, now), `${j.id}: internal pilot account owner updated.`)} className="h-4 w-4 accent-indigo" />Internal pilot account owner updated</label>}
           <label className="flex items-center gap-2">
-            <input type="checkbox" checked={waitPaid} onChange={(e) => setWaitPaid(e.target.checked)} className="h-4 w-4 accent-indigo" />
+            <input data-guide="wait-paid" type="checkbox" checked={waitPaid} onChange={(e) => setWaitPaid(e.target.checked)} className="h-4 w-4 accent-indigo" />
             <span>
               {first}'s waiting-time compensation is confirmed by ops (demo), from {hm(Math.max(j.pickupAt, j.arrivedAt ?? j.pickupAt))}
               {cancelPayFor(j) > 0 ? `, plus ${cancelPayFor(j)} SEK (proposed half-reward cancellation pay)` : ''}
             </span>
           </label>
           <label className="flex items-center gap-2">
-            <input type="checkbox" checked={reviewBooked} onChange={(e) => setReviewBooked(e.target.checked)} className="h-4 w-4 accent-indigo" />
+            <input data-guide="review-booked" type="checkbox" checked={reviewBooked} onChange={(e) => setReviewBooked(e.target.checked)} className="h-4 w-4 accent-indigo" />
             {j.pilot ? 'Pilot: schedule a 15-minute booker review' : 'Optional: book a review if the issue warrants it'}
           </label>
           <label className="block text-xs">Follow-up owner Hjalmar · meeting time if scheduled<input aria-label="Booker review time" type="datetime-local" value={reviewAt} onChange={e => setReviewAt(e.target.value)} className="mt-1 block rounded border p-1 text-sm" /></label>
@@ -861,7 +861,7 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
             <label className="block">
               <span className="text-xs font-semibold">What happened (required for "Other")</span>
               <textarea
-                value={causeNote}
+                data-guide="cause-note" value={causeNote}
                 onChange={(e) => setCauseNote(e.target.value)}
                 maxLength={300}
                 rows={2}
@@ -878,7 +878,7 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
               setError(null);
               onJob(r.job, `${j.id}: incident closed and logged.`);
             }}
-            disabled={remaining.length > 0}
+            data-guide="close-incident" disabled={remaining.length > 0}
             className={BTN}
           >
             Close the incident

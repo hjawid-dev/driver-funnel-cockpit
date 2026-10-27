@@ -30,7 +30,9 @@ import { Proposed } from './components/ui';
 import { FunnelKpis, FunnelStages } from './components/FunnelOverview';
 import { WorkQueue } from './components/WorkQueue';
 import { filterItems, QUEUE_FILTER_LABEL, queueCounts, workItems, type QueueFilter } from './lib/workQueue';
-import { docsTarget, PRESENT_STEPS, reviewTarget, guideDestination, focusGuideStep, presentEvidence, guideStatus, followUpTargets } from './lib/present';
+import { clearGuideFocus, highlightGuideStep, openGuideSection } from './lib/guideFocus';
+import { guideAdvance, type GuideSnapshot } from './lib/guideFlow';
+import { docsTarget, PRESENT_STEPS, reviewTarget, guideDestination, presentEvidence, guideStatus, followUpTargets } from './lib/present';
 
 /**
  * Two connected jobs, one page each.
@@ -62,6 +64,11 @@ export default function App() {
   const [showHubspot, setShowHubspot] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [present, setPresent] = useState<number | null>(null);
+  const [guideVisited, setGuideVisited] = useState<string[]>([]);
+  const [guideFeedback, setGuideFeedback] = useState('');
+  const [reportBusy, setReportBusy] = useState(false);
+  const guideTimer = useRef<ReturnType<typeof setTimeout>>();
+  const guideRevision = useRef(0);
   const [guideApplicantId, setGuideApplicantId] = useState<string | null>(null);
   // Bumped when the cockpit opens the phone on the chat; 0 opens it on the steps.
   const [chatRequest, setChatRequest] = useState(0);
@@ -93,8 +100,13 @@ export default function App() {
   const openApplicant = useCallback((id: string) => {
     setPhoneOpen(false);
     setOpenId(id);
-  }, []);
-  const closeReport = useCallback(() => setShowReport(false), []);
+    if (present !== null) {
+      if (PRESENT_STEPS[present].key === 'queue') setGuideVisited(v => [...new Set([...v, 'queue'])]);
+      if (apps.find(a => a.id === id)?.name === 'Ahmed Hassan' && PRESENT_STEPS[present].part === 2) { clearTimeout(guideTimer.current); guideRevision.current++; setPresent(PRESENT_STEPS.findIndex(s => s.key === 'criteria')); }
+    }
+  }, [present, apps]);
+  const closeReport = useCallback(() => { setShowReport(false); setReportBusy(false); }, []);
+  const openReport = () => { setGuideVisited(v => [...new Set([...v, 'report'])]); setReportBusy(true); setShowReport(true); };
   const closeHubspot = useCallback(() => setShowHubspot(false), []);
 
   const showPage = (p: Page) => {
@@ -362,11 +374,16 @@ export default function App() {
   // The guide changes views only. All decisions, bookings and delivery use the ordinary controls.
   const presentData = { apps, gigs, threads, jobs };
   const currentPresent = present === null ? null : PRESENT_STEPS[present];
-  const goStep = (i: number) => {
+  const goStep = (i: number, automatic = false) => {
     const step = PRESENT_STEPS[i];
     if (!step) return;
     const target = guideDestination(step.key, presentData, guideApplicantId);
+    clearTimeout(guideTimer.current);
+    guideRevision.current++;
     setPresent(i);
+    if (!automatic) setGuideFeedback('');
+    const sameCase1Surface = automatic && currentPresent?.part === 1 && step.part === 1 && step.key !== 'prevent' && currentPresent.key !== 'incident';
+    if (sameCase1Surface) return;
     setShowReport(false);
     setShowHubspot(false);
     setStageFilter('all');
@@ -377,37 +394,85 @@ export default function App() {
     setPhoneId(target.driverId);
     setChatRequest(target.phone === 'chat' ? n => n + 1 : 0);
     setPhoneOpen(target.phone !== null);
-    window.scrollTo({ top: 0 });
-    setTimeout(() => focusGuideStep(step.key), 100);
+    if (!automatic && page !== target.page) window.scrollTo({ top: 0 });
+    requestAnimationFrame(() => openGuideSection(step.key));
   };
   const guideExplore = (view: GuideView) => {
-    if (view === 'target' && present !== null) return goStep(present);
-    if (view === 'report') return setShowReport(true);
+    if (view === 'target' && present !== null) {
+      goStep(present);
+      requestAnimationFrame(() => highlightGuideStep(PRESENT_STEPS[present].key, { data: presentData, now, visited: guideVisited }, 'nearest'));
+      return;
+    }
+    if (view === 'report') return openReport();
+    setGuideVisited(v => [...new Set([...v, view])]);
+    if (view === 'job') {
+      setPage('live'); setLiveSel(jobs.find(j => j.firstDrive && j.id === reviewTarget(apps)?.firstGig?.gigId)?.id ?? null);
+      setOpenId(null); setPhoneId(reviewTarget(apps)?.id ?? null); setPhoneOpen(true); setChatRequest(0);
+      return;
+    }
     setOpenId(null);
     setPhoneOpen(false);
     if (view === 'start') {
       setPhoneId(null); setChatRequest(0); setPhoneOpen(true);
     } else if (view === 'reminders') {
       setPage('funnel'); setOpenId(docsTarget(apps)?.id ?? null);
-      setTimeout(() => {
-        [...document.querySelectorAll<HTMLElement>('h3')].find(e => e.textContent?.trim().startsWith('Nudges'))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
+
     } else if (view === 'criteria') {
+      clearTimeout(guideTimer.current); guideRevision.current++;
+      setGuideFeedback(''); setPresent(PRESENT_STEPS.findIndex(s => s.key === 'criteria'));
       setPage('funnel'); setOpenId(reviewTarget(apps)?.id ?? null);
     } else if (view === 'followup_reminder' || view === 'followup_call') {
       const examples = followUpTargets(presentData, now);
-      setPage('funnel'); setFilter('awaiting'); setOpenId((view === 'followup_reminder' ? examples.reminder : examples.call)?.id ?? null);
-    } else if (view === 'job') {
-      setPage('live'); setLiveSel(jobs.find(j => j.firstDrive && j.id === reviewTarget(apps)?.firstGig?.gigId)?.id ?? null);
-      setTimeout(() => document.querySelector<HTMLElement>('[data-demo-target="job-detail"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+      setPage('funnel'); setFilter('awaiting');
+      const example = view === 'followup_reminder' ? examples.reminder : examples.call;
+      if (view === 'followup_reminder') { setPhoneId(example?.id ?? null); setChatRequest(n => n + 1); setPhoneOpen(true); }
+      else setOpenId(example?.id ?? null);
     }
   };
-  const guideFocusVersion = [reviewTarget(apps)?.extractShown, reviewTarget(apps)?.photoApproved, reviewTarget(apps)?.onboardingCompletedAt, reviewTarget(apps)?.decision?.type, (jobs.find(j => j.solutionExample) ?? jobs.find(j => j.asInCase))?.incident?.log.length].join(':');
+  const guideSnapshot = useRef<GuideSnapshot>({ data: presentData, now, applicantId: guideApplicantId });
+  useEffect(() => {
+    const before = guideSnapshot.current;
+    const after = { data: presentData, now, applicantId: guideApplicantId };
+    guideSnapshot.current = after;
+    if (!currentPresent) return;
+    const advance = guideAdvance(before, after, currentPresent.part);
+    if (!advance) return;
+    clearTimeout(guideTimer.current);
+    setGuideFeedback(advance.message);
+    const revision = guideRevision.current;
+    guideTimer.current = setTimeout(() => {
+      if (guideRevision.current === revision) goStep(PRESENT_STEPS.findIndex(s => s.key === advance.key), true);
+    }, advance.key === 'queue' ? 1100 : 700);
+  }, [apps, jobs, now, guideApplicantId]);
+  useEffect(() => () => clearTimeout(guideTimer.current), []);
+
+  // Local form/accordion changes update the marker too; they never reset the page or scroll to its top.
+  useEffect(() => {
+    if (!currentPresent) { clearGuideFocus(); return; }
+    let frame = 0;
+    const context = { data: presentData, now, visited: guideVisited };
+    let reveal = true;
+    const sync = (event?: unknown) => {
+      if (event instanceof Event && event.type === 'click') reveal = true;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => { highlightGuideStep(currentPresent.key, context, reveal ? 'down' : false); reveal = false; });
+    };
+    const observer = new MutationObserver(sync);
+    observer.observe(document.getElementById('root')!, { childList: true, subtree: true });
+    document.addEventListener('click', sync);
+    document.addEventListener('input', sync);
+    document.addEventListener('change', sync);
+    sync();
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); document.removeEventListener('click', sync); document.removeEventListener('input', sync); document.removeEventListener('change', sync); };
+  }, [present, apps, jobs, threads, now, openId, phoneOpen, liveSel, guideVisited]);
   useEffect(() => {
     if (!currentPresent) return;
-    const timer = setTimeout(() => focusGuideStep(currentPresent.key), 150);
-    return () => { clearTimeout(timer); document.querySelectorAll('[data-demo-focus]').forEach(el => el.removeAttribute('data-demo-focus')); };
-  }, [present, openId, phoneOpen, liveSel, guideFocusVersion]);
+    const frame = requestAnimationFrame(() => {
+      openGuideSection(currentPresent.key);
+      highlightGuideStep(currentPresent.key, { data: presentData, now, visited: guideVisited }, 'down');
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [present]);
   const guideIncident = jobs.find(j => j.solutionExample) ?? jobs.find(j => j.asInCase);
   const guideDriver = reviewTarget(apps);
   const guideJob = jobs.find(j => j.firstDrive && j.id === guideDriver?.firstGig?.gigId);
@@ -443,6 +508,8 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   });
   const startPresenting = () => {
+    clearTimeout(guideTimer.current); guideRevision.current++;
+    setGuideVisited([]); setGuideFeedback(''); setShowReport(false); setReportBusy(false); setShowHubspot(false);
     clock.pause();
     playCase(true, true);
     setPhoneId(apps.find(a => a.name === 'Julia Lindgren')?.id ?? null);
@@ -497,7 +564,7 @@ export default function App() {
               <DemoMenu
                 now={now}
                 onAdvance={onAdvance}
-                onReset={() => playCase()}
+                onReset={startPresenting}
                 onPhone={() => openAsDriver(phoneId)}
                 onHubspot={() => setShowHubspot(true)}
                 textsEnabled={textsEnabled}
@@ -507,7 +574,7 @@ export default function App() {
             </div>
           </div>
         </header>
-        {present !== null && <PresentBar step={present} onStep={goStep} onExit={() => { setPresent(null); clock.resume(); }} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} status={currentPresent ? guideStatus(currentPresent.key, presentData, guideApplicantId, now) : { kind: 'explore', text: '' }} onExplore={guideExplore} jumpLabel={guideJumpLabel} onJump={() => { if (guideJumpAt && guideJumpAt > now) onAdvance(guideJumpAt - now); }} />}
+        {present !== null && <PresentBar feedback={guideFeedback} reportBusy={reportBusy} step={present} onStep={goStep} onExit={() => { clearTimeout(guideTimer.current); guideRevision.current++; setPresent(null); setGuideFeedback(''); clock.resume(); }} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} status={currentPresent ? guideStatus(currentPresent.key, presentData, guideApplicantId, now) : { kind: 'explore', text: '' }} onExplore={guideExplore} jumpLabel={guideJumpLabel} onJump={() => { if (guideJumpAt && guideJumpAt > now) onAdvance(guideJumpAt - now); }} />}
         </div>
 
         <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-6 space-y-6">
@@ -518,7 +585,7 @@ export default function App() {
 
           {page === 'funnel' ? (
             <>
-              <FunnelKpis kpis={kpis} baseline={baseline} onReport={() => setShowReport(true)} />
+              <FunnelKpis kpis={kpis} baseline={baseline} onReport={openReport} reportBusy={reportBusy} />
               <FunnelStages funnel={funnel} onStage={onStage} />
               <section id="queue" aria-labelledby="queue-title" className="scroll-mt-[calc(var(--present-top,0px)+1rem)]">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -574,7 +641,7 @@ export default function App() {
           />
         )}
         {showHubspot && <HubspotModal onClose={closeHubspot} />}
-        {showReport && <ReportModal apps={apps} threads={threads} jobs={jobs} gigs={gigs} now={now} onClose={closeReport} />}
+        {showReport && <ReportModal onReady={() => setReportBusy(false)} apps={apps} threads={threads} jobs={jobs} gigs={gigs} now={now} onClose={closeReport} />}
         <Toast message={toast.message} onDismiss={toast.dismiss} />
 
         <footer className="border-t border-lavender px-4 py-6 text-center text-xs text-muted">
@@ -598,7 +665,7 @@ export default function App() {
           onJumpTo={(ts) => ts > now && onAdvance(ts - now)}
           textsEnabled={textsEnabled}
           onDecide={(id) => {
-            showPage('funnel');
+            setPage('funnel');
             openApplicant(id);
           }}
           onClose={() => setPhoneOpen(false)}

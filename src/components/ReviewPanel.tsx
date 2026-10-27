@@ -143,7 +143,7 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
         </ol>
       </CollapsibleSection>}
 
-      {!preDrive && !hardReject && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!a.onboardingCompletedAt} disabled={!!a.onboardingCompletedAt} onChange={() => onUpdate(completeOnboarding(a, now))} />Onboarding call completed</label>}
+      {!preDrive && !hardReject && <label className="flex items-center gap-2 text-sm"><input data-guide="onboarding-call" type="checkbox" checked={!!a.onboardingCompletedAt} disabled={!!a.onboardingCompletedAt} onChange={() => onUpdate(completeOnboarding(a, now))} />Onboarding call completed</label>}
 
       <DrawerSection
         title="Decision"

@@ -1,6 +1,6 @@
 import type { Job } from '../lib/liveOps';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Bot, Copy, FileText, RefreshCw, ShieldCheck, TriangleAlert, X } from 'lucide-react';
+import { Copy, FileText, LoaderCircle, RefreshCw, ShieldCheck, TriangleAlert, X } from 'lucide-react';
 import type { Applicant, Gig } from '../lib/types';
 import type { ChatThread } from '../lib/chat/types';
 import { weeklyFacts, formatFact, type WeeklyFacts } from '../lib/report/facts';
@@ -19,6 +19,7 @@ interface Props {
   now: number;
   onClose: () => void;
   onOpened?: () => void;
+  onReady?: () => void;
 }
 
 const TONE: Record<ChangeItem['tone'], { icon: string; cls: string; label: string }> = {
@@ -34,7 +35,18 @@ const REASON = {
 };
 
 /** The weekly report: numbers from code, text from AI, and a check that the two agree. */
-export function ReportModal({ apps, threads, jobs = [], gigs = [], now, onClose, onOpened }: Props) {
+export function ReportModal(props: Props) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const frame = requestAnimationFrame(() => { timer = setTimeout(() => setReady(true), 0); });
+    return () => { cancelAnimationFrame(frame); clearTimeout(timer); };
+  }, []);
+  if (!ready) return <div className="below-present fixed inset-0 z-50 flex items-start justify-center bg-navy/40 p-6"><div role="dialog" aria-modal="true" aria-label="Weekly report" aria-busy="true" data-guide="report-loading" className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl"><p role="status" className="flex items-center gap-2"><LoaderCircle className="animate-spin text-indigo" size={20} /> Preparing weekly report…</p></div></div>;
+  return <ReportContent {...props} />;
+}
+
+function ReportContent({ apps, threads, jobs = [], gigs = [], now, onClose, onOpened, onReady }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const [wf, setWf] = useState<WeeklyFacts>(() => weeklyFacts(apps, threads, now, jobs, gigs));
   const [reply, setReply] = useState<ReportReply | null>(null);
@@ -48,6 +60,7 @@ export function ReportModal({ apps, threads, jobs = [], gigs = [], now, onClose,
     const r = await requestReport(facts);
     if ('error' in r) setError(r.error);
     else setReply(r);
+    onReady?.();
   }, []);
 
   useEffect(() => {
@@ -91,18 +104,18 @@ export function ReportModal({ apps, threads, jobs = [], gigs = [], now, onClose,
               Last 7 days ({formatDateTime(wf.from)} – {formatDateTime(wf.to)}), compared with the week before. Demo snapshot; proposed production schedule: Monday 08:00.
             </p>
           </div>
-          <button ref={closeRef} type="button" onClick={onClose} aria-label="Close the weekly report" className="rounded-md p-1.5 text-muted hover:bg-card hover:text-navy">
+          <button ref={closeRef} type="button" onClick={onClose} data-guide="report-close" aria-label="Close the weekly report" className="rounded-md p-1.5 text-muted hover:bg-card hover:text-navy">
             <X size={18} />
           </button>
         </header>
 
-        <div className="space-y-5 px-5 py-5">
+        <div data-guide={reply ? "report-ready" : error ? "report-error" : "report-loading"} aria-busy={!reply && !error} className="space-y-5 px-5 py-5">
           {!reply && !error && (
             <p className="flex items-center gap-2 rounded-xl bg-card p-4 text-sm text-muted" aria-live="polite">
-              <Bot size={16} className="text-indigo" aria-hidden /> Writing the report from this week's numbers…
+              <LoaderCircle size={16} className="animate-spin text-indigo" aria-hidden /> Writing the report from this week's numbers…
             </p>
           )}
-          {error && <p className="rounded-xl bg-warn-bg p-4 text-sm text-warn">{error}</p>}
+          {error && <div role="alert" className="rounded-xl bg-warn-bg p-4 text-sm text-warn"><p>{error}</p><button type="button" onClick={() => generate(wf)} className="mt-2 font-semibold underline">Try again</button></div>}
 
           {reply && (
             <>

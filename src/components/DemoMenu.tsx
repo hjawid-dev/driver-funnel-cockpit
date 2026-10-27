@@ -124,7 +124,7 @@ export function DemoMenu({ now, onAdvance, onReset, onPhone, onHubspot, textsEna
             <RotateCcw size={15} className="text-muted" aria-hidden />
             <span>
               Reset demo
-              <span className="block text-xs font-normal text-muted">Fresh data, back to Tuesday 09:30: the case</span>
+              <span className="block text-xs font-normal text-muted">Fresh data · Explore cases · Case 1, step 1</span>
             </span>
           </button>
         </div>

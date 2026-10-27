@@ -1,11 +1,11 @@
-import { ArrowRight, FileText, TriangleAlert } from 'lucide-react';
+import { ArrowRight, FileText, LoaderCircle, TriangleAlert } from 'lucide-react';
 import { kpiDelta, type Funnel, type FunnelKey, type Kpi } from '../lib/kpis';
 import { CollapsibleSection, StatusChip } from './ui';
 import { InfoTip } from './InfoTip';
 
 export const FUNNEL_KPIS: Kpi['key'][] = ['appToActive', 'docCompletion', 'timeToDecision', 'activation'];
 const PERIOD: Partial<Record<Kpi['key'], string>> = { cohortConversion: 'Within 30 days · mature cohorts', docCompletion: 'Within 7 days · mature cohorts', activation: 'Within 14 days · mature cohorts', appToActive: 'Last 30 days' };
-export function FunnelKpis({ kpis, baseline, onReport }: { kpis: Kpi[]; baseline: Kpi[]; onReport: () => void }) {
+export function FunnelKpis({ kpis, baseline, onReport, reportBusy = false }: { kpis: Kpi[]; baseline: Kpi[]; onReport: () => void; reportBusy?: boolean }) {
   const card = (k: Kpi) => {
     const d = kpiDelta(baseline.find(b => b.key === k.key), k);
     return <article key={k.key} className={`rounded-xl border p-3 sm:p-4 ${k.northStar ? 'border-indigo/40 bg-lavender/40' : 'border-lavender bg-white'}`}>
@@ -16,7 +16,7 @@ export function FunnelKpis({ kpis, baseline, onReport }: { kpis: Kpi[]; baseline
     </article>;
   };
   return <section aria-labelledby="kpi-title" data-demo-target="metrics">
-    <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><h2 id="kpi-title" className="flex items-center gap-1 text-sm font-semibold">How the funnel performs<InfoTip label="About these numbers"><p>Demo data. Targets and cohort windows are pilot hypotheses, except the case's 48-hour registration-to-decision target.</p><p>Owner and backup review the open queue daily, including missing documents. Arrange an exception before 48 hours if standard weekday calls do not fit; an incomplete case remains an explicit SLA miss.</p><p>Each week: choose one blocker, test one process change and compare mature cohort outcomes. Large queues are work in progress, not proof of the cause.</p></InfoTip><span className="ml-2 text-xs font-normal text-muted">Pilot targets</span></h2><button type="button" onClick={onReport} className="flex items-center gap-1.5 text-sm font-semibold text-indigo"><FileText size={15} />Weekly report</button></div>
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><h2 id="kpi-title" className="flex items-center gap-1 text-sm font-semibold">How the funnel performs<InfoTip label="About these numbers"><p>Demo data. Targets and cohort windows are pilot hypotheses, except the case's 48-hour registration-to-decision target.</p><p>Owner and backup review the open queue daily, including missing documents. Arrange an exception before 48 hours if standard weekday calls do not fit; an incomplete case remains an explicit SLA miss.</p><p>Each week: choose one blocker, test one process change and compare mature cohort outcomes. Large queues are work in progress, not proof of the cause.</p></InfoTip><span className="ml-2 text-xs font-normal text-muted">Pilot targets</span></h2><button data-guide="weekly-report" disabled={reportBusy} aria-busy={reportBusy} type="button" onClick={onReport} className="flex items-center gap-1.5 text-sm font-semibold text-indigo">{reportBusy ? <LoaderCircle size={15} className="animate-spin" /> : <FileText size={15} />}{reportBusy ? 'Preparing report…' : 'Weekly report'}</button></div>
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{FUNNEL_KPIS.map(key => kpis.find(k => k.key === key)).filter((k): k is Kpi => !!k).map(card)}</div>
     <div className="mt-3"><CollapsibleSection title="Guardrails and cohort detail" summary="Acceptance · delivery outcome · cohort conversion"><div className="grid gap-3 sm:grid-cols-3">{kpis.filter(k => !FUNNEL_KPIS.includes(k.key)).map(card)}</div></CollapsibleSection></div>
   </section>;

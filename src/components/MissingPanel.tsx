@@ -1,4 +1,5 @@
-import { Ban, FlaskConical, Send } from 'lucide-react';
+import { useState } from 'react';
+import { Ban, Check, FlaskConical, Send } from 'lucide-react';
 import type { Applicant, DocKey, DocStatus } from '../lib/types';
 import { isNoResponse, NUDGE_OFFSETS, nudgeMessage, nudgeState, outstandingDocs } from '../lib/nudges';
 import { applyDecision, closeNoResponse, logNudge, receiveDocument, type ActionResult } from '../lib/actions';
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export function MissingPanel({ a, now, onResult }: Props) {
+  const [justLogged, setJustLogged] = useState<number | null>(null);
   const nudge = nudgeState(a, now);
   const stale = isNoResponse(a, now);
   const outstanding = outstandingDocs(a);
@@ -114,13 +116,14 @@ export function MissingPanel({ a, now, onResult }: Props) {
         <p className="whitespace-pre-line">{nudgeMessage(a)}</p>
       </>}>
         <p className="text-sm text-muted">{nudge.nextAt ? `Next: ${formatDateTime(nudge.nextAt)}` : nudge.label.replace('nudges', 'reminders')}</p>
+        {justLogged !== null && <p role="status" className="mt-2 rounded-lg bg-ok-bg p-2 text-sm font-semibold text-ok">✓ Manual follow-up logged · {formatDateTime(justLogged!)}<span className="block text-xs font-normal">Recorded in demo; no message sent.</span></p>}
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => onResult(logNudge(a, now))}
+            data-guide="manual-followup" disabled={justLogged !== null} onClick={() => { const result = logNudge(a, now); if (result.ok) setJustLogged(now); onResult(result); }}
             className="inline-flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-2 text-sm font-semibold text-white hover:bg-navy"
           >
-            <Send size={15} aria-hidden /> Log manual follow-up
+            {justLogged !== null ? <Check size={15} aria-hidden /> : <Send size={15} aria-hidden />} {justLogged !== null ? 'Follow-up logged' : 'Log manual follow-up'}
           </button>
           {stale && (
             <button

@@ -14,7 +14,7 @@ function effect(j: Job, r: PickupReason, textsEnabled: boolean): string {
 /** What is wrong at the pickup: six clear choices, so nothing is assumed. The tap is the confirmation. */
 export function ReasonPicker({ j, textsEnabled, onPick, onCancel }: { j: Job; textsEnabled: boolean; onPick: (r: PickupReason) => void; onCancel?: () => void }) {
   return (
-    <div className="space-y-1.5" role="group" aria-label="What is wrong at the pickup?">
+    <div data-guide="pickup-reason" className="space-y-1.5" role="group" aria-label="What is wrong at the pickup?">
       <p className="text-sm font-semibold">What's wrong?</p>
       {ORDER.map((r) => (
         <button

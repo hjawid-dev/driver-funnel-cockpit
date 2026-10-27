@@ -77,7 +77,7 @@ export function ApplicantDrawer({ applicant: a, apps, gigs, now, onClose, onUpda
               <Smartphone size={13} aria-hidden /> Driver's view
             </button>
           )}
-          <button ref={closeRef} type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1.5 text-muted hover:bg-card hover:text-navy">
+          <button ref={closeRef} type="button" onClick={onClose} data-guide="candidate-close" aria-label="Close" className="rounded-md p-1.5 text-muted hover:bg-card hover:text-navy">
             <X size={20} />
           </button>
         </header>
@@ -90,7 +90,7 @@ export function ApplicantDrawer({ applicant: a, apps, gigs, now, onClose, onUpda
             </div>
           )}
           <Facts a={a} now={now} />
-          {stage === 'registered' && <MissingPanel a={a} now={now} onResult={onResult} />}
+          {stage === 'registered' && <MissingPanel key={a.id} a={a} now={now} onResult={onResult} />}
           {stage === 'accepted' && <ActivationPanel key={a.id} a={a} apps={apps} gigs={gigs} now={now} onUpdate={onUpdate} onResult={onResult} onViewAsDriver={onViewAsDriver} />}
           {stage !== 'review' && <Documents a={a} />}
           {stage === 'review' && <ReviewPanel key={a.id} a={a} now={now} onUpdate={onUpdate} onResult={onResult} />}

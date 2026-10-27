@@ -58,3 +58,8 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 [role="dialog"] [data-demo-focus], .driver-phone [data-demo-focus] { scroll-margin-top: 1rem; }
 
 [data-guided-case="1"] [data-playbook-number] { display: none; }
+
+/* A single action marker, with a text cue as well as colour. No blocking tour overlay. */
+[data-demo-focus] { position: relative; outline: 3px solid var(--color-indigo); outline-offset: 3px; box-shadow: 0 0 0 6px var(--color-lavender); border-radius: 8px; }
+[data-demo-focus][data-guide-label]::after { content: attr(data-guide-label); position: absolute; right: 4px; top: -17px; z-index: 2; border-radius: 4px; padding: 1px 5px; background: var(--color-indigo); color: white; font: 600 10px/14px Arial, sans-serif; white-space: nowrap; pointer-events: none; }
+[data-guided-case] #playbook { overflow-anchor: none; }

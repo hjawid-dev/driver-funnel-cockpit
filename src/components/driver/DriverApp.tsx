@@ -57,18 +57,18 @@ export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, o
   const job = a ? currentJob(jobs, a.id, now) : null;
 
   return (
-    <div data-demo-target="driver" className="flex h-full flex-col bg-white text-navy">
+    <div data-demo-target="driver" data-phone-view={view} className="flex h-full flex-col bg-white text-navy">
       <header className="bg-navy px-4 pb-3 pt-4 text-white">
         <div className="flex items-center justify-between gap-2">
           {view === 'steps' ? (
             <span className="text-sm font-semibold">Drive with us</span>
           ) : (
-            <button type="button" onClick={() => setView('steps')} className={`${headerBtn} -ml-2`}>
+            <button data-guide="phone-steps" type="button" onClick={() => setView('steps')} className={`${headerBtn} -ml-2`}>
               <ChevronLeft size={15} aria-hidden /> {a ? 'My application' : 'Back'}
             </button>
           )}
           {view !== 'chat' && (
-            <button type="button" onClick={() => setView('chat')} className={headerBtn} aria-label={`AI assistant and help${unread ? `, ${unread} unread` : ''}`}>
+            <button data-guide="phone-chat" type="button" onClick={() => setView('chat')} className={headerBtn} aria-label={`AI assistant and help${unread ? `, ${unread} unread` : ''}`}>
               <MessageCircle size={15} aria-hidden /> AI assistant
               {unread > 0 && <span className="num ml-0.5 rounded-full bg-green px-1.5 text-[11px] font-bold text-navy">{unread}</span>}
             </button>
@@ -157,9 +157,10 @@ function Card({ children, tone = 'plain' }: { children: React.ReactNode; tone?: 
   return <div className={`rounded-xl p-3.5 ${cls}`}>{children}</div>;
 }
 
-function Primary({ children, onClick, disabled }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
+function Primary({ children, onClick, disabled, guide }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; guide?: string }) {
   return (
     <button
+      data-guide={guide ?? "phone-primary"}
       type="button"
       onClick={onClick}
       disabled={disabled}
@@ -239,7 +240,7 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
       <Title icon={<Sparkles size={16} />} sub="Four quick questions. They decide nothing on their own.">
         A few questions first
       </Title>
-      <label className="block text-sm font-semibold">
+      <label data-guide="application-name" data-guide-done={name.trim().length > 1} className="block text-sm font-semibold">
         Your name
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="First and last name (demo: not your real name)" className="mt-1 w-full rounded-lg border border-lavender px-3 py-2 text-sm font-normal" />
       </label>
@@ -251,7 +252,7 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
           ))}
         </select>
       </label>
-      <fieldset>
+      <fieldset data-guide="application-licence" data-guide-done={licence !== null}>
         <legend className="text-sm font-semibold">How long have you had a B licence?</legend>
         <div className="mt-1 grid grid-cols-4 gap-1.5">
           {[
@@ -266,7 +267,7 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
           ))}
         </div>
       </fieldset>
-      <fieldset>
+      <fieldset data-guide="application-age" data-guide-done={age !== null}>
         <legend className="text-sm font-semibold">Are you {MIN_AGE} or older?</legend>
         <p className="text-xs text-muted">Proposed insurance threshold for this demo; Flovi must confirm the actual requirement.</p>
         <div className="mt-1 grid grid-cols-2 gap-1.5">
@@ -274,7 +275,7 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
           <Choice value={false} current={age} set={setAge}>No</Choice>
         </div>
       </fieldset>
-      <fieldset>
+      <fieldset data-guide="application-times" data-guide-done={slots.length > 0}>
         <legend className="text-sm font-semibold">When can you usually drive?</legend>
         <p className="text-xs text-muted">Pick all that fit. Any answer works: we match jobs to your times.</p>
         <div className="mt-1 grid grid-cols-3 gap-1.5">
@@ -444,7 +445,7 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump, onDecide }: { a: 
             <p className="text-sm">Ops is on standby during the whole drive. On the day, this screen shows the job: tap "I'm here" at the pickup.</p>
           </Card>
           {onJump && !needsExtract(a) && (
-            <button type="button" onClick={onJump} className="w-full rounded-xl border border-dashed border-lavender px-4 py-2 text-xs font-semibold text-muted hover:border-indigo hover:text-indigo">
+            <button data-guide="phone-jump" type="button" onClick={onJump} className="w-full rounded-xl border border-dashed border-lavender px-4 py-2 text-xs font-semibold text-muted hover:border-indigo hover:text-indigo">
               Demo: jump to the morning of the drive
             </button>
           )}
@@ -532,7 +533,7 @@ function PhotoStep({ onDone }: { onDone: () => void }) {
       </Title>
       <p className="text-xs text-muted">Customers see it when you pick up their car. Try both sample photos:</p>
       <div className="grid grid-cols-2 gap-2">
-        <button type="button" onClick={onDone} className="flex flex-col items-center gap-1 rounded-xl border border-lavender p-3 text-xs font-semibold hover:border-indigo">
+        <button data-guide="phone-photo" type="button" onClick={onDone} className="flex flex-col items-center gap-1 rounded-xl border border-lavender p-3 text-xs font-semibold hover:border-indigo">
           <Avatar /> Use photo A
         </button>
         <button
@@ -574,7 +575,7 @@ function CallStep({ a, apps, now, onBook }: { a: Applicant; apps: Applicant[]; n
               <button
                 key={t}
                 type="button"
-                onClick={() => onBook(t)}
+                data-guide="phone-slot" onClick={() => onBook(t)}
                 className="num rounded-lg border border-lavender py-2 text-sm font-semibold hover:border-indigo hover:bg-lavender"
               >
                 {new Date(t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
@@ -684,7 +685,7 @@ function OffersStep({ a, apps, gigs, now, onPick }: { a: Applicant; apps: Applic
             <p className="mt-0.5 text-xs text-muted">
               {g.km} km · about {g.minutes} min · <strong className="text-navy">{g.pay} SEK</strong>
             </p>
-            <button type="button" onClick={() => onPick(g)} className="mt-2.5 w-full rounded-lg bg-indigo py-2 text-sm font-semibold text-white hover:bg-navy">
+            <button data-guide="phone-offer" type="button" onClick={() => onPick(g)} className="mt-2.5 w-full rounded-lg bg-indigo py-2 text-sm font-semibold text-white hover:bg-navy">
               Pick this drive
             </button>
           </div>
@@ -714,7 +715,7 @@ function JobCard({ j, now, onJob, onInbox, textsEnabled }: { j: Job; now: number
   const problem = picking ? (
     <ReasonPicker j={j} textsEnabled={textsEnabled} onPick={pick} onCancel={() => setPicking(false)} />
   ) : (
-    <button type="button" onClick={() => setPicking(true)} className="w-full rounded-xl border border-bad/50 px-4 py-2.5 text-sm font-semibold text-bad hover:bg-bad-bg">
+    <button data-guide="phone-problem" type="button" onClick={() => setPicking(true)} className="w-full rounded-xl border border-bad/50 px-4 py-2.5 text-sm font-semibold text-bad hover:bg-bad-bg">
       Problem at pickup
     </button>
   );
@@ -742,7 +743,7 @@ function JobCard({ j, now, onJob, onInbox, textsEnabled }: { j: Job; now: number
 
       {stopped ? null : status === 'scheduled' || status === 'due' ? (
         <>
-          <Primary onClick={() => onJob(checkIn(j, now))}>I'm here</Primary>
+          <Primary guide="phone-checkin" onClick={() => onJob(checkIn(j, now))}>I'm here</Primary>
           {problem}
         </>
       ) : status === 'arrived' && assist ? (
@@ -750,7 +751,7 @@ function JobCard({ j, now, onJob, onInbox, textsEnabled }: { j: Job; now: number
           {needsReason && <ReasonPicker j={j} textsEnabled={textsEnabled} onPick={pick} />}
           <p className="text-sm font-semibold">Solved?</p>
           <div className="grid grid-cols-2 gap-2">
-            <Primary onClick={() => onJob(gotKeys(j, now))}>Got the keys</Primary>
+            <Primary guide="phone-keys" onClick={() => onJob(gotKeys(j, now))}>Got the keys</Primary>
             <button type="button" onClick={() => onJob(gotKeys(j, now, 'customer'))} className="w-full rounded-xl border border-indigo px-4 py-2.5 text-sm font-semibold text-indigo hover:bg-indigo hover:text-white">
               Customer is here
             </button>
@@ -761,16 +762,16 @@ function JobCard({ j, now, onJob, onInbox, textsEnabled }: { j: Job; now: number
         </>
       ) : status === 'arrived' ? (
         <>
-          <Primary onClick={() => onJob(gotKeys(j, now))}>Got the keys</Primary>
+          <Primary guide="phone-keys" onClick={() => onJob(gotKeys(j, now))}>Got the keys</Primary>
           {!j.problemAt && problem}
         </>
       ) : status === 'keys' ? (
         <>
           <p className="text-sm text-muted">{now > incidentClock(j, now).lastDeparture ? 'Departure cut-off passed. Contact ops for an agreed new delivery plan before leaving.' : `Leave by ${hm(incidentClock(j, now).lastDeparture)} to make ${hm(j.deadline)}.`}</p>
-          <Primary disabled={now > incidentClock(j, now).lastDeparture} onClick={() => onJob(depart(j, now))}>On my way to the drop-off</Primary>
+          <Primary guide="phone-depart" disabled={now > incidentClock(j, now).lastDeparture} onClick={() => onJob(depart(j, now))}>On my way to the drop-off</Primary>
         </>
       ) : status === 'driving' ? (
-        <><p className="text-xs text-muted">Delivery becomes available after the planned drive time. Use the demo clock to move time forward.</p><Primary disabled={now < (j.departedAt ?? now) + j.driveMin * 60000} onClick={() => onJob(deliver(j, now))}>Delivered</Primary></>
+        <><p className="text-xs text-muted">Delivery becomes available after the planned drive time. Use the demo clock to move time forward.</p><Primary guide="phone-deliver" disabled={now < (j.departedAt ?? now) + j.driveMin * 60000} onClick={() => onJob(deliver(j, now))}>Delivered</Primary></>
       ) : (
         <Card tone="ok">
           <p className="flex items-center gap-1.5 text-sm font-semibold text-ok">
@@ -929,7 +930,7 @@ function AnswersForm({ a, onSave, onCancel }: { a: Applicant; onSave: (ans: { li
       <Title icon={<ShieldCheck size={16} />} sub="If you tapped the wrong answer, change it here.">
         Change your answers
       </Title>
-      <fieldset>
+      <fieldset data-guide="application-licence" data-guide-done={licence !== null}>
         <legend className="text-sm font-semibold">How long have you had a B licence?</legend>
         <div className="mt-1 grid grid-cols-4 gap-1.5">
           {([[0.5, '< 1 yr'], [1.5, '1–<2 yrs'], [3, '2–5 yrs'], [6, '5+ yrs']] as const).map(([v, l]) => (
@@ -939,7 +940,7 @@ function AnswersForm({ a, onSave, onCancel }: { a: Applicant; onSave: (ans: { li
           ))}
         </div>
       </fieldset>
-      <fieldset>
+      <fieldset data-guide="application-age" data-guide-done={age !== null}>
         <legend className="text-sm font-semibold">Are you {MIN_AGE} or older?</legend>
         <div className="mt-1 grid grid-cols-2 gap-1.5">
           <button type="button" aria-pressed={age} onClick={() => setAge(true)} className={opt(age)}>Yes</button>

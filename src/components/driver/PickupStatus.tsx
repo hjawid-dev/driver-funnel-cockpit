@@ -48,7 +48,7 @@ export function PickupStatus({ j, now, onInbox }: { j: Job; now: number; onInbox
         </ol>
       )}
       {onInbox && (
-        <button type="button" onClick={onInbox} className="mt-1.5 text-sm font-semibold text-indigo hover:underline">
+        <button data-guide="phone-chat" type="button" onClick={onInbox} className="mt-1.5 text-sm font-semibold text-indigo hover:underline">
           Open AI assistant
         </button>
       )}
