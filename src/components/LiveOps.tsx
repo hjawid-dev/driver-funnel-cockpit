@@ -142,7 +142,7 @@ export function LiveOps({ jobs, now, onJob, onViewChat, selected, onSelect, thre
                     return (
                       <li key={j.id}>
                         <button
-                          type="button"
+                          type="button" data-job-row={j.id}
                           onClick={() => pick(j.id)}
                           aria-current={on ? 'true' : undefined}
                           className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm ${on ? 'border-indigo bg-lavender/40' : 'border-transparent hover:bg-card/70'}`}
@@ -513,7 +513,7 @@ function AssistWork({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJo
   const contact = j.contact.role.toLowerCase();
   return (
     <>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div data-guide-section="assist-status" className="grid gap-2 sm:grid-cols-3">
         <Now label="Owner">
           <span className="inline-flex items-center gap-1">
             <Bot size={14} aria-hidden /> The assistant
@@ -849,7 +849,7 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
           </label>
           <label className="flex flex-wrap items-center gap-2">
             Cause
-            <select value={cause} onChange={(e) => setCause(e.target.value as IncidentCause)} className="rounded-md border border-lavender bg-white px-2 py-1 text-sm">
+            <select value={cause} onChange={(e) => setCause(e.target.value as IncidentCause)} className="block w-full max-w-full rounded-md border border-lavender bg-white px-2 py-1 text-sm">
               {(Object.keys(CAUSE_LABEL) as IncidentCause[]).map((c) => (
                 <option key={c} value={c}>
                   {CAUSE_LABEL[c]}

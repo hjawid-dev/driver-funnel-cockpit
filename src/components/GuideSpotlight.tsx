@@ -1,53 +1,59 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { isShown } from '../lib/guideFocus';
 
 type Box = { x: number; y: number; width: number; height: number };
-type Frame = Box & { label: string; badgeX: number; badgeY: number; context?: Box };
+interface Frame { holes: Box[]; outlines: Box[] }
 
-/** Paint above drawers and the phone; the real target remains visible and clickable through the cutout. */
+/** The visible part of an element: clipped by scrolling panels, the sticky header and the window. */
+function visibleBox(el: HTMLElement, pad: number): Box | null {
+  if (!isShown(el)) return null;
+  const r = el.getBoundingClientRect();
+  let left = r.left - pad, top = r.top - pad, right = r.right + pad, bottom = r.bottom + pad;
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    const style = getComputedStyle(p);
+    const b = p.getBoundingClientRect();
+    if (style.overflowY !== 'visible') { top = Math.max(top, b.top); bottom = Math.min(bottom, b.bottom); }
+    if (style.overflowX !== 'visible') { left = Math.max(left, b.left); right = Math.min(right, b.right); }
+    if (style.position === 'fixed') break;
+  }
+  const header = document.querySelector<HTMLElement>('[data-guide-header]');
+  const h = header?.getBoundingClientRect();
+  if (h && !header!.contains(el) && h.bottom > 0 && left < h.right && right > h.left && !el.closest('[role="dialog"], .driver-phone, .guide-panel')) top = Math.max(top, h.bottom);
+  left = Math.max(left, 0); top = Math.max(top, 0); right = Math.min(right, innerWidth); bottom = Math.min(bottom, innerHeight);
+  return right - left > 2 && bottom - top > 2 ? { x: Math.round(left), y: Math.round(top), width: Math.round(right - left), height: Math.round(bottom - top) } : null;
+}
+const inside = (a: Box, b: Box) => a.x >= b.x && a.y >= b.y && a.x + a.width <= b.x + b.width && a.y + a.height <= b.y + b.height;
+
+/**
+ * One shade for the whole walkthrough. Lit sections are cut out whole; the control to use
+ * carries its own ring (CSS), so the ring never lags behind the element.
+ * Measured every frame, so drawers sliding in, accordions and scrolling stay aligned.
+ */
 export function GuideSpotlight() {
   const [frame, setFrame] = useState<Frame | null>(null);
   useEffect(() => {
-    let raf = 0;
-    let observed: Element | null = null;
-    const resize = new ResizeObserver(() => schedule());
+    let raf = 0, last = '';
     const measure = () => {
-      const target = document.querySelector<HTMLElement>('[data-demo-focus]');
-      if (observed !== target) { resize.disconnect(); if (target) resize.observe(target); observed = target; }
-      if (!target || !target.getClientRects().length) { setFrame(null); return; }
-      const r = target.getBoundingClientRect();
-      let left = Math.max(4, r.left - 8), top = Math.max(4, r.top - 8);
-      let right = Math.min(innerWidth - 4, r.right + 8), bottom = Math.min(innerHeight - 4, r.bottom + 8);
-      for (let p = target.parentElement; p && p !== document.body; p = p.parentElement) {
-        if (/(auto|scroll|hidden|clip)/.test(getComputedStyle(p).overflowY)) {
-          const b = p.getBoundingClientRect();
-          top = Math.max(top, b.top + 2); bottom = Math.min(bottom, b.bottom - 2);
-        }
-      }
-      // The AI answer stays readable while the next action is the demo clock in the dock.
-      const answer = target.dataset.guide === 'guide-clock' ? document.querySelector<HTMLElement>('[data-guide-context="pickup-ai-response"]') : target.dataset.guide === 'report-close' ? document.querySelector<HTMLElement>('[data-guide="report-ready"]') : ['guide-next', 'candidate-close'].includes(target.dataset.guide ?? '') ? document.querySelector<HTMLElement>('[data-guide="candidate-next"]') : null;
-      const bounds = answer?.getBoundingClientRect();
-      const list = answer?.closest('[data-guide="inbox"]')?.getBoundingClientRect() ?? { top: 0, bottom: innerHeight };
-      const context = bounds && list && bounds.bottom > list.top && bounds.top < list.bottom ? { x: bounds.left - 4, y: Math.max(bounds.top - 4, list.top), width: bounds.width + 8, height: Math.min(bounds.bottom + 4, list.bottom) - Math.max(bounds.top - 4, list.top) } : undefined;
-      // A control in the guide panel gets its label just outside the panel, so it never covers the guide text.
-      const panel = target.closest('.guide-panel')?.getBoundingClientRect();
-      const beside = !!panel && panel.right + 180 < innerWidth;
-      const badgeX = beside ? panel.right + 10 : Math.min(innerWidth - 170, Math.max(8, left));
-      const badgeY = beside ? (top + bottom) / 2 - 16 : top > 42 ? top - 36 : bottom + 8;
-      const next = right > left && bottom > top ? { x: left, y: top, width: right - left, height: bottom - top, label: `${beside ? '← ' : ''}${target.dataset.guideLabel ?? 'Next'}`, badgeX, badgeY, context } : null;
-      setFrame(old => JSON.stringify(old) === JSON.stringify(next) ? old : next);
+      const outlines = [...document.querySelectorAll<HTMLElement>('[data-guide-lit]')].map(el => visibleBox(el, 6)).filter((b): b is Box => !!b);
+      const holes = [...outlines];
+      const action = document.querySelector<HTMLElement>('[data-demo-focus]');
+      const ring = action && visibleBox(action, 8);
+      if (ring && !holes.some(h => inside(ring, h))) holes.push(ring);
+      const next = holes.length ? { holes, outlines } : null;
+      const key = JSON.stringify(next);
+      if (key !== last) { last = key; setFrame(next); }
+      raf = requestAnimationFrame(measure);
     };
-    const schedule = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(measure); };
-    const observer = new MutationObserver(schedule);
-    // Include the floating guide as well as controls inside the app root.
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-demo-focus'] });
-    window.addEventListener('resize', schedule);
-    document.addEventListener('scroll', schedule, true);
-    schedule();
-    return () => { cancelAnimationFrame(raf); observer.disconnect(); resize.disconnect(); window.removeEventListener('resize', schedule); document.removeEventListener('scroll', schedule, true); };
+    raf = requestAnimationFrame(measure);
+    return () => cancelAnimationFrame(raf);
   }, []);
   if (!frame) return null;
-  return createPortal(<><div className="guide-spotlight" aria-hidden="true">
-    <svg width="100%" height="100%"><defs><mask id="guide-cutout"><rect width="100%" height="100%" fill="white" /><rect x={frame.x} y={frame.y} width={frame.width} height={frame.height} rx="12" fill="black" />{frame.context && <rect {...frame.context} rx="12" fill="black" />}</mask></defs><rect width="100%" height="100%" fill="#100e35" fillOpacity="0.64" mask="url(#guide-cutout)" /><rect x={frame.x} y={frame.y} width={frame.width} height={frame.height} rx="12" fill="none" stroke="white" strokeWidth="3" /></svg>
-  </div><span aria-hidden="true" className="guide-next-badge" style={{ left: frame.badgeX, top: frame.badgeY }}>{frame.label}</span></>, document.body);
+  return createPortal(<div className="guide-spotlight" aria-hidden="true">
+    <svg width="100%" height="100%">
+      <defs><mask id="guide-cutout"><rect width="100%" height="100%" fill="white" />{frame.holes.map((b, i) => <rect key={i} {...b} rx="12" fill="black" />)}</mask></defs>
+      <rect width="100%" height="100%" fill="#100e35" fillOpacity="0.62" mask="url(#guide-cutout)" />
+      {frame.outlines.map((b, i) => <rect key={i} {...b} rx="12" fill="none" stroke="white" strokeOpacity="0.9" strokeWidth="2" />)}
+    </svg>
+  </div>, document.body);
 }

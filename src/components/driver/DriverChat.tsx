@@ -303,7 +303,7 @@ function Message({ m, onConfirm, onDecline }: { m: ChatMsg; onConfirm: () => voi
     );
   if (m.from === 'auto')
     return (
-      <div data-guide={m.autoKind === 'book_task' ? 'activation-reminder' : undefined}><Bubble side="left" tone="auto">
+      <div data-guide-auto data-guide={m.autoKind === 'book_task' ? 'activation-reminder' : undefined}><Bubble side="left" tone="auto">
         <span className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
           <Bell size={11} aria-hidden /> Automatic message
           <span className="num ml-auto pl-2 font-normal normal-case tracking-normal">{formatDateTime(m.at)}</span>

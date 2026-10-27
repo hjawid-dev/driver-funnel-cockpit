@@ -48,7 +48,7 @@ export function ApplicantDrawer({ applicant: a, apps, gigs, now, onClose, onUpda
 
   return (
     <div className="fixed inset-0 z-[70] lg:z-50">
-      <div className="anim-fade absolute inset-0 bg-navy/40" onClick={onClose} aria-hidden />
+      <div className="guide-dim anim-fade absolute inset-0 bg-navy/40" onClick={onClose} aria-hidden />
       <aside
         data-demo-target="candidate" role="dialog"
         aria-modal="true"

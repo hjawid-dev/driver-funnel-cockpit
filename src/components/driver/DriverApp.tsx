@@ -82,7 +82,7 @@ export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, o
           <DriverChat applicant={a} thread={thread} apps={apps} gigs={gigs} jobs={jobs} now={now} onThread={onThread} onUpdate={onUpdate} onJob={onJob} textsEnabled={textsEnabled} onSteps={() => setView('steps')} />
         </div>
       ) : (
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div data-guide-section="phone-screen" className="flex-1 overflow-y-auto px-4 py-4">
         {!a ? (
           <Start onCreate={(input) => onCreate(createApplicant(input, apps, now))} onChat={() => setView('chat')} />
         ) : (

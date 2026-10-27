@@ -33,7 +33,7 @@ import { WorkQueue } from './components/WorkQueue';
 import { filterItems, QUEUE_FILTER_LABEL, queueCounts, workItems, type QueueFilter } from './lib/workQueue';
 import { clearGuideFocus, highlightGuideStep, openGuideSection } from './lib/guideFocus';
 import { guideAdvance, type GuideSnapshot } from './lib/guideFlow';
-import { docsTarget, PRESENT_STEPS, reviewTarget, guideDestination, guideIntro, presentEvidence, guideStatus, followUpTargets } from './lib/present';
+import { docsTarget, PRESENT_STEPS, reviewTarget, guideDestination, guideIntro, presentEvidence, guideStatus, followUpTargets, type PresentKey } from './lib/present';
 
 /**
  * Two connected jobs, one page each.
@@ -49,6 +49,9 @@ const PAGE_SUB: Record<Page, string> = {
 const FILTERS: QueueFilter[] = ['action', 'missing', 'review', 'awaiting', 'all'];
 
 const TEXTS_KEY = 'driver-funnel-cockpit-texts';
+
+// Julia's incident: these steps share one view, so the guide may follow the work by itself.
+const SAME_VIEW_STEPS: PresentKey[] = ['assistant', 'playbook', 'booking_check', 'contact', 'customer', 'decision', 'close'];
 
 export default function App() {
   const clock = useClock();
@@ -376,6 +379,7 @@ export default function App() {
   // The guide changes views only. All decisions, bookings and delivery use the ordinary controls.
   const presentData = { apps, gigs, threads, jobs };
   const currentPresent = present === null ? null : PRESENT_STEPS[present];
+  const guideState = currentPresent ? guideStatus(currentPresent.key, presentData, guideApplicantId, now) : null;
   const goStep = (i: number, automatic = false) => {
     const step = PRESENT_STEPS[i];
     if (!step) return;
@@ -402,7 +406,7 @@ export default function App() {
   const guideExplore = (view: GuideView) => {
     if (view === 'target' && present !== null) {
       if (PRESENT_STEPS[present].key !== 'followup') goStep(present);
-      requestAnimationFrame(() => highlightGuideStep(PRESENT_STEPS[present].key, { data: presentData, now, visited: guideVisited }, 'nearest'));
+      requestAnimationFrame(() => highlightGuideStep(PRESENT_STEPS[present].key, { data: presentData, now, visited: guideVisited }, true));
       return;
     }
     if (view === 'report') return openReport();
@@ -446,6 +450,9 @@ export default function App() {
     if (!advance) return;
     clearTimeout(guideTimer.current);
     setGuideFeedback(advance.message);
+    // Move on by itself only while the next step uses the same view (Julia's incident). Otherwise the
+    // presenter stays on the result and chooses Continue, so the screen never changes under them.
+    if (!SAME_VIEW_STEPS.includes(advance.key)) return;
     const revision = guideRevision.current;
     guideTimer.current = setTimeout(() => {
       if (guideRevision.current === revision) goStep(PRESENT_STEPS.findIndex(s => s.key === advance.key), true);
@@ -457,15 +464,15 @@ export default function App() {
   useEffect(() => {
     if (!currentPresent) { clearGuideFocus(); return; }
     let frame = 0;
-    const context = { data: presentData, now, visited: guideVisited };
-    let reveal = true;
-    const sync = (event?: unknown) => {
-      if (event instanceof Event && event.type === 'click') reveal = true;
+    const context = { data: presentData, now, visited: guideVisited, complete: guideState?.kind === 'complete' };
+    const sync = () => {
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => { highlightGuideStep(currentPresent.key, context, reveal ? 'down' : false); reveal = false; });
+      frame = requestAnimationFrame(() => highlightGuideStep(currentPresent.key, context));
     };
     const observer = new MutationObserver(sync);
     observer.observe(document.getElementById('root')!, { childList: true, subtree: true });
+    const panel = document.querySelector('.guide-panel');
+    if (panel) observer.observe(panel, { childList: true, subtree: true });
     document.addEventListener('click', sync);
     document.addEventListener('input', sync);
     document.addEventListener('change', sync);
@@ -476,7 +483,7 @@ export default function App() {
     if (!currentPresent) return;
     const frame = requestAnimationFrame(() => {
       openGuideSection(currentPresent.key);
-      highlightGuideStep(currentPresent.key, { data: presentData, now, visited: guideVisited }, 'down');
+      highlightGuideStep(currentPresent.key, { data: presentData, now, visited: guideVisited, complete: guideState?.kind === 'complete' });
     });
     return () => cancelAnimationFrame(frame);
   }, [present]);
@@ -534,7 +541,7 @@ export default function App() {
   return (
     <div data-guided-case={currentPresent?.part} className="min-h-screen flex">
       <div className="min-w-0 flex-1 flex flex-col">
-        <div ref={topRef} className={`${present !== null ? 'sticky top-0 z-[60]' : ''} ${open ? 'lg:w-[calc(100%_-_520px)]' : ''}`}>
+        <div ref={topRef} data-guide-header className={`${present !== null ? 'sticky top-0 z-[60]' : ''} ${open ? 'lg:w-[calc(100%_-_520px)]' : ''}`}>
         <header className="bg-navy text-white">
           <div className="mx-auto max-w-7xl px-4 h-14 flex items-center gap-3">
             <span className="hidden sm:inline font-semibold tracking-tight whitespace-nowrap">Driver Ops</span>
@@ -582,7 +589,7 @@ export default function App() {
             </div>
           </div>
         </header>
-        {present !== null && <PresentBar key={guideRun} incidentClosed={!!guideIncident?.incident?.closedAt} intro={guideIntro(PRESENT_STEPS[present].key, presentData, open?.name ?? (phoneOpen ? apps.find(a => a.id === phoneId)?.name ?? null : null))} visited={guideVisited} needsDecision={!guideDriver?.decision || guideDriver.decision.type === 'rejected'} firstDriveBooked={!!guideDriver?.firstGig?.bookedFor && !guideDriver.firstGig.doneAt} feedback={guideFeedback} reportBusy={reportBusy} step={present} onStep={goStep} onExit={() => { clearTimeout(guideTimer.current); guideRevision.current++; setPresent(null); setGuideFeedback(''); clock.resume(); }} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} status={currentPresent ? guideStatus(currentPresent.key, presentData, guideApplicantId, now) : { kind: 'explore', text: '' }} onExplore={guideExplore} jumpLabel={guideJumpLabel} onJump={() => { if (guideJumpAt && guideJumpAt > now) onAdvance(guideJumpAt - now); }} />}
+        {present !== null && <PresentBar key={guideRun} incidentClosed={!!guideIncident?.incident?.closedAt} intro={guideIntro(PRESENT_STEPS[present].key, presentData, open?.name ?? (phoneOpen ? apps.find(a => a.id === phoneId)?.name ?? null : null))} visited={guideVisited} needsDecision={!guideDriver?.decision || guideDriver.decision.type === 'rejected'} firstDriveBooked={!!guideDriver?.firstGig?.bookedFor && !guideDriver.firstGig.doneAt} feedback={guideFeedback} reportBusy={reportBusy} step={present} onStep={goStep} onExit={() => { clearTimeout(guideTimer.current); guideRevision.current++; setPresent(null); setGuideFeedback(''); clock.resume(); }} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} status={guideState ?? { kind: 'explore', text: '' }} notice={toast.message} onExplore={guideExplore} jumpLabel={guideJumpLabel} onJump={() => { if (guideJumpAt && guideJumpAt > now) onAdvance(guideJumpAt - now); }} />}
         </div>
 
         <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-6 space-y-6">
@@ -650,7 +657,7 @@ export default function App() {
         )}
         {showHubspot && <HubspotModal onClose={closeHubspot} />}
         {showReport && <ReportModal onReady={() => setReportBusy(false)} apps={apps} threads={threads} jobs={jobs} gigs={gigs} now={now} onClose={closeReport} />}
-        <Toast message={toast.message} onDismiss={toast.dismiss} />
+        {present === null && <Toast message={toast.message} onDismiss={toast.dismiss} />}
 
         <footer className="border-t border-lavender px-4 py-6 text-center text-xs text-muted">
           Driver Funnel builds a supply of qualified drivers. Live Ops keeps that supply delivering. · Prototype by Hjalmar Widlund · demo data, no real people

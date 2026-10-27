@@ -36,7 +36,7 @@ export function WorkQueue({ items, filter, onOpen }: Props) {
   const shown = all ? items : items.slice(0, FIRST_ROWS);
   return (
     <>
-    <ul aria-label={QUEUE_FILTER_LABEL[filter]} className="divide-y divide-lavender overflow-hidden rounded-xl border border-lavender">
+    <ul data-guide-section="queue" aria-label={QUEUE_FILTER_LABEL[filter]} className="divide-y divide-lavender overflow-hidden rounded-xl border border-lavender">
       {shown.map((w) => {
         const detail = w.stage === 'review' ? null : w.detail.split(' · ')[0];
         return (
