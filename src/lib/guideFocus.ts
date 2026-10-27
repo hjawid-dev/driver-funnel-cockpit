@@ -89,9 +89,7 @@ export function clearGuideFocus() {
 
 /** Scroll the containing pane only, and only when the control is outside its visible area. */
 function reveal(target: HTMLElement, allowUp: boolean) {
-  const rect = target.getBoundingClientRect();
-  const dock = document.querySelector('.guide-dock')?.getBoundingClientRect();
-  const bottomLimit = dock && rect.left < dock.right && rect.right > dock.left ? dock.top - 20 : innerHeight - 20;
+  const bottomLimit = innerHeight - 20;
   let parent = target.parentElement;
   while (parent && parent !== document.body) {
     if (/(auto|scroll)/.test(getComputedStyle(parent).overflowY) && parent.scrollHeight > parent.clientHeight) {
@@ -110,7 +108,6 @@ function reveal(target: HTMLElement, allowUp: boolean) {
 }
 
 export function highlightGuideStep(key: PresentKey, context: GuideFocusContext, scroll: false | 'nearest' | 'down' = false) {
-  if (document.querySelector('[data-guide-popup]')) { clearGuideFocus(); return; }
   const target = targetFor(key, context);
   if (document.querySelector('[data-demo-focus]') !== target) {
     clearGuideFocus();

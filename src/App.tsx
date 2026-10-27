@@ -469,9 +469,8 @@ export default function App() {
     document.addEventListener('click', sync);
     document.addEventListener('input', sync);
     document.addEventListener('change', sync);
-    document.addEventListener('guide-visibility', sync);
     sync();
-    return () => { observer.disconnect(); cancelAnimationFrame(frame); document.removeEventListener('click', sync); document.removeEventListener('input', sync); document.removeEventListener('change', sync); document.removeEventListener('guide-visibility', sync); };
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); document.removeEventListener('click', sync); document.removeEventListener('input', sync); document.removeEventListener('change', sync); };
   }, [present, apps, jobs, threads, now, openId, phoneOpen, liveSel, guideVisited]);
   useEffect(() => {
     if (!currentPresent) return;
@@ -583,7 +582,7 @@ export default function App() {
             </div>
           </div>
         </header>
-        {present !== null && <PresentBar key={guideRun} sidePanelWidth={open ? 520 : phoneOpen ? 420 : 0} incidentClosed={!!guideIncident?.incident?.closedAt} intro={guideIntro(PRESENT_STEPS[present].key, presentData, open?.name ?? (phoneOpen ? apps.find(a => a.id === phoneId)?.name ?? null : null))} visited={guideVisited} needsDecision={!guideDriver?.decision || guideDriver.decision.type === 'rejected'} firstDriveBooked={!!guideDriver?.firstGig?.bookedFor && !guideDriver.firstGig.doneAt} feedback={guideFeedback} reportBusy={reportBusy} step={present} onStep={goStep} onExit={() => { clearTimeout(guideTimer.current); guideRevision.current++; setPresent(null); setGuideFeedback(''); clock.resume(); }} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} status={currentPresent ? guideStatus(currentPresent.key, presentData, guideApplicantId, now) : { kind: 'explore', text: '' }} onExplore={guideExplore} jumpLabel={guideJumpLabel} onJump={() => { if (guideJumpAt && guideJumpAt > now) onAdvance(guideJumpAt - now); }} />}
+        {present !== null && <PresentBar key={guideRun} incidentClosed={!!guideIncident?.incident?.closedAt} intro={guideIntro(PRESENT_STEPS[present].key, presentData, open?.name ?? (phoneOpen ? apps.find(a => a.id === phoneId)?.name ?? null : null))} visited={guideVisited} needsDecision={!guideDriver?.decision || guideDriver.decision.type === 'rejected'} firstDriveBooked={!!guideDriver?.firstGig?.bookedFor && !guideDriver.firstGig.doneAt} feedback={guideFeedback} reportBusy={reportBusy} step={present} onStep={goStep} onExit={() => { clearTimeout(guideTimer.current); guideRevision.current++; setPresent(null); setGuideFeedback(''); clock.resume(); }} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} status={currentPresent ? guideStatus(currentPresent.key, presentData, guideApplicantId, now) : { kind: 'explore', text: '' }} onExplore={guideExplore} jumpLabel={guideJumpLabel} onJump={() => { if (guideJumpAt && guideJumpAt > now) onAdvance(guideJumpAt - now); }} />}
         </div>
 
         <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-6 space-y-6">

@@ -60,18 +60,19 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 
 [data-guided-case] #playbook { overflow-anchor: none; }
 
-/* The guide floats above the app; it never takes height away from the phone. */
-.guide-modal-backdrop { position: fixed; inset: 0; z-index: 130; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgb(16 14 53 / 68%); }
-.guide-modal { width: min(700px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; border: 1px solid var(--color-lavender); border-radius: 20px; background: white; padding: 28px; box-shadow: 0 24px 80px rgb(0 0 0 / 35%); }
-.guide-modal nav button, .guide-modal ol button { font-size: 14px; }
-.guide-modal > div:last-of-type button { font-size: 14px; }
-.guide-dock { position: fixed; z-index: 110; left: 16px; right: 16px; bottom: 16px; max-width: 760px; border: 1px solid var(--color-lavender); border-radius: 16px; padding: 12px 16px; background: white; box-shadow: 0 8px 32px rgb(16 14 53 / 25%); }
-@media (min-width: 1024px) { .guide-dock { right: calc(var(--guide-side, 0px) + 24px); } }
-@media (max-width: 640px) { .guide-modal { padding: 20px; } .guide-dock { padding: 10px; } }
+/* The guide is one fixed panel at the top left in every step. On wide screens it is a column and the app moves right. */
+.guide-panel { position: fixed; z-index: 110; left: 0; top: 0; width: 100%; max-height: 50dvh; display: flex; flex-direction: column; background: white; border-bottom: 1px solid var(--color-lavender); box-shadow: 0 8px 32px rgb(16 14 53 / 25%); }
+.guide-panel-head { display: flex; align-items: center; gap: 8px; height: 56px; flex-shrink: 0; padding: 0 8px 0 12px; background: var(--color-navy); }
+.guide-panel-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; padding: 18px 20px; }
+.guide-panel-foot { display: flex; align-items: center; gap: 8px; flex-shrink: 0; border-top: 1px solid var(--color-lavender); padding: 12px 16px; }
+@media (min-width: 1024px) {
+  [data-guided-case] { padding-left: 320px; }
+  [data-guided-case] .below-present { left: 320px; }
+  .guide-panel { width: 320px; bottom: 0; max-height: none; border-bottom: 0; border-right: 1px solid var(--color-lavender); box-shadow: 4px 0 24px rgb(16 14 53 / 12%); }
+}
 .guide-spotlight { position: fixed; inset: 0; z-index: 100; pointer-events: none; }
 .guide-spotlight svg { position: absolute; inset: 0; }
 .guide-next-badge { position: fixed; z-index: 120; pointer-events: none; display: inline-block; border: 2px solid white; border-radius: 8px; background: var(--color-indigo); padding: 5px 12px; color: white; font-size: 15px; font-weight: 700; line-height: 20px; box-shadow: 0 4px 14px rgb(0 0 0 / 35%); }
 [data-demo-focus] { outline: 5px solid var(--color-indigo); outline-offset: 3px; box-shadow: 0 0 0 8px white; }
 
 
-[data-guided-case] main { padding-bottom: 220px; }
