@@ -61,7 +61,8 @@ function focusFor(key: PresentKey, { data, now, visited, complete }: GuideFocusC
   const detail = shown('[data-demo-target="job-detail"]');
   const section = (name: string, root: ParentNode = document) => shown(`[data-demo-target="${name}"]`, root);
   const toPhone = (why: string) => focus([phone], by('phone-steps') ?? by('guide-target'), why);
-  const restore = () => focus([], by('guide-target'), 'Press “Find the action” to open the right view.');
+  // Only when the presenter closed the view this step needs: the guide then offers to reopen it.
+  const restore = () => focus([], by('guide-target'), 'This step’s view was closed. Press “Show this step again”.');
 
   if (key === 'incident') {
     if (!phone) return restore();
@@ -133,7 +134,7 @@ function focusFor(key: PresentKey, { data, now, visited, complete }: GuideFocusC
     return focus([list], visited.includes('queue') ? next : (list ? find('[data-guide-applicant]', list) : null) ?? next, visited.includes('queue') ? undefined : 'Open the oldest deadline: the top row.');
   }
   if (key === 'criteria') {
-    if (!dialog) return focus([], by('guide-criteria') ?? by('guide-target'));
+    if (!dialog) return focus([], by('guide-criteria') ?? by('guide-target'), by('guide-criteria') ? undefined : 'Ahmed’s application was closed. Press “Show this step again”.');
     const criteria = section('criteria', dialog), decision = section('decision', dialog), call = by('onboarding-call', dialog);
     if (a?.decision || complete) return focus([by('candidate-next', dialog), section('first-drive-status', dialog) ?? decision], next);
     const unchecked = all('[data-demo-target="criteria"] input[type="checkbox"], input[data-guide="onboarding-call"]', dialog).find(el => usable(el) && !(el as HTMLInputElement).checked);
@@ -176,6 +177,8 @@ let hint = '';
 const listeners = new Set<() => void>();
 export const subscribeGuideHint = (fn: () => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; };
 export const getGuideHint = () => hint;
+/** True when the hint asks to reopen this step's view; the guide then shows that button. */
+export const hintNeedsView = (text: string) => text.includes('Show this step again');
 function setHint(text: string) { if (text !== hint) { hint = text; listeners.forEach(fn => fn()); } }
 
 // ---------- Marking and scrolling ----------

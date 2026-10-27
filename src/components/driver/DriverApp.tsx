@@ -40,7 +40,7 @@ interface Props {
 }
 
 /** The applicant's side of the funnel: one step at a time, on a phone. */
-export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, onCreate, onUpdate, onThread, onJob, onJumpTo, onDecide, textsEnabled = true, initialView = 'steps' }: Props) {
+export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, onCreate, onUpdate, onThread, onJob, onDecide, textsEnabled = true, initialView = 'steps' }: Props) {
   const [view, setView] = useState<'steps' | 'chat'>(initialView);
   // Looking back at a step already done (null = the step the applicant is on).
   const [review, setReview] = useState<ReviewKey | null>(null);
@@ -108,10 +108,6 @@ export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, o
                 onUpdate={onUpdate}
                 onInbox={() => setView('chat')}
                 onDecide={onDecide && (() => onDecide(a.id))}
-                onJump={(() => {
-                  const j = jobs.find((x) => x.driverId === a.id && x.firstDrive && x.deliveredAt === undefined);
-                  return j && onJumpTo ? () => onJumpTo(j.pickupAt - 15 * 60_000) : undefined;
-                })()}
               />
             )}
           </>
@@ -335,7 +331,7 @@ function PrivacyNotice() {
 
 // ---------------- Steps ----------------
 
-function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump, onDecide }: { a: Applicant; apps: Applicant[]; gigs: Gig[]; now: number; onUpdate: (a: Applicant) => void; onInbox: () => void; onJump?: () => void; onDecide?: () => void }) {
+function Step({ a, apps, gigs, now, onUpdate, onInbox, onDecide }: { a: Applicant; apps: Applicant[]; gigs: Gig[]; now: number; onUpdate: (a: Applicant) => void; onInbox: () => void; onDecide?: () => void }) {
   const step = driverStep(a);
   const first = a.name.split(' ')[0];
 
@@ -444,11 +440,6 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump, onDecide }: { a: 
           <Card tone="soft">
             <p className="text-sm">Ops is on standby during the whole drive. On the day, this screen shows the job: tap "I'm here" at the pickup.</p>
           </Card>
-          {onJump && !needsExtract(a) && (
-            <button data-guide="phone-jump" type="button" onClick={onJump} className="w-full rounded-xl border border-dashed border-lavender px-4 py-2 text-xs font-semibold text-muted hover:border-indigo hover:text-indigo">
-              Demo: jump to the morning of the drive
-            </button>
-          )}
         </div>
       );
     }

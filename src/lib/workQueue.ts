@@ -63,7 +63,7 @@ function reviewItem(a: Applicant, now: number): WorkItem {
     status: sla.label,
     detail: `File complete ${ago(a.docsCompleteAt!, now)}`,
     tone: sla.bucket === 'overdue' ? 'bad' : sla.bucket === 'warn' ? 'warn' : 'muted',
-    next: evaluate(a).suggestedReject === 'no_valid_licence' ? 'Select the rejection reason and Reject' : 'Review and decide',
+    next: evaluate(a).suggestedReject === 'no_valid_licence' ? 'Reject with the flagged reason' : 'Review and decide',
     needsAction: true,
     rank: sla.bucket === 'overdue' ? 0 : sla.bucket === 'warn' ? 3 : 4,
   };

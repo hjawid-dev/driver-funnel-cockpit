@@ -253,7 +253,9 @@ describe("a new driver's first drive", () => {
     const jobs = syncFirstDrive([], a, [gig]);
     expect(jobs).toHaveLength(1);
     expect(jobs[0]).toMatchObject({ id: 'JOB-301', firstDrive: true, pickupAt: gig.at, reward: 320 });
-    expect(pickupChecks(jobs[0], gig.at - 30 * MIN).map((c) => c.state)).toEqual(['no_reply', 'no_reply']);
+    // The demo contact replies shortly after each text; before that the check is still waiting.
+    expect(pickupChecks(jobs[0], gig.at - 24 * 60 * MIN + 10 * MIN)[0].state).toBe('waiting');
+    expect(pickupChecks(jobs[0], gig.at - 30 * MIN).map((c) => c.state)).toEqual(['confirmed', 'confirmed']);
   });
   it('rebooking moves the job until the drive has started; nothing booked, nothing added', () => {
     const a = accepted({ firstGig: { gigId: gig.id, bookedFor: gig.at } });

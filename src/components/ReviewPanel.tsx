@@ -185,7 +185,13 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
             <label className="block text-xs font-semibold" htmlFor="reject-reason">
               Reject with reason code
             </label>
-            <select
+            {/* A reason the rules flagged is the only permitted one: shown as fixed text, not a choice. */}
+            {ev.suggestedReject && !preDrive ? (
+              <p id="reject-reason" className="rounded-md border border-lavender bg-card px-2 py-2 text-sm font-semibold">
+                {REJECT_REASONS.find(r => r.value === ev.suggestedReject)?.label}
+                <span className="block text-xs font-normal text-muted">Flagged by the rules; no other reason can be chosen.</span>
+              </p>
+            ) : <select
               id="reject-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value as RejectReason | '')}
@@ -199,7 +205,7 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
                   {r.value === ev.suggestedReject ? ' · suggested' : ''}
                 </option>
               ))}
-            </select>
+            </select>}
 
             {needsSecond && (
               <div className="rounded-md bg-warn-bg p-2.5 text-sm">

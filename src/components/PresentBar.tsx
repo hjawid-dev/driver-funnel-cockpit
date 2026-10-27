@@ -1,7 +1,7 @@
 import { ChevronLeft, ChevronRight, LoaderCircle, X } from 'lucide-react';
 import { useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
-import { getGuideHint, subscribeGuideHint } from '../lib/guideFocus';
+import { getGuideHint, hintNeedsView, subscribeGuideHint } from '../lib/guideFocus';
 import { PRESENT_CHAPTERS, PRESENT_STEPS, type GuideStatus, type guideIntro } from '../lib/present';
 
 export type GuideView = 'target' | 'start' | 'reminders' | 'criteria' | 'job' | 'report' | 'followup_reminder' | 'followup_call' | 'followup_read';
@@ -62,16 +62,20 @@ export function PresentBar({ step, onStep, onExit, evidence, status, feedback, r
         {receipt && <p role="status" className={`mt-3 text-sm font-semibold ${status.kind === 'complete' || feedback ? 'text-ok' : 'text-indigo'}`}>{status.kind === 'complete' || feedback ? '✓ ' : ''}{receipt}</p>}
         {hint && <p className="guide-hint mt-3" aria-live="polite">→ {hint}</p>}
       </div>
+      <section aria-label="Why this matters" className="border-l-2 border-lavender pl-3 text-sm leading-relaxed">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Why this matters</h3>
+        <p className="mt-1 text-navy/80">{s.solution}</p>
+        {evidence && <p className="mt-1 text-muted">{evidence}</p>}
+      </section>
       <div className="flex flex-col items-start gap-2">
         {s.key === 'reminders' && <button data-guide="guide-reminders" type="button" onClick={() => onExplore('reminders')} className={button}>Open Nora’s Ops follow-up</button>}
         {s.key === 'activate' && <>{firstDriveBooked && <button data-guide="guide-job" type="button" onClick={() => onExplore('job')} className={button}>View booked job in Live Ops</button>}{needsDecision && <button data-guide="guide-criteria" type="button" onClick={() => onExplore('criteria')} className={button}>Open Ahmed’s checks</button>}</>}
         {s.key === 'followup' && <>{visited.includes('followup_reminder') && !visited.includes('followup_read') ? <button data-guide="guide-reminder-read" type="button" onClick={() => onExplore('followup_read')} className="rounded-lg bg-indigo px-3 py-2 text-sm font-semibold text-white">Continue to Anton</button> : null}<button data-guide="guide-followup-reminder" type="button" onClick={() => onExplore('followup_reminder')} className={button}>{visited.includes('followup_reminder') ? '✓ ' : ''}Ida: day-7 reminder</button><button data-guide="guide-followup-call" type="button" onClick={() => onExplore('followup_call')} className={button}>{visited.includes('followup_call') ? '✓ ' : ''}Anton: no matching drive</button></>}
+        {hintNeedsView(hint) && <button data-guide="guide-target" type="button" onClick={() => onExplore('target')} className={button}>Show this step again</button>}
         {jumpLabel && <button data-guide="guide-clock" type="button" onClick={onJump} className={button}>{jumpLabel}</button>}
         {s.key === 'measure' && <button data-guide="guide-report" type="button" disabled={reportBusy} aria-busy={reportBusy} onClick={() => onExplore('report')} className={`${button} flex items-center gap-1`}>{reportBusy && <LoaderCircle size={13} className="animate-spin" />}{reportBusy ? 'Preparing report…' : 'Explore weekly report (optional)'}</button>}
-        <button data-guide="guide-target" type="button" onClick={() => onExplore('target')} className="text-sm text-indigo underline underline-offset-2">Find the action</button>
       </div>
       <div className="space-y-2 text-sm text-muted">
-        <details><summary className="cursor-pointer">Why this matters</summary><p className="mt-1 text-navy"><strong>Solution: </strong>{s.solution}</p><p className="mt-1">{s.instruction}</p>{evidence && <p className="mt-1">{evidence}</p>}</details>
         <details><summary className="cursor-pointer">All steps</summary><ol aria-label="Case steps" className="mt-1 space-y-1">{PRESENT_STEPS.map((p, i) => <li key={p.key}><button type="button" onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onStep(i); }} aria-current={i === step ? 'step' : undefined} className={`text-left hover:text-indigo ${i === step ? 'font-semibold text-indigo' : ''}`}>Case {p.part} · {p.title}</button></li>)}</ol></details>
       </div>
     </div>

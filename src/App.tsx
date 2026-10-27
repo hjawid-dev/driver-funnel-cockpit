@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarClock, Route } from 'lucide-react';
+import { CalendarClock, Route, Smartphone } from 'lucide-react';
 import { useClock, useDemoData } from './state';
 import { computeFunnel, computeKpis, type FunnelKey } from './lib/kpis';
 import { nextReviewSlot } from './lib/sla';
@@ -10,7 +10,6 @@ import { ApplicantDrawer } from './components/ApplicantDrawer';
 import { Toast, useToast } from './components/Toast';
 import type { ActionResult } from './lib/actions';
 import { DriverPhone } from './components/driver/DriverPhone';
-import { automationEvents, chatEvents, liveOpsEvents, reportEvents, summarize, type AutoEvent } from './lib/automation';
 import { ReportModal } from './components/ReportModal';
 import type { Applicant } from './lib/types';
 import type { ChatThread } from './lib/chat/types';
@@ -33,6 +32,7 @@ import { WorkQueue } from './components/WorkQueue';
 import { filterItems, QUEUE_FILTER_LABEL, queueCounts, workItems, type QueueFilter } from './lib/workQueue';
 import { clearGuideFocus, highlightGuideStep, openGuideSection } from './lib/guideFocus';
 import { guideAdvance, type GuideSnapshot } from './lib/guideFlow';
+import type { DemoData } from './lib/persist';
 import { docsTarget, PRESENT_STEPS, reviewTarget, guideDestination, guideIntro, presentEvidence, guideStatus, followUpTargets, type PresentKey } from './lib/present';
 
 /**
@@ -48,7 +48,6 @@ const PAGE_SUB: Record<Page, string> = {
 };
 const FILTERS: QueueFilter[] = ['action', 'missing', 'review', 'awaiting', 'all'];
 
-const TEXTS_KEY = 'driver-funnel-cockpit-texts';
 
 // Julia's incident: these steps share one view, so the guide may follow the work by itself.
 const SAME_VIEW_STEPS: PresentKey[] = ['assistant', 'playbook', 'booking_check', 'contact', 'customer', 'decision', 'close'];
@@ -56,7 +55,7 @@ const SAME_VIEW_STEPS: PresentKey[] = ['assistant', 'playbook', 'booking_check',
 export default function App() {
   const clock = useClock();
   const now = clock.now;
-  const { apps, gigs, threads, jobs, update, add, upsertThread, updateJob, updateJobs, reset, recordThrough } = useDemoData();
+  const { apps, gigs, threads, jobs, update, add, upsertThread, updateJob, updateJobs, reset, recordThrough, replaceDemo } = useDemoData();
   const toast = useToast();
   useEffect(() => { recordThrough(now); }, [now, recordThrough]);
 
@@ -79,26 +78,10 @@ export default function App() {
   const [chatRequest, setChatRequest] = useState(0);
   const [phoneOpen, setPhoneOpen] = useState(false);
   const [phoneId, setPhoneId] = useState<string | null>(null);
-  const [lastRun, setLastRun] = useState<{ from: number; to: number; events: AutoEvent[] } | null>(null);
   // The metrics when the demo started: the ▲▼ chips show how your clicks moved them.
   const [baseline, setBaseline] = useState(() => computeKpis(apps, now));
-  // Ops' switch for automated texts to pickup contacts. Kept in this browser.
-  const [textsEnabled, setTextsEnabled] = useState(() => {
-    try {
-      return localStorage.getItem(TEXTS_KEY) !== 'off';
-    } catch {
-      return true;
-    }
-  });
-  const switchTexts = (on: boolean) => {
-    setTextsEnabled(on);
-    try {
-      localStorage.setItem(TEXTS_KEY, on ? 'on' : 'off');
-    } catch {
-      /* private mode: the switch still works for this visit */
-    }
-    toast.notify(on ? 'Automated texts to pickup contacts are on.' : 'Automated texts are off: every stuck pickup goes straight to a person.');
-  };
+  // Automated texts to pickup contacts are always on for now; the on/off switch is hidden.
+  const textsEnabled = true;
 
   const open = apps.find((a) => a.id === openId) ?? null;
   const close = useCallback(() => setOpenId(null), []);
@@ -125,7 +108,6 @@ export default function App() {
       const at = caseTime(Date.now());
       const fresh = reset(at, true, replay);
       clock.setTo(replay ? at - 25 * 60000 : at);
-      setLastRun(null);
       setPhoneId(null);
       setBaseline(computeKpis(fresh, at));
       setOpenId(null);
@@ -319,9 +301,7 @@ export default function App() {
 
   const onAdvance = (ms: number) => {
     const w = clock.advance(ms);
-    const events = [...automationEvents(apps, w.from, w.to), ...chatEvents(threads, w.from, w.to), ...liveOpsEvents(jobs, w.from, w.to), ...reportEvents(w.from, w.to)].sort((x, y) => x.at - y.at);
-    setLastRun({ ...w, events });
-    toast.notify(`Time moved forward. Automation: ${summarize(events)}.`);
+    toast.notify(`Demo time moved to ${formatDateTime(w.to)}.`);
   };
 
   const onJob = useCallback(
@@ -383,7 +363,24 @@ export default function App() {
   const goStep = (i: number, automatic = false) => {
     const step = PRESENT_STEPS[i];
     if (!step) return;
-    const target = guideDestination(step.key, presentData, guideApplicantId);
+    // Going back undoes what was done since: the demo returns to how it was when that step was first entered.
+    let base = presentData, applicantId = guideApplicantId;
+    if (present !== null && i < present) {
+      const snapshots = guideSnapshots.current;
+      const from = Math.max(-1, ...[...snapshots.keys()].filter(k => k <= i));
+      const snap = snapshots.get(from);
+      for (const k of [...snapshots.keys()]) if (k > i) snapshots.delete(k);
+      if (snap) {
+        base = snap.data; applicantId = snap.applicantId;
+        guideRestored.current = true;
+        replaceDemo(snap.data);
+        clock.setTo(snap.now);
+        setGuideVisited(snap.visited);
+        setGuideApplicantId(snap.applicantId);
+        snapshots.set(i, snap);
+      }
+    }
+    const target = guideDestination(step.key, base, applicantId);
     clearTimeout(guideTimer.current);
     guideRevision.current++;
     setPresent(i);
@@ -435,11 +432,20 @@ export default function App() {
       else setOpenId(example?.id ?? null);
     }
   };
+  // The demo as it was when each step was first entered, so going back can undo later actions.
+  const guideSnapshots = useRef(new Map<number, { data: DemoData; now: number; visited: string[]; applicantId: string | null }>());
+  useEffect(() => {
+    if (present === null) { guideSnapshots.current.clear(); return; }
+    if (!guideSnapshots.current.has(present)) guideSnapshots.current.set(present, { data: presentData, now, visited: guideVisited, applicantId: guideApplicantId });
+  }, [present, guideRun]);
   const guideSnapshot = useRef<GuideSnapshot>({ data: presentData, now, applicantId: guideApplicantId });
+  // Set when going back restored older data: that change is an undo, not progress, so it never advances the guide.
+  const guideRestored = useRef(false);
   useEffect(() => {
     const before = guideSnapshot.current;
     const after = { data: presentData, now, applicantId: guideApplicantId };
     guideSnapshot.current = after;
+    if (guideRestored.current) { guideRestored.current = false; return; }
     if (!currentPresent) return;
     if (currentPresent.key === 'onboarding') {
       const own = apps.find(a => a.id === guideApplicantId), old = before.data.apps.find(a => a.id === guideApplicantId);
@@ -522,6 +528,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   });
   const startPresenting = () => {
+    guideSnapshots.current.clear();
     setGuideRun(n => n + 1);
     clearTimeout(guideTimer.current); guideRevision.current++;
     setGuideVisited([]); setGuideFeedback(''); setShowReport(false); setReportBusy(false); setShowHubspot(false);
@@ -576,15 +583,19 @@ export default function App() {
                   <span className="sr-only sm:hidden">Explore cases</span>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => openAsDriver(phoneId)}
+                title="Open the driver app as a driver sees it"
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white"
+              >
+                <Smartphone size={15} aria-hidden /> <span className="hidden sm:inline">Driver's phone</span>
+                <span className="sr-only sm:hidden">Driver's phone</span>
+              </button>
               <DemoMenu
                 now={now}
-                onAdvance={onAdvance}
                 onReset={startPresenting}
-                onPhone={() => openAsDriver(phoneId)}
                 onHubspot={() => setShowHubspot(true)}
-                textsEnabled={textsEnabled}
-                onTexts={switchTexts}
-                lastRun={lastRun}
               />
             </div>
           </div>

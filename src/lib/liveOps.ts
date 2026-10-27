@@ -828,7 +828,10 @@ export function firstDriveJob(a: Applicant, gig: Gig | undefined): Job | null {
     contact: CONTACT,
     backup: BACKUP,
     keyLocation: 'Reception, ask for the car by its job number',
-    // No fabricated contact replies: confirmations must be recorded in Live Ops.
+    // Demo: the pickup contact answers both texts shortly after they go out. Each reply only counts
+    // once demo time has passed it, so a first drive is never shown as arrived with unanswered checks.
+    confirmed24At: at - CHECK_24_MS + 40 * MIN,
+    confirmed60At: at - CHECK_60_MS + 10 * MIN,
     firstDrive: true,
     dispatchReady: canStartDrive(a) === null,
   };
