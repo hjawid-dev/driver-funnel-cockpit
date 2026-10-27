@@ -70,6 +70,15 @@ describe('guide follows real actions without changing business data', () => {
     expect(guideAdvance(s, after, 2)).toEqual({ key: 'queue', message: 'Manual follow-up logged' });
     expect(guideAdvance(after, after, 2)).toBeNull();
   });
+  it('keeps a new applicant on their own confirmation after documents and call booking', () => {
+    const s = fixture();
+    const own = { ...s.data.apps[0], id: 'NEW', source: 'self' as const, decision: undefined, docsCompleteAt: undefined, callAt: undefined };
+    const before = { ...s, applicantId: own.id, data: { ...s.data, apps: [...s.data.apps, own] } };
+    const withDocs = { ...before, data: { ...before.data, apps: [...s.data.apps, { ...own, docsCompleteAt: at }] } };
+    const withCall = { ...before, data: { ...before.data, apps: [...s.data.apps, { ...own, docsCompleteAt: at, callAt: at + DAY }] } };
+    expect(guideAdvance(before, withDocs, 2)).toBeNull();
+    expect(guideAdvance(withDocs, withCall, 2)).toBeNull();
+  });
   it('retains the historical day-7 example when the first-drive clock has advanced', () => {
     const s = fixture();
     expect(followUpTargets(s.data, at + 5 * DAY).reminder?.name).toBe('Ida Sjöberg');

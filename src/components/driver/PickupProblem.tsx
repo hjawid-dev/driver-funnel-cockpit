@@ -19,6 +19,7 @@ export function ReasonPicker({ j, textsEnabled, onPick, onCancel }: { j: Job; te
       {ORDER.map((r) => (
         <button
           key={r}
+          data-guide={r === 'keys_missing' ? 'pickup-keys-missing' : undefined}
           type="button"
           onClick={() => onPick(r)}
           className={`flex w-full items-center gap-2 rounded-xl border px-3.5 py-2.5 text-left text-sm font-semibold ${

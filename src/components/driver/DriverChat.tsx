@@ -86,7 +86,6 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
   const onPickup = !!job && !!driverIncidentState(job, now) && !['driving', 'delivered'].includes(driverStatus(job, now));
   const history = onPickup && job?.problemAt ? timeline.filter(m => m.at < job.problemAt!) : [];
   const currentMessages = history.length ? timeline.filter(m => m.at >= job!.problemAt!) : timeline;
-  const until = assist ? new Date(assist.until).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
   // While the assistant has the pickup: first what is wrong (the same short list as the job card), then the
   // answers that close it. The AI never picks the reason and never writes the text: the driver does.
   const texted = !!job && (job.texts ?? []).length > 0;
@@ -98,7 +97,6 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
         ? [...CHAT_REASONS.map((r) => ({ label: REASON_LABEL[r], run: () => onJob(reportReason(job, r, now, textsEnabled)) })), callMe!]
         : [
             { label: 'Got the keys', run: () => onJob(gotKeys(job, now)) },
-            { label: 'Still waiting', run: () => onThread(addAck(t, 'Still waiting.', `Thanks for waiting. If it isn't solved by ${until}, a person from ops calls you.`, now)) },
             callMe!,
           ];
 
@@ -183,7 +181,7 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
         {timeline.length === 0 && !busy && <p className="pt-2 text-sm font-semibold">Hi{a ? ` ${a.name.split(' ')[0]}` : ''}! What can I help you with?</p>}
         {history.length > 0 && <details className="text-xs text-muted"><summary className="cursor-pointer">Earlier messages · {history.length}</summary><div className="mt-2 space-y-2.5">{history.map(m => <Message key={m.id} m={m} onConfirm={() => confirm(m)} onDecline={() => onThread(resolveProposal(t, m.id, 'declined', now))} />)}</div></details>}
         {currentMessages.map((m) => (
-          <Message key={m.id} m={m} onConfirm={() => confirm(m)} onDecline={() => onThread(resolveProposal(t, m.id, 'declined', now))} />
+          <div key={m.id} data-guide-context={m.from === 'ai' && assist && job?.problemAt && m.at >= job.problemAt ? 'pickup-ai-response' : undefined}><Message m={m} onConfirm={() => confirm(m)} onDecline={() => onThread(resolveProposal(t, m.id, 'declined', now))} /></div>
         ))}
         {busy && (
           <Bubble side="left" tone="ai">
@@ -212,7 +210,7 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
           {jobChips.map((c, i) => (
             <button
               key={c.label}
-              data-guide={c.label === 'Still waiting' ? 'chat-wait' : 'chat-choice'}
+              data-guide="chat-choice"
               type="button"
               onClick={c.run}
               className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${i === 0 ? 'border-indigo bg-indigo text-white hover:bg-navy' : 'border-lavender text-indigo hover:border-indigo'}`}
@@ -305,14 +303,14 @@ function Message({ m, onConfirm, onDecline }: { m: ChatMsg; onConfirm: () => voi
     );
   if (m.from === 'auto')
     return (
-      <Bubble side="left" tone="auto">
+      <div data-guide={m.autoKind === 'book_task' ? 'activation-reminder' : undefined}><Bubble side="left" tone="auto">
         <span className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
           <Bell size={11} aria-hidden /> Automatic message
           <span className="num ml-auto pl-2 font-normal normal-case tracking-normal">{formatDateTime(m.at)}</span>
         </span>
         <span className="block font-semibold">{m.title}</span>
         {m.text && <span className="mt-0.5 block whitespace-pre-line text-muted">{m.text}</span>}
-      </Bubble>
+      </Bubble></div>
     );
   return (
     <Bubble side="left" tone={m.from === 'ops' ? 'ops' : 'ai'}>

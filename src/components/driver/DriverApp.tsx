@@ -57,7 +57,7 @@ export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, o
   const job = a ? currentJob(jobs, a.id, now) : null;
 
   return (
-    <div data-demo-target="driver" data-phone-view={view} className="flex h-full flex-col bg-white text-navy">
+    <div data-demo-target="driver" data-phone-view={view} data-applicant-id={a?.id} className="flex h-full flex-col bg-white text-navy">
       <header className="bg-navy px-4 pb-3 pt-4 text-white">
         <div className="flex items-center justify-between gap-2">
           {view === 'steps' ? (
@@ -389,7 +389,7 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump, onDecide }: { a: 
       return (
         <div className="space-y-3">
           <Title icon={<CalendarCheck size={16} />}>You're all set, {first}</Title>
-          <Card tone="ok">
+          <div data-guide="call-confirmation"><Card tone="ok">
             <p className="text-sm">
               Your call: <strong>{formatDateTime(a.callAt!)}</strong>
             </p>
@@ -402,7 +402,7 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump, onDecide }: { a: 
                 My extract has arrived
               </button>
             )}
-          </Card>
+          </Card></div>
           <Card tone="soft">
             <p className="text-sm font-semibold">Your onboarding call, 15 minutes</p>
             <ol className="mt-1.5 space-y-1 text-sm text-muted">

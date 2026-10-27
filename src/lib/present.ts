@@ -20,7 +20,7 @@ export interface PresentStep {
 /** Case problem → existing solution → ordinary app control. No business actions live in the guide. */
 export const PRESENT_STEPS: PresentStep[] = [
   { key: 'incident', part: 1, title: 'Report the pickup problem.', solution: 'Original case: the driver called after 25 minutes. This separate solution example starts at arrival, before that wait.', instruction: 'On Julia’s phone: tap “I’m here”, then “Problem at pickup” and “Keys missing”. Watch Live Ops update.', location: 'Driver + Live Ops' },
-  { key: 'assistant', part: 1, title: 'AI helps first; Ops stays informed.', solution: 'The driver gets guidance and the contacts receive a fixed message. If unresolved, Ops calls within 10 minutes of the report.', instruction: 'Read the AI conversation. Try “Still waiting” or ask a question. Use demo time to reach the call deadline.', location: 'Julia’s AI assistant' },
+  { key: 'assistant', part: 1, title: 'AI helps first; Ops stays informed.', solution: 'The driver gets guidance and the contacts receive a fixed message. If unresolved, Ops calls within 10 minutes of the report.', instruction: 'Read the AI response, then move demo time forward to the 10-minute call deadline.', location: 'Julia’s AI assistant' },
   { key: 'playbook', part: 1, title: 'Ops calls the driver.', solution: 'Ops takes ownership, confirms paid waiting and tells Julia what happens next.', instruction: 'Log “Called Julia”. This is the first human playbook action.', location: 'Call driver' },
   { key: 'booking_check', part: 1, title: 'Check our own booking.', solution: 'Check address, time, contact and key location before blaming the pickup site.', instruction: 'Record whether our details are correct, or log a correction.', location: 'Booking check' },
   { key: 'contact', part: 1, title: 'Call the contact and backup.', solution: 'Ops sees what AI already tried and escalates the unanswered contact.', instruction: 'Log the contact and backup call attempts.', location: 'Contact escalation' },
@@ -54,7 +54,7 @@ export function guideIntro(key: PresentKey, data: DemoData, viewedName: string |
   const j = incidentTarget(data.jobs), a = reviewTarget(data.apps);
   const intros: Record<PresentKey, { role: string; title: string; context: string }> = {
     incident: { role: 'Driver · Julia', title: 'Report missing keys', context: 'Delivery is due at 12:00. Report the pickup problem on Julia’s phone so Ops sees it immediately.' },
-    assistant: { role: 'Driver · Julia → AI', title: 'Get help immediately', context: 'AI contacts the pickup site. Try “Still waiting”; if unresolved, Ops calls within 10 minutes of the report.' },
+    assistant: { role: 'Driver · Julia → AI', title: 'Get help immediately', context: 'AI contacts the pickup site. Read the response, then move demo time forward 10 minutes to see Ops take over.' },
     playbook: { role: 'Ops · Julia’s pickup', title: 'Call Julia and take ownership', context: 'The problem is unresolved. Confirm paid waiting and explain what happens next.' },
     booking_check: { role: 'Ops · Julia’s pickup', title: 'Check our booking first', context: 'Verify the pickup details before escalating to the site. Record a correction only if something is wrong.' },
     contact: { role: 'Ops · Julia’s pickup', title: 'Call the contact and backup', context: 'Use the same incident record to see what AI tried, then log the human contact attempts.' },
@@ -146,7 +146,7 @@ export function guideStatus(key: PresentKey, data: DemoData, newApplicantId: str
   if (key === 'close') return j?.incident?.closedAt ? complete('Incident closed. Any unassigned replacement remains open work.') : pending('Complete compensation, cause and pilot follow-up, then close the incident.');
   if (key === 'onboarding') {
     const own = data.apps.find(x => x.id === newApplicantId);
-    return own?.docsCompleteAt ? complete('Document checklist complete.') : own ? pending('Registration saved — continue with the document checklist.') : pending('Start application and enter demo details.');
+    return own?.docsCompleteAt && own.callAt ? complete(`Onboarding call booked · ${formatDateTime(own.callAt)}. Continue when ready.`) : own ? pending('Registration saved — continue with the document checklist.') : pending('Start application and enter demo details.');
   }
   if (key === 'criteria') return a?.decision ? complete(a.decision.type === 'rejected' ? 'Decision recorded: rejected. The first-drive step will explain why booking is unavailable.' : 'Ahmed accepted. Continue to his first drive.') : pending('Read the criteria, complete the required checks and record the decision.');
   if (key === 'activate') return a?.firstGig?.doneAt ? complete('Ahmed delivered the first drive and is active.') : a?.firstGig?.bookedFor ? pending('Booking recorded, not active yet. Open the job in Live Ops; use demo time and the driver’s normal controls through delivery.') : a?.decision?.type === 'rejected' ? pending('Ahmed was rejected; no offers can be booked. You can continue to the follow-up examples.') : !a?.decision ? pending('Complete Ahmed’s review decision before choosing a drive.') : pending('Choose a matching route using Pick this drive on Ahmed’s phone.');

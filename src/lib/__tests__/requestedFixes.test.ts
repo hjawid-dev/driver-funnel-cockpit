@@ -69,7 +69,10 @@ describe('requested process corrections', () => {
     expect(guideDestination('onboarding', data, a.id).driverId).toBe(a.id);
     expect(guideStatus('onboarding', data, a.id).kind).toBe('pending');
     expect(guideStatus('onboarding', data, a.id).text).toContain('Registration saved');
-    expect(guideStatus('onboarding', { ...data, apps: [...apps, { ...a, docsCompleteAt: at }] }, a.id).kind).toBe('complete');
+    expect(guideStatus('onboarding', { ...data, apps: [...apps, { ...a, docsCompleteAt: at }] }, a.id).kind).toBe('pending');
+    const booked = { ...data, apps: [...apps, { ...a, docsCompleteAt: at, callAt: at + HOUR }] };
+    expect(guideStatus('onboarding', booked, a.id).kind).toBe('complete');
+    expect(guideStatus('onboarding', booked, a.id).text).toContain('Onboarding call booked');
     expect(guideStatus('criteria', data).kind).toBe('pending');
     const targets = followUpTargets(data, at);
     expect(targets.reminder?.name).toBe('Ida Sjöberg');expect(targets.call?.name).toBe('Anton Wallin');

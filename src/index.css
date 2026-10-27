@@ -53,13 +53,25 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 @media (min-width: 1024px) { .driver-phone { top: 0; height: 100dvh; } }
 
 /* Guide focus follows the existing target and keeps every normal control usable. */
-[data-demo-focus] { outline: 3px solid var(--color-indigo); outline-offset: 4px; border-radius: 10px; }
 [data-demo-target], [data-demo-focus] { scroll-margin-top: calc(var(--present-top, 0px) + 1rem); }
 [role="dialog"] [data-demo-focus], .driver-phone [data-demo-focus] { scroll-margin-top: 1rem; }
 
 [data-guided-case="1"] [data-playbook-number] { display: none; }
 
-/* A single action marker, with a text cue as well as colour. No blocking tour overlay. */
-[data-demo-focus] { position: relative; outline: 3px solid var(--color-indigo); outline-offset: 3px; box-shadow: 0 0 0 6px var(--color-lavender); border-radius: 8px; }
-[data-demo-focus][data-guide-label]::after { content: attr(data-guide-label); position: absolute; right: 4px; top: -17px; z-index: 2; border-radius: 4px; padding: 1px 5px; background: var(--color-indigo); color: white; font: 600 10px/14px Arial, sans-serif; white-space: nowrap; pointer-events: none; }
 [data-guided-case] #playbook { overflow-anchor: none; }
+
+/* The guide floats above the app; it never takes height away from the phone. */
+.guide-modal-backdrop { position: fixed; inset: 0; z-index: 130; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgb(16 14 53 / 68%); }
+.guide-modal { width: min(700px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; border: 1px solid var(--color-lavender); border-radius: 20px; background: white; padding: 28px; box-shadow: 0 24px 80px rgb(0 0 0 / 35%); }
+.guide-modal nav button, .guide-modal ol button { font-size: 14px; }
+.guide-modal > div:last-of-type button { font-size: 14px; }
+.guide-dock { position: fixed; z-index: 110; left: 16px; right: 16px; bottom: 16px; max-width: 760px; border: 1px solid var(--color-lavender); border-radius: 16px; padding: 12px 16px; background: white; box-shadow: 0 8px 32px rgb(16 14 53 / 25%); }
+@media (min-width: 1024px) { .guide-dock { right: calc(var(--guide-side, 0px) + 24px); } }
+@media (max-width: 640px) { .guide-modal { padding: 20px; } .guide-dock { padding: 10px; } }
+.guide-spotlight { position: fixed; inset: 0; z-index: 100; pointer-events: none; }
+.guide-spotlight svg { position: absolute; inset: 0; }
+.guide-next-badge { position: fixed; z-index: 120; pointer-events: none; display: inline-block; border: 2px solid white; border-radius: 8px; background: var(--color-indigo); padding: 5px 12px; color: white; font-size: 15px; font-weight: 700; line-height: 20px; box-shadow: 0 4px 14px rgb(0 0 0 / 35%); }
+[data-demo-focus] { outline: 5px solid var(--color-indigo); outline-offset: 3px; box-shadow: 0 0 0 8px white; }
+
+
+[data-guided-case] main { padding-bottom: 220px; }

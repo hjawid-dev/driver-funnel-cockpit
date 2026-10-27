@@ -6,7 +6,7 @@ import { CHAT_SLA_MS, backToAi, slaFor, chatStats, closeGap, contentGaps, opsRep
 import { HELP_BY_ID } from '../content/help';
 import { REVIEWER } from '../lib/types';
 import { ago, formatDateTime, formatDuration } from '../lib/time';
-import { CollapsibleSection, SectionHeader } from './ui';
+import { SectionHeader } from './ui';
 import { InfoTip } from './InfoTip';
 
 interface Props {
@@ -79,7 +79,7 @@ export function ChatQueue({ threads, now, onThread, onViewChat, only }: Props) {
         </section>
       </div>
 
-      <CollapsibleSection title="Help content gaps" summary={`${gaps.length} to review`}>
+      <section aria-label="Help content gaps">
         <SectionHeader
           title={`Help content gaps · ${gaps.length}`}
           info={<p>Questions the help articles didn't cover: the articles to write next. Write or update one, then mark it added. Review answers and escalate uncertainty; AI answer share is diagnostic, not a performance target.</p>}
@@ -110,10 +110,10 @@ export function ChatQueue({ threads, now, onThread, onViewChat, only }: Props) {
             ))}
           </ul>
         )}
-      </CollapsibleSection>
-      <CollapsibleSection title="The assistant this week" summary={stats.rate === null ? undefined : `${Math.round(stats.rate)}% answered by AI`}>
+      </section>
+      <section aria-label="The assistant this week"><SectionHeader title="The assistant this week" />
         <Stats stats={stats} />
-      </CollapsibleSection>
+      </section>
     </div>
   );
 }

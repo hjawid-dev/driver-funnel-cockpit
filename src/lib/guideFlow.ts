@@ -29,8 +29,6 @@ export function guideAdvance(before: GuideSnapshot, after: GuideSnapshot, part: 
   if (a?.decision && !p?.decision) return next('activate', 'Review decision saved');
   const oldNora = docsTarget(before.data.apps), nora = docsTarget(after.data.apps);
   if (nora && oldNora && nora.nudges.length > oldNora.nudges.length) return next('queue', 'Manual follow-up logged');
-  const own = after.data.apps.find(a => a.id === after.applicantId);
-  const oldOwn = before.data.apps.find(a => a.id === after.applicantId);
-  if (own?.docsCompleteAt && !oldOwn?.docsCompleteAt) return next('reminders', 'Application checklist complete');
+  // Keep the visitor on their own booking confirmation until they choose Continue.
   return null;
 }

@@ -22,12 +22,10 @@ function targetFor(key: PresentKey, { data, now, visited }: GuideFocusContext): 
   const dialog = find('[data-demo-target="candidate"]');
   const next = () => by('guide-next');
   const toPhone = () => by('phone-steps') ?? by('guide-target');
-  if (key === 'incident') return by('pickup-reason') ?? (chat ? toPhone() : j?.arrivedAt ? by('phone-problem') : by('phone-checkin')) ?? by('guide-target');
+  if (key === 'incident') return by('pickup-keys-missing') ?? (chat ? toPhone() : j?.arrivedAt ? by('phone-problem') : by('phone-checkin')) ?? by('guide-target');
   if (key === 'assistant') {
     if (!chat) return by('phone-chat') ?? by('guide-target');
-    const t = data.threads.find(t => t.applicantId === j?.driverId);
-    const tried = t?.messages.some(m => m.from === 'driver' && m.at >= (j?.problemAt ?? Infinity) && !m.text.startsWith('Problem at the pickup:'));
-    return (tried ? by('guide-clock') : by('chat-wait')) ?? by('guide-clock') ?? by('call-driver') ?? next();
+    return by('guide-clock') ?? by('call-driver') ?? next();
   }
   if (key === 'playbook') return by('call-driver') ?? next();
   if (key === 'booking_check') return by('booking-correction-save') ?? by('booking-error') ?? by('booking-correct') ?? next();
@@ -49,6 +47,7 @@ function targetFor(key: PresentKey, { data, now, visited }: GuideFocusContext): 
   if (key === 'prevent') return textButton('Log this check confirmed by phone') ?? next();
   if (key === 'onboarding') {
     if (!phone || chat) return toPhone();
+    if (data.apps.some(a => a.id === phone.dataset.applicantId && a.callAt) && by('call-confirmation', phone)) return by('call-confirmation', phone);
     const missing = find('[data-guide-done="false"]', phone);
     if (missing) return missing;
     if (phone.querySelector('[data-guide="phone-primary"]:disabled')) return null;
@@ -77,7 +76,7 @@ function targetFor(key: PresentKey, { data, now, visited }: GuideFocusContext): 
     if (job && now < job.pickupAt) return by('guide-clock') ?? by('phone-jump');
     return by('phone-checkin') ?? by('phone-keys') ?? by('phone-depart') ?? by('phone-deliver') ?? by('guide-clock') ?? next();
   }
-  if (key === 'followup') return !visited.includes('followup_reminder') ? by('guide-followup-reminder') : !visited.includes('followup_call') ? by('guide-followup-call') : next();
+  if (key === 'followup') return !visited.includes('followup_reminder') ? by('guide-followup-reminder') : !visited.includes('followup_read') ? by('activation-reminder', phone ?? document) ?? by('guide-followup-reminder') : !visited.includes('followup_call') ? by('guide-followup-call') : next();
   if (key === 'measure' && find('[data-guide="report-error"]')) return textButton('Try again');
   if (key === 'measure' && visited.includes('report') && !find('[role="dialog"]')) return next();
   if (key === 'measure') return find('[data-guide="report-ready"]') ? by('report-close') : find('[data-guide="report-loading"]') ? null : next();
@@ -90,11 +89,15 @@ export function clearGuideFocus() {
 
 /** Scroll the containing pane only, and only when the control is outside its visible area. */
 function reveal(target: HTMLElement, allowUp: boolean) {
+  const rect = target.getBoundingClientRect();
+  const dock = document.querySelector('.guide-dock')?.getBoundingClientRect();
+  const bottomLimit = dock && rect.left < dock.right && rect.right > dock.left ? dock.top - 20 : innerHeight - 20;
   let parent = target.parentElement;
   while (parent && parent !== document.body) {
     if (/(auto|scroll)/.test(getComputedStyle(parent).overflowY) && parent.scrollHeight > parent.clientHeight) {
       const r = target.getBoundingClientRect(), p = parent.getBoundingClientRect();
-      if (r.bottom > p.bottom - 20) parent.scrollTop += r.bottom - p.bottom + 28;
+      const bottom = Math.min(p.bottom - 20, bottomLimit);
+      if (r.bottom > bottom) parent.scrollTop += r.bottom - bottom + 8;
       else if (allowUp && r.top < p.top + 20) parent.scrollTop -= p.top - r.top + 28;
       return;
     }
@@ -102,17 +105,18 @@ function reveal(target: HTMLElement, allowUp: boolean) {
   }
   if (target.closest('[aria-label="Case walkthrough"]')) return;
   const r = target.getBoundingClientRect(), top = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--present-top')) || 0;
-  if (r.bottom > innerHeight - 20) window.scrollBy({ top: r.bottom - innerHeight + 28, behavior: 'instant' });
+  if (r.bottom > bottomLimit) window.scrollBy({ top: r.bottom - bottomLimit + 8, behavior: 'instant' });
   else if (allowUp && r.top < top + 20) window.scrollBy({ top: r.top - top - 28, behavior: 'instant' });
 }
 
 export function highlightGuideStep(key: PresentKey, context: GuideFocusContext, scroll: false | 'nearest' | 'down' = false) {
+  if (document.querySelector('[data-guide-popup]')) { clearGuideFocus(); return; }
   const target = targetFor(key, context);
   if (document.querySelector('[data-demo-focus]') !== target) {
     clearGuideFocus();
-    if (target) { target.dataset.demoFocus = 'true'; target.dataset.guideLabel = target.matches('fieldset, [role="group"], [data-guide="customer-outcomes"], [data-guide="replacement"]') ? 'Choose here' : 'Next'; }
+    if (target) { target.dataset.demoFocus = 'true'; target.dataset.guideLabel = target.dataset.guide === 'activation-reminder' ? 'Read this reminder' : target.dataset.guide === 'call-confirmation' ? 'Call booked' : target.matches('fieldset, [role="group"], [data-guide="customer-outcomes"], [data-guide="replacement"]') ? 'Choose here' : 'Next'; }
   }
-  if (target && scroll) reveal(target, scroll === 'nearest');
+  if (target && scroll) reveal(target, scroll === 'nearest' || target.dataset.guide === 'activation-reminder');
 }
 
 export function openGuideSection(key: PresentKey) {

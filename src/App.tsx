@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarClock, Route } from 'lucide-react';
 import { useClock, useDemoData } from './state';
 import { computeFunnel, computeKpis, type FunnelKey } from './lib/kpis';
@@ -26,6 +26,7 @@ import { REVIEWER } from './lib/types';
 import { LiveOps, type LiveSelection } from './components/LiveOps';
 import { DemoMenu } from './components/DemoMenu';
 import { PresentBar, type GuideView } from './components/PresentBar';
+import { GuideSpotlight } from './components/GuideSpotlight';
 import { Proposed } from './components/ui';
 import { FunnelKpis, FunnelStages } from './components/FunnelOverview';
 import { WorkQueue } from './components/WorkQueue';
@@ -49,11 +50,6 @@ const FILTERS: QueueFilter[] = ['action', 'missing', 'review', 'awaiting', 'all'
 
 const TEXTS_KEY = 'driver-funnel-cockpit-texts';
 
-/** Only the walkthrough changes disclosure; every section remains available to explore. */
-function GuideSection({ guided, open, title, children }: { guided: boolean; open: boolean; title: string; children: ReactNode }) {
-  return guided ? <details open={open} className="rounded-xl border border-lavender bg-white p-3"><summary className="cursor-pointer text-sm font-semibold text-indigo">{title}</summary><div className="mt-4">{children}</div></details> : <>{children}</>;
-}
-
 export default function App() {
   const clock = useClock();
   const now = clock.now;
@@ -69,6 +65,7 @@ export default function App() {
   const [showHubspot, setShowHubspot] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [present, setPresent] = useState<number | null>(null);
+  const [guideRun, setGuideRun] = useState(0);
   const [guideVisited, setGuideVisited] = useState<string[]>([]);
   const [guideFeedback, setGuideFeedback] = useState('');
   const [reportBusy, setReportBusy] = useState(false);
@@ -404,12 +401,12 @@ export default function App() {
   };
   const guideExplore = (view: GuideView) => {
     if (view === 'target' && present !== null) {
-      goStep(present);
+      if (PRESENT_STEPS[present].key !== 'followup') goStep(present);
       requestAnimationFrame(() => highlightGuideStep(PRESENT_STEPS[present].key, { data: presentData, now, visited: guideVisited }, 'nearest'));
       return;
     }
     if (view === 'report') return openReport();
-    setGuideVisited(v => [...new Set([...v, view])]);
+    setGuideVisited(v => [...new Set([...(view === 'followup_reminder' ? v.filter(x => x !== 'followup_read') : v), view, ...(view === 'followup_read' ? ['followup_call'] : [])])]);
     if (view === 'job') {
       setPage('live'); setLiveSel(jobs.find(j => j.firstDrive && j.id === reviewTarget(apps)?.firstGig?.gigId)?.id ?? null);
       setOpenId(null); setPhoneId(reviewTarget(apps)?.id ?? null); setPhoneOpen(true); setChatRequest(0);
@@ -426,7 +423,7 @@ export default function App() {
       clearTimeout(guideTimer.current); guideRevision.current++;
       setGuideFeedback(''); setPresent(PRESENT_STEPS.findIndex(s => s.key === 'criteria'));
       setPage('funnel'); setOpenId(reviewTarget(apps)?.id ?? null);
-    } else if (view === 'followup_reminder' || view === 'followup_call') {
+    } else if (view === 'followup_reminder' || view === 'followup_call' || view === 'followup_read') {
       const examples = followUpTargets(presentData, now);
       setPage('funnel'); setFilter('awaiting');
       const example = view === 'followup_reminder' ? examples.reminder : examples.call;
@@ -440,6 +437,11 @@ export default function App() {
     const after = { data: presentData, now, applicantId: guideApplicantId };
     guideSnapshot.current = after;
     if (!currentPresent) return;
+    if (currentPresent.key === 'onboarding') {
+      const own = apps.find(a => a.id === guideApplicantId), old = before.data.apps.find(a => a.id === guideApplicantId);
+      if (own?.callAt && own.callAt !== old?.callAt) { clearTimeout(guideTimer.current); setGuideFeedback(`Onboarding call booked · ${formatDateTime(own.callAt)}. Continue when ready.`); }
+      return;
+    }
     const advance = guideAdvance(before, after, currentPresent.part);
     if (!advance) return;
     clearTimeout(guideTimer.current);
@@ -467,8 +469,9 @@ export default function App() {
     document.addEventListener('click', sync);
     document.addEventListener('input', sync);
     document.addEventListener('change', sync);
+    document.addEventListener('guide-visibility', sync);
     sync();
-    return () => { observer.disconnect(); cancelAnimationFrame(frame); document.removeEventListener('click', sync); document.removeEventListener('input', sync); document.removeEventListener('change', sync); };
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); document.removeEventListener('click', sync); document.removeEventListener('input', sync); document.removeEventListener('change', sync); document.removeEventListener('guide-visibility', sync); };
   }, [present, apps, jobs, threads, now, openId, phoneOpen, liveSel, guideVisited]);
   useEffect(() => {
     if (!currentPresent) return;
@@ -513,6 +516,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   });
   const startPresenting = () => {
+    setGuideRun(n => n + 1);
     clearTimeout(guideTimer.current); guideRevision.current++;
     setGuideVisited([]); setGuideFeedback(''); setShowReport(false); setReportBusy(false); setShowHubspot(false);
     clock.pause();
@@ -579,7 +583,7 @@ export default function App() {
             </div>
           </div>
         </header>
-        {present !== null && <PresentBar incidentClosed={!!guideIncident?.incident?.closedAt} intro={guideIntro(PRESENT_STEPS[present].key, presentData, open?.name ?? (phoneOpen ? apps.find(a => a.id === phoneId)?.name ?? null : null))} visited={guideVisited} needsDecision={!guideDriver?.decision || guideDriver.decision.type === 'rejected'} firstDriveBooked={!!guideDriver?.firstGig?.bookedFor && !guideDriver.firstGig.doneAt} feedback={guideFeedback} reportBusy={reportBusy} step={present} onStep={goStep} onExit={() => { clearTimeout(guideTimer.current); guideRevision.current++; setPresent(null); setGuideFeedback(''); clock.resume(); }} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} status={currentPresent ? guideStatus(currentPresent.key, presentData, guideApplicantId, now) : { kind: 'explore', text: '' }} onExplore={guideExplore} jumpLabel={guideJumpLabel} onJump={() => { if (guideJumpAt && guideJumpAt > now) onAdvance(guideJumpAt - now); }} />}
+        {present !== null && <PresentBar key={guideRun} sidePanelWidth={open ? 520 : phoneOpen ? 420 : 0} incidentClosed={!!guideIncident?.incident?.closedAt} intro={guideIntro(PRESENT_STEPS[present].key, presentData, open?.name ?? (phoneOpen ? apps.find(a => a.id === phoneId)?.name ?? null : null))} visited={guideVisited} needsDecision={!guideDriver?.decision || guideDriver.decision.type === 'rejected'} firstDriveBooked={!!guideDriver?.firstGig?.bookedFor && !guideDriver.firstGig.doneAt} feedback={guideFeedback} reportBusy={reportBusy} step={present} onStep={goStep} onExit={() => { clearTimeout(guideTimer.current); guideRevision.current++; setPresent(null); setGuideFeedback(''); clock.resume(); }} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} status={currentPresent ? guideStatus(currentPresent.key, presentData, guideApplicantId, now) : { kind: 'explore', text: '' }} onExplore={guideExplore} jumpLabel={guideJumpLabel} onJump={() => { if (guideJumpAt && guideJumpAt > now) onAdvance(guideJumpAt - now); }} />}
         </div>
 
         <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-6 space-y-6">
@@ -590,13 +594,8 @@ export default function App() {
 
           {page === 'funnel' ? (
             <>
-              <GuideSection key={`metrics-${present}`} guided={present !== null} open={currentPresent?.key === 'measure'} title="Process performance · 4 metrics">
                 <FunnelKpis kpis={kpis} baseline={baseline} onReport={openReport} reportBusy={reportBusy} />
-              </GuideSection>
-              <GuideSection key={`stages-${present}`} guided={present !== null} open={false} title="Funnel overview · stage history and current work">
                 <FunnelStages funnel={funnel} onStage={onStage} />
-              </GuideSection>
-              <GuideSection key={`queue-${present}`} guided={present !== null} open={!!currentPresent && ['queue', 'criteria', 'followup'].includes(currentPresent.key)} title={`Candidate work queue · ${apps.length} applicants`}>
               <section id="queue" aria-labelledby="queue-title" className="scroll-mt-[calc(var(--present-top,0px)+1rem)]">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <h2 id="queue-title" className="flex items-center gap-1.5 text-sm font-semibold">
@@ -631,7 +630,6 @@ export default function App() {
                   <WorkQueue key={filter} items={shownItems} filter={filter} onOpen={openApplicant} />
                 )}
               </section>
-              </GuideSection>
             </>
           ) : (
             <LiveOps jobs={present !== null ? jobs.filter(j => !j.asInCase) : jobs} now={now} onJob={onJob} onViewChat={openDriverChat} selected={liveSel} onSelect={setLiveSel} focus={null} threads={threads} waitingQuestions={questions} onThread={onThread} />
@@ -659,6 +657,7 @@ export default function App() {
           Driver Funnel builds a supply of qualified drivers. Live Ops keeps that supply delivering. · Prototype by Hjalmar Widlund · demo data, no real people
         </footer>
       </div>
+      {present !== null && <GuideSpotlight />}
       {phoneOpen && !open && (
         <DriverPhone
           applicantId={phoneId}
