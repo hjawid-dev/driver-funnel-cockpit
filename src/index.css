@@ -56,3 +56,5 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 [data-demo-focus] { outline: 3px solid var(--color-indigo); outline-offset: 4px; border-radius: 10px; }
 [data-demo-target], [data-demo-focus] { scroll-margin-top: calc(var(--present-top, 0px) + 1rem); }
 [role="dialog"] [data-demo-focus], .driver-phone [data-demo-focus] { scroll-margin-top: 1rem; }
+
+[data-guided-case="1"] [data-playbook-number] { display: none; }

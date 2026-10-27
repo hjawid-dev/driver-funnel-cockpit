@@ -1,4 +1,5 @@
 import type { Applicant } from './types';
+import { activationReminderReady } from './activation';
 import { REJECT_REASONS } from './types';
 import { NUDGE_OFFSETS, NO_RESPONSE_MS, nudgeMessage, reminderSilenced } from './nudges';
 import { DAY, HOUR, atLocal, formatDateTime } from './time';
@@ -154,8 +155,8 @@ function deriveAutomationEvents(apps: Applicant[], from: number, to: number): Au
     const bookedBy = (t: number) => booked && (gig?.bookedAt ?? d.at) <= t;
     const done = (t: number) => !!gig?.doneAt && gig.doneAt <= t;
     const interestedAt = (t: number) => a.activationReason?.reason !== 'not_interested' || a.activationReason.at > t;
-    if (interestedAt(d.at + 7 * DAY) && !bookedBy(d.at + 7 * DAY) && !done(d.at + 7 * DAY)) push(d.at + 7 * DAY, 'driver', 'book_task', 'Choose your first drive', `Hi ${first(a)}, check your application for the next step: show your extract if outstanding, then choose a matching drive. If no jobs fit, contact Ops; you do not need to book an unsuitable drive.`);
-    if (interestedAt(d.at + 14 * DAY) && !bookedBy(d.at + 14 * DAY) && !done(d.at + 14 * DAY) && !(a.activationReason && a.activationReason.at <= d.at + 14 * DAY)) push(d.at + 14 * DAY, 'ops', 'call_task', `Task: call ${a.name}, no first booking after 14 days`);
+    if (activationReminderReady(a, d.at + 7 * DAY) && interestedAt(d.at + 7 * DAY) && !bookedBy(d.at + 7 * DAY) && !done(d.at + 7 * DAY)) push(d.at + 7 * DAY, 'driver', 'book_task', 'Choose your first drive', `Hi ${first(a)}, you are ready for your first drive. Open the matching offers and choose a drive that fits. If no jobs fit, contact Ops; you do not need to book an unsuitable drive.`);
+    if (activationReminderReady(a, d.at + 14 * DAY) && interestedAt(d.at + 14 * DAY) && !bookedBy(d.at + 14 * DAY) && !done(d.at + 14 * DAY) && !(a.activationReason && a.activationReason.at <= d.at + 14 * DAY)) push(d.at + 14 * DAY, 'ops', 'call_task', `Task: call ${a.name}, no first booking after 14 days`);
     if (interestedAt(d.at + 30 * DAY) && !booked && !done(d.at + 30 * DAY)) push(d.at + 30 * DAY, 'ops', 'dormant', `${a.name} marked dormant (label only, nothing is blocked)`);
   }
   return out.sort((x, y) => x.at - y.at);
@@ -177,7 +178,7 @@ export function automationEvents(apps: Applicant[], from: number, to: number): A
   ]).sort((a,b) => a.at-b.at);
 }
 
-/** A question handed to a person and still unanswered alerts ops: after 15 minutes, or 5 when something is wrong on a drive. */
+/** A question handed to a person and still unanswered alerts ops: after 15 minutes, or 10 when something is wrong on a drive. */
 export function chatEvents(threads: ChatThread[], from: number, to: number): AutoEvent[] {
   return threads
     .filter((t) => t.status === 'waiting' && t.waitingSince !== undefined)
@@ -191,7 +192,7 @@ export function chatEvents(threads: ChatThread[], from: number, to: number): Aut
       kind: 'chat_sla' as const,
       title:
         t.reason === 'urgent'
-          ? `Urgent: ${t.name} has a problem on a drive and has waited 5 min. Call the driver now.`
+          ? `Urgent: ${t.name} has a problem on a drive and has waited 10 min. Call the driver now.`
           : `Chat alert: ${t.name} has waited 15 min for a person`,
     }));
 }

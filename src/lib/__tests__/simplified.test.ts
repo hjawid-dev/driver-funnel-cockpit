@@ -94,8 +94,8 @@ describe('presentation mode', () => {
   const jobs = seedJobs(apps, at, { asInCase: true });
 
   it('runs Part 1 first, and each part shows the problem before its fixes', () => {
-    expect(PRESENT_STEPS.map((s) => s.key)).toEqual(['incident', 'playbook', 'decision', 'prevent', 'onboarding', 'reminders', 'queue', 'criteria', 'activate', 'followup', 'measure']);
-    expect(PRESENT_STEPS.map(s => s.part)).toEqual([1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2]);
+    expect(PRESENT_STEPS.map((s) => s.key)).toEqual(['incident', 'assistant', 'playbook', 'booking_check', 'contact', 'customer', 'decision', 'close', 'prevent', 'onboarding', 'reminders', 'queue', 'criteria', 'activate', 'followup', 'measure']);
+    expect(PRESENT_STEPS.map(s => s.part)).toEqual([1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2]);
   });
 
   it('opens a pickup nobody confirmed, a new site to call, and a file with documents missing', () => {

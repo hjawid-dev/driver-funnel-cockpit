@@ -79,8 +79,8 @@ const STATE_STYLE: Record<OpsState, string> = {
   delivered: 'bg-ok-bg text-ok',
 };
 
-export function StateChip({ state }: { state: OpsState }) {
-  return <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${STATE_STYLE[state]}`}>{OPS_STATE_LABEL[state]}</span>;
+export function StateChip({ state, label }: { state: OpsState; label?: string }) {
+  return <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${STATE_STYLE[state]}`}>{label ?? OPS_STATE_LABEL[state]}</span>;
 }
 
 const GROUP_LABEL: Record<OpsGroup, string> = { attention: 'Needs attention', routine: 'On track', done: 'Done' };
@@ -157,7 +157,7 @@ export function LiveOps({ jobs, now, onJob, onViewChat, selected, onSelect, thre
                               {j.from.split(', ').at(-1)} → {j.to.split(', ').at(-1)}
                             </span>
                           </span>
-                          <StateChip state={s} />
+                          <StateChip state={s} label={j.unassigned ? 'Needs driver' : undefined} />
                         </button>
                       </li>
                     );
@@ -204,6 +204,7 @@ function JobDetail({ j, now, onJob, onViewChat, focus }: { j: Job; now: number; 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <StateChip state={s} />
+            {j.solutionExample && <span className="rounded bg-indigo px-1.5 text-xs font-semibold text-white">Solution example · from arrival</span>}
             {j.pilot && <span className="rounded bg-lavender px-1.5 py-0.5 text-xs font-semibold text-navy">Pilot customer</span>}
             {j.firstDrive && <span className="rounded bg-ok-bg px-1.5 py-0.5 text-xs font-semibold text-ok">First drive</span>}
             {j.newSite && <span className="rounded bg-warn-bg px-1.5 py-0.5 text-xs font-semibold text-warn">New site</span>}
@@ -319,7 +320,7 @@ function IncidentWork({ j, now, onJob, focus }: { j: Job; now: number; onJob: Pr
   const [openKey, setOpenKey] = useState<StepKey | 'none' | null>(null);
   const shown = openKey === null ? nextKey : openKey === 'none' ? null : openKey;
   const act: Props['onJob'] = (job, message) => {
-    setOpenKey(null);
+    setOpenKey(job.incident?.rebooking?.status === 'open' && job.incident.outcome ? 'decide' : null);
     onJob(job, message);
   };
   const e = escalation(j, now);
@@ -335,7 +336,7 @@ function IncidentWork({ j, now, onJob, focus }: { j: Job; now: number; onJob: Pr
         </span>
       </p>
 
-      <p className="rounded-lg bg-lavender/50 px-3 py-2 text-sm font-semibold">Next step: {next ? ({ keep_driver: 'Call driver', own_error: 'Check booking details', escalate: 'Call pickup contact, then backup', customer: 'Update customer and pilot account owner', decide: 'Record the customer’s decision', close: 'Close the loop' } as const)[next.key] : 'Incident complete'}</p>
+      <p className="rounded-lg bg-lavender/50 px-3 py-2 text-sm font-semibold">Next step: {j.incident?.rebooking?.status === 'open' ? 'Log the customer-agreed pickup and delivery time' : next ? ({ keep_driver: 'Call driver', own_error: 'Check booking details', escalate: 'Call pickup contact, then backup', customer: 'Update customer and pilot account owner', decide: 'Record the customer’s decision', close: 'Close the loop' } as const)[next.key] : 'Incident complete'}</p>
       <TimeBar j={j} now={now} />
 
       {tried.length > 0 && !j.incident?.outcome && (
@@ -354,7 +355,7 @@ function IncidentWork({ j, now, onJob, focus }: { j: Job; now: number; onJob: Pr
             const open = shown === s.key;
             const isNext = s.key === nextKey;
             return (
-              <li key={s.key}>
+              <li key={s.key} data-playbook-step={s.key}>
                 <button
                   type="button"
                   onClick={() => setOpenKey(open ? 'none' : s.key)}
@@ -362,7 +363,7 @@ function IncidentWork({ j, now, onJob, focus }: { j: Job; now: number; onJob: Pr
                   className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm ${isNext ? 'bg-lavender/40' : 'hover:bg-card/40'}`}
                 >
                   <span
-                    aria-hidden
+                    aria-hidden data-playbook-number
                     className={`num flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${doneAt ? 'bg-ok text-white' : isNext ? 'bg-indigo text-white' : 'bg-card text-muted'}`}
                   >
                     {doneAt ? <Check size={14} /> : i + 1}
@@ -556,10 +557,6 @@ function AssistWork({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJo
 // ---------- A closed incident: what happened, and what we learn ----------
 
 function Resolution({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJob'] }) {
-  const [pickup, setPickup] = useState(localInputTime(now + (j.incident?.outcome?.type === 'new_date' ? 24 : 2) * 3600000));
-  const [delivery, setDelivery] = useState('');
-  const [driverConfirmed, setDriverConfirmed] = useState(false);
-  const agreement = { deadline: new Date(delivery).getTime(), driverConfirmed };
   const i = j.incident!;
   const rows: [string, string][] = [
     ['Decision', i.by === 'assistant' ? 'Keys found while the assistant had it' : i.outcome ? OUTCOME_LABEL[i.outcome.type] : '–'],
@@ -582,7 +579,7 @@ function Resolution({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJo
           </div>
         ))}
       </dl>
-      {i.rebooking && <section className="rounded-lg bg-warn-bg p-3 text-sm"><p className="font-semibold">{i.rebooking.status === 'open' ? 'Replacement pickup still needs booking' : `Replacement booked: ${i.rebooking.replacementId}`}</p><p className="text-xs">Owner {i.rebooking.owner} · due {formatDateTime(i.rebooking.dueAt)}</p>{i.rebooking.status === 'open' && <div className="mt-2 flex flex-wrap gap-2"><label className="text-xs">Customer-agreed pickup<input aria-label="Replacement pickup time" type="datetime-local" value={pickup} onChange={e => setPickup(e.target.value)} className="block rounded border p-1" /></label><label className="text-xs">Customer-agreed delivery deadline<input aria-label="Replacement delivery deadline" type="datetime-local" value={delivery} onChange={e => setDelivery(e.target.value)} className="block rounded border p-1" /></label><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={driverConfirmed} onChange={e => setDriverConfirmed(e.target.checked)} />Same driver confirmed available for the replacement</label><button type="button" disabled={!pickup || bookReplacement(j, new Date(pickup).getTime(), now, agreement) === j} onClick={() => onJob(bookReplacement(j, new Date(pickup).getTime(), now, agreement), 'Replacement pickup, delivery time and driver availability confirmed (demo).')} className={BTN}>Log confirmed replacement</button></div>}</section>}
+      {i.rebooking && <ReplacementForm j={j} now={now} onJob={onJob} />}
       {i.outcome?.type === 'keys_found' && !j.deliveredAt && <p className="rounded-lg bg-card p-3 text-sm font-semibold">Incident resolved; transport is still open. Track departure and delivery in the driver's view.</p>}
       <p className="text-xs text-muted">The cause feeds the weekly report: the same cause twice is a prevention task, not bad luck.</p>
       <CollapsibleSection title="Incident log" summary={`${i.log.length} entries`}>
@@ -590,6 +587,28 @@ function Resolution({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJo
       </CollapsibleSection>
     </>
   );
+}
+
+function ReplacementForm({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJob'] }) {
+  const initial = now + (j.incident?.outcome?.type === 'new_date' ? 24 : 2) * 3600000;
+  const [pickup, setPickup] = useState(localInputTime(initial));
+  const [delivery, setDelivery] = useState(localInputTime(initial + (j.deadline - j.pickupAt)));
+  const [sameDriver, setSameDriver] = useState(false);
+  const task = j.incident?.rebooking;
+  if (!task) return null;
+  const agreement = { deadline: new Date(delivery).getTime(), driverConfirmed: sameDriver };
+  const updated = bookReplacement(j, new Date(pickup).getTime(), now, agreement);
+  return <section data-demo-target="replacement" className="space-y-2 rounded-lg bg-warn-bg p-3 text-sm">
+    <p className="font-semibold">{task.status === 'booked' ? task.driverConfirmed ? 'New time logged · same driver confirmed' : 'New time logged · Needs driver' : 'Customer chose a new time'}</p>
+    <p className="text-xs">Owner {task.owner} · {task.status === 'open' ? `follow up by ${formatDateTime(task.dueAt)}` : `${formatDateTime(task.pickupAt!)} → delivery by ${formatDateTime(task.deadline!)}`}</p>
+    {task.status === 'open' && <>
+      <label className="block text-xs">Agreed pickup<input aria-label="Replacement pickup time" type="datetime-local" value={pickup} onChange={e => { setPickup(e.target.value); const at = new Date(e.target.value).getTime(); if (Number.isFinite(at)) setDelivery(localInputTime(at + j.deadline - j.pickupAt)); }} className="mt-1 block w-full rounded border bg-white p-2" /></label>
+      <label className="block text-xs">Agreed delivery deadline<input aria-label="Replacement delivery deadline" type="datetime-local" value={delivery} onChange={e => setDelivery(e.target.value)} className="mt-1 block w-full rounded border bg-white p-2" /></label>
+      <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={sameDriver} onChange={e => setSameDriver(e.target.checked)} />Same driver confirmed available (optional)</label>
+      <p className="text-xs text-muted">Confirm these times with the customer. Leave the box unticked to log the time and retain a replacement-driver task.</p>
+      <button type="button" disabled={updated === j} onClick={() => onJob(updated, sameDriver ? 'Agreed new time logged; same driver confirmed.' : 'Agreed new time logged; replacement needs a driver.')} className={BTN}>Log agreed new time</button>
+    </>}
+  </section>;
 }
 
 // ---------- A routine pickup: the pre-pickup check, touchpoint by touchpoint ----------
@@ -796,6 +815,7 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
             ))}
           </div>
           {now > incidentClock(j, now).lastDeparture && !chosen && <div className="space-y-2 rounded-lg bg-bad-bg p-3"><p className="text-sm font-semibold text-bad">Original departure cut-off passed. Agree a feasible new delivery deadline or rebook/cancel.</p><label className="text-xs">Customer-agreed delivery deadline<input type="datetime-local" value={newDeadline} onChange={e => setNewDeadline(e.target.value)} className="block rounded border p-1" /></label><button type="button" disabled={!newDeadline || new Date(newDeadline).getTime() < now + j.driveMin * 60000 + 20 * 60000} onClick={() => onJob(agreeDeliveryDeadline(j, new Date(newDeadline).getTime(), now), 'Revised delivery deadline agreed with customer and logged (demo).')} className={BTN}>Log customer agreement to new deadline</button></div>}
+          {chosen && j.incident?.rebooking && <ReplacementForm j={j} now={now} onJob={onJob} />}
           <p className="text-xs text-muted">Recommend a feasible option, then log the customer's confirmed choice. Customer unreachable? Escalate to the duty lead; log an Ops stop only after authority is confirmed. Replacements remain open work until driver and delivery time are confirmed.</p>
         </>
       );

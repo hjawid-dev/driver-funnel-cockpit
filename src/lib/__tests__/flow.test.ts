@@ -174,8 +174,8 @@ describe('automationEvents', () => {
     expect(msg.body).toContain('Suitability requirements not met');
     expect(msg.body).toContain('review');
   });
-  it('acceptance creates a welcome-call task and offers; later tasks if no first gig', () => {
-    const a = mk({ docsCompleteAt: NOW - DAY, decision: { type: 'accepted', at: NOW, by: 'x' } });
+  it('acceptance offers self-booking; ready drivers receive later tasks if no first gig', () => {
+    const a = mk({ extractShown: true, photoApproved: true, docsCompleteAt: NOW - DAY, decision: { type: 'accepted', at: NOW, by: 'x' } });
     const kinds = automationEvents([a], NOW - 1, NOW + 31 * DAY).map((e) => e.kind);
     expect(kinds).toEqual(expect.arrayContaining(['offers', 'book_task', 'call_task', 'dormant']));
   });

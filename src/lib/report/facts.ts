@@ -137,7 +137,7 @@ export function weeklyFacts(apps: Applicant[], threads: ChatThread[], now: numbe
     status('document_completion', 'Documents within 7 days (mature registration cohort)', '%', kpi.docCompletion ?? null, 85, true),
     status('time_to_decision', 'Time from registration to decision, mean of all decisions', 'h', kpi.timeToDecision ?? null, 48, false),
     status('activation', 'Activation: first drive within 14 days of acceptance', '%', kpi.activation ?? null, 75, true),
-    status('application_to_active', 'Application to active within 30 days (mature cohort; pilot target)', '%', kpi.cohortConversion ?? null, 35, true),
+    status('application_to_active', 'New active ÷ applications, last 30 days (monthly flow target)', '%', kpi.appToActive ?? null, 35, true),
     status('first_drive_quality', 'First-drive delivery outcome: original deadline, no incident, satisfied', '%', kpi.quality ?? null, 95, true),
     // AI answer share is diagnostic, never a target for suppressing handovers.
 

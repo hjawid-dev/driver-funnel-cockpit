@@ -24,7 +24,7 @@ export function PickupStatus({ j, now, onInbox }: { j: Job; now: number; onInbox
     assistant: `${
       (j.texts ?? []).some((t) => t.at <= now) ? 'We texted the pickup contact.' : "Tell us what's wrong below."
     } If it isn't solved by ${hm(assisting(j, now)?.until ?? now)}, a person from ops calls you.`,
-    waiting_call: 'A person from ops calls you within 5 minutes.',
+    waiting_call: 'Ops has been alerted; your call is due now (10 minutes from the reported problem).',
     ops_working: 'Ops has called you and is working on it with the customer.',
     decided: outcome === 'keys_found' ? 'Keys found. You can head off.' : `${OUTCOME_LABEL[outcome ?? 'cancelled']}. You can leave the pickup.`,
   };

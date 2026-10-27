@@ -104,10 +104,10 @@ export default function App() {
 
   /** Start over on the case as the brief gives it: a fresh demo on Tuesday 09:30, Julia 25 minutes at the gate. */
   const playCase = useCallback(
-    (quiet = false) => {
+    (quiet = false, replay = false) => {
       const at = caseTime(Date.now());
-      const fresh = reset(at, true);
-      clock.setTo(at);
+      const fresh = reset(at, true, replay);
+      clock.setTo(replay ? at - 25 * 60000 : at);
       setLastRun(null);
       setPhoneId(null);
       setBaseline(computeKpis(fresh, at));
@@ -201,7 +201,7 @@ export default function App() {
       if (t.status === 'waiting' && prev?.status !== 'waiting') {
         toast.notify(
           t.reason === 'urgent'
-            ? `Urgent: ${t.name} has a problem on a drive. Call within 5 minutes: see Live Ops.`
+            ? `Urgent: ${t.name} has a problem on a drive. Call within 10 minutes: see Live Ops.`
             : `${t.name} needs a person in the chat${t.reason ? `: ${HANDOVER_LABEL[t.reason].toLowerCase()}` : ''}. See Live Ops → Driver questions.`,
         );
       }
@@ -339,7 +339,7 @@ export default function App() {
   const shownItems = filterItems(items, filter);
   const openItem = items.find((w) => w.a.id === openId) ?? null;
   const slot = nextReviewSlot(now);
-  const urgent = openIncidents(jobs, now).filter((j) => !j.incident?.outcome).length;
+  const urgent = openIncidents(jobs, now).filter((j) => !j.incident?.outcome && !(present !== null && j.asInCase)).length;
   const questions = waitingThreads(threads).length;
 
   const toQueue = () => setTimeout(() => document.getElementById('queue')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
@@ -402,18 +402,19 @@ export default function App() {
       setTimeout(() => document.querySelector<HTMLElement>('[data-demo-target="job-detail"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     }
   };
-  const guideFocusVersion = [reviewTarget(apps)?.extractShown, reviewTarget(apps)?.photoApproved, reviewTarget(apps)?.onboardingCompletedAt, reviewTarget(apps)?.decision?.type, jobs.find(j => j.asInCase)?.incident?.log.length].join(':');
+  const guideFocusVersion = [reviewTarget(apps)?.extractShown, reviewTarget(apps)?.photoApproved, reviewTarget(apps)?.onboardingCompletedAt, reviewTarget(apps)?.decision?.type, (jobs.find(j => j.solutionExample) ?? jobs.find(j => j.asInCase))?.incident?.log.length].join(':');
   useEffect(() => {
     if (!currentPresent) return;
     const timer = setTimeout(() => focusGuideStep(currentPresent.key), 150);
     return () => { clearTimeout(timer); document.querySelectorAll('[data-demo-focus]').forEach(el => el.removeAttribute('data-demo-focus')); };
   }, [present, openId, phoneOpen, liveSel, guideFocusVersion]);
-  const guideIncident = jobs.find(j => j.asInCase);
+  const guideIncident = jobs.find(j => j.solutionExample) ?? jobs.find(j => j.asInCase);
   const guideDriver = reviewTarget(apps);
   const guideJob = jobs.find(j => j.firstDrive && j.id === guideDriver?.firstGig?.gigId);
-  const guideJumpAt = currentPresent?.key === 'decision' && guideIncident && !guideIncident.incident?.outcome ? incidentClock(guideIncident, now).decideBy
+  const guideJumpAt = ['assistant', 'playbook'].includes(currentPresent?.key ?? '') && guideIncident?.problemAt && !guideIncident.incident?.steps.keep_driver ? guideIncident.problemAt + 10 * 60000
+    : currentPresent?.key === 'decision' && guideIncident && !guideIncident.incident?.outcome ? incidentClock(guideIncident, now).decideBy
     : currentPresent?.key === 'activate' && guideJob && !guideJob.deliveredAt ? (!guideJob.departedAt ? guideJob.pickupAt : guideJob.departedAt + guideJob.driveMin * 60000) : null;
-  const guideJumpLabel = guideJumpAt && guideJumpAt > now ? currentPresent?.key === 'activate' ? `Move demo time to ${guideJob?.departedAt ? 'delivery' : 'pickup'}` : 'Move demo time to decision point' : null;
+  const guideJumpLabel = guideJumpAt && guideJumpAt > now ? currentPresent?.key === 'activate' ? `Move demo time to ${guideJob?.departedAt ? 'delivery' : 'pickup'}` : ['assistant', 'playbook'].includes(currentPresent?.key ?? '') ? 'Move demo time to Ops call deadline (10 min)' : 'Move demo time to decision point' : null;
   // While presenting, the header and the bar stick to the top; drawers and dialogs open below them.
   const topRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -443,18 +444,20 @@ export default function App() {
   });
   const startPresenting = () => {
     clock.pause();
-    playCase(true);
-    setPhoneOpen(false);
+    playCase(true, true);
+    setPhoneId(apps.find(a => a.name === 'Julia Lindgren')?.id ?? null);
+    setChatRequest(0);
+    setPhoneOpen(true);
     setPage('live');
-    setLiveSel(null);
+    setLiveSel('JOB-SOLUTION');
     setPresent(0);
     setGuideApplicantId(null);
     window.scrollTo({ top: 0 });
-    toast.notify('Case demo started: fresh data, Tuesday 09:30.');
+    toast.notify('Solution example started at arrival, Tuesday 09:05. Original case facts are unchanged.');
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div data-guided-case={currentPresent?.part} className="min-h-screen flex">
       <div className="min-w-0 flex-1 flex flex-col">
         <div ref={topRef} className={`${present !== null ? 'sticky top-0 z-[60]' : ''} ${open ? 'lg:w-[calc(100%_-_520px)]' : ''}`}>
         <header className="bg-navy text-white">
@@ -504,7 +507,7 @@ export default function App() {
             </div>
           </div>
         </header>
-        {present !== null && <PresentBar step={present} onStep={goStep} onExit={() => { setPresent(null); clock.resume(); }} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} status={currentPresent ? guideStatus(currentPresent.key, presentData, guideApplicantId) : { kind: 'explore', text: '' }} onExplore={guideExplore} jumpLabel={guideJumpLabel} onJump={() => { if (guideJumpAt && guideJumpAt > now) onAdvance(guideJumpAt - now); }} />}
+        {present !== null && <PresentBar step={present} onStep={goStep} onExit={() => { setPresent(null); clock.resume(); }} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} status={currentPresent ? guideStatus(currentPresent.key, presentData, guideApplicantId, now) : { kind: 'explore', text: '' }} onExplore={guideExplore} jumpLabel={guideJumpLabel} onJump={() => { if (guideJumpAt && guideJumpAt > now) onAdvance(guideJumpAt - now); }} />}
         </div>
 
         <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-6 space-y-6">
@@ -553,7 +556,7 @@ export default function App() {
               </section>
             </>
           ) : (
-            <LiveOps jobs={jobs} now={now} onJob={onJob} onViewChat={openDriverChat} selected={liveSel} onSelect={setLiveSel} focus={null} threads={threads} waitingQuestions={questions} onThread={onThread} />
+            <LiveOps jobs={present !== null ? jobs.filter(j => !j.asInCase) : jobs} now={now} onJob={onJob} onViewChat={openDriverChat} selected={liveSel} onSelect={setLiveSel} focus={null} threads={threads} waitingQuestions={questions} onThread={onThread} />
           )}
         </main>
 

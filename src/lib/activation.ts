@@ -105,6 +105,13 @@ export function activationReasons(waiting: Applicant[], apps: Applicant[], gigs:
   return ACTIVATION_REASON_ORDER.filter((r) => by.has(r)).map((r) => ({ reason: r, label: ACTIVATION_REASON_LABEL[r], count: by.get(r)!.length, ids: by.get(r)! }));
 }
 
+/** A booking reminder applies to accepted drivers who are ready to drive, not outstanding extract checks. */
+export function activationReminderReady(a: Applicant, at: number): boolean {
+  return !!a.decision && a.decision.type !== 'rejected' && a.decision.at <= at && !!a.extractShown
+    && (a.extractShownAt === undefined || a.extractShownAt <= at)
+    && a.docs.id === 'verified' && a.docs.licence === 'verified' && !!a.photoApproved;
+}
+
 // ---------- Supply and demand ----------
 
 /** Assumption to set with the team: how many jobs one driver takes in 14 days. */

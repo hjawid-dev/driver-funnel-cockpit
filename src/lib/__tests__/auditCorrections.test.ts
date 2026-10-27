@@ -15,7 +15,7 @@ import { generateSeed } from '../seed';
 import { weeklyFacts } from '../report/facts';
 import { templateReport } from '../report/check';
 import { guideStatus } from '../present';
-import { opsState } from '../opsState';
+import { currentStep, opsState } from '../opsState';
 const accepted = (age = 18) => inReview({ id: 'A', registeredAt: NOW - 40 * DAY, decision: { type: 'accepted', at: NOW - age * DAY, by: 'Hjalmar' } });
 const gigs = generateGigs(NOW);
 const job = () => seedJobs(generateSeed(NOW), NOW, { asInCase: true }).find(j => j.asInCase)!;
@@ -25,8 +25,8 @@ describe('case audit: outcome and exception paths', () => {
     const a = { ...accepted(32), firstGig: { bookedFor: NOW - 12 * DAY, doneAt: NOW - 10 * DAY } };
     const late = { ...accepted(32), id: 'B', registeredAt: NOW - 50 * DAY, firstGig: { bookedFor: NOW - 12 * DAY, doneAt: NOW - 10 * DAY } };
     const k = computeKpis([a, late, mk({ registeredAt: NOW - DAY })], NOW);
-    expect(k.find(k => k.key === 'cohortConversion')).toMatchObject({ value: 50, northStar: true });
-    expect(k.find(k => k.key === 'appToActive')).toMatchObject({ value: 200, status: 'info' });
+    expect(k.find(k => k.key === 'cohortConversion')).toMatchObject({ value: 50, status: 'info', target: 'Diagnostic · no target' });
+    expect(k.find(k => k.key === 'appToActive')).toMatchObject({ value: 200, status: 'on', target: 'Target 35%', northStar: true });
   });
   it('uses mean decision time and preserves the slow-file signal', () => {
     const apps = [10, 20, 150].map(h => inReview({ registeredAt: NOW - 200 * HOUR, decision: { type: 'accepted', at: NOW - (200 - h) * HOUR, by: 'x' } }));
@@ -80,10 +80,14 @@ describe('case audit: outcome and exception paths', () => {
     const assigned = syncFirstDrive(waiting, b, gigs);
     expect(assigned).toHaveLength(1); expect(assigned[0]).toMatchObject({ driverId: 'B', firstDrive: true }); expect(assigned[0].unassigned).not.toBe(true);
   });
-  it('requires an agreed replacement deadline and confirmed driver availability', () => {
+  it('requires agreed customer times but allows an unassigned replacement', () => {
     const j = setOutcome(job(), 'later_today', NOW);
     expect(bookReplacement(j, NOW + HOUR, NOW)).toBe(j);
-    expect(bookReplacement(j, NOW + HOUR, NOW, { deadline: NOW + 4 * HOUR, driverConfirmed: false })).toBe(j);
+    const unassigned = bookReplacement(j, NOW + HOUR, NOW, { deadline: NOW + 4 * HOUR, driverConfirmed: false });
+    expect(currentStep(j)?.key).toBe('decide');
+    expect(currentStep(unassigned)?.key).toBe('close');
+    expect(replacementJob(unassigned)).toMatchObject({ unassigned: true, driverId: '', pickupAt: NOW + HOUR, deadline: NOW + 4 * HOUR });
+    expect(bookReplacement(j, NOW + HOUR, NOW, { deadline: NOW + HOUR, driverConfirmed: false })).toBe(j);
     const confirmed = bookReplacement(j, NOW + HOUR, NOW, { deadline: NOW + 4 * HOUR, driverConfirmed: true });
     expect(replacementJob(confirmed)).toMatchObject({ deadline: NOW + 4 * HOUR, pickupAt: NOW + HOUR });
   });

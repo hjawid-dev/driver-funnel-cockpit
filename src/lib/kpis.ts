@@ -100,9 +100,9 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
   return [
     {
       key: 'cohortConversion', label: 'Application → active', value: conversion, display: fmtPct(conversion),
-      target: 'Pilot target 35%', caption: `${converted} of ${mature.length} registrations with 30+ days of follow-up`,
-      info: ['Share of applicants completing a first drive within 30 days of registration. Only registrations with at least 30 days of follow-up count; all mature history.', 'The case gives monthly volumes (25 active / 120 applications), not a measured cohort baseline. 35% is a pilot hypothesis to validate.'],
-      status: band(conversion, 35, 25), northStar: true,
+      target: 'Diagnostic · no target', caption: `${converted} of ${mature.length} registrations with 30+ days of follow-up`,
+      info: ['Share of applicants completing a first drive within 30 days of registration. Only registrations with at least 30 days of follow-up count; all mature history.', 'Supporting cohort diagnostic, with no assigned target. The 35% target belongs to the separate monthly New active ÷ applications measure.'],
+      status: 'info',
     },
     {
       key: 'docCompletion',
@@ -166,14 +166,14 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
       value: northStar,
       display: fmtPct(northStar),
       sub: 'North star · a 30-day flow',
-      target: 'Throughput only',
+      target: 'Target 35%',
       caption: `Last 30 days · ${newActive} new active ÷ ${newApps} applications (a flow, not a cohort)`,
       info: [
         'A flow, like the case\'s "25 of 120 a month": drivers who completed a first gig in the last 30 days, divided by applications in the same 30 days. They are not the same people, so it is throughput, not conversion.',
         'Application → active is the separate cohort measure. A flow ratio can rise when registrations fall, and can exceed 100% while clearing older applications.',
         `${newActive} new active ÷ ${newApps} applications · case baseline 21%`,
       ],
-      status: 'info',
+      status: band(northStar, 35, 25), northStar: true,
     },
     {
       key: 'quality',

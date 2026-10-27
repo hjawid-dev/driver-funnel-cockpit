@@ -67,6 +67,7 @@ export interface Job {
   dispatchReady?: boolean;
   /** The Part 1 case as given: no pre-pickup check was in place for this drive. */
   asInCase?: boolean;
+  solutionExample?: boolean;
   /** Our first drive from this address; the same confirmation process applies. */
   newSite?: boolean;
   /** Legacy demo field; no routine site-call requirement remains. */
@@ -124,7 +125,7 @@ export interface Incident {
 /** No keys this long after the driver checks in → the assistant takes it, without anyone having to call. */
 export const NO_KEYS_ASSIST_MS = 5 * MIN;
 /** The assistant's minutes: it texts the contact and keeps the driver calm. Not solved by then → a person. */
-export const ASSIST_MS = 5 * MIN;
+export const ASSIST_MS = 10 * MIN;
 /** A person takes over at the latest this long before the customer must decide, whatever the assistant's clock says. */
 export const ESCALATE_BEFORE_DECIDE_MS = 15 * MIN;
 /** The driver hasn't checked in this long after the agreed pickup time → an alert. */
@@ -238,7 +239,7 @@ export function assistStart(j: Job, now: number): number | null {
   return at.length ? Math.min(...at) : null;
 }
 
-/** When a person takes over and why: the earliest of the driver or ops asking, safety, the assistant's 5 minutes, or the decision deadline. */
+/** When a person takes over and why: the earliest of the driver or ops asking, safety, the assistant's 10 minutes, or the decision deadline. */
 export function escalation(j: Job, now: number): { at: number; why: EscalationWhy } | null {
   const start = assistStart(j, now);
   const due: { at: number; why: EscalationWhy }[] = [];
@@ -391,7 +392,8 @@ function withIncident(j: Job, now: number, change: (i: Incident) => Incident, te
 export function markStep(j: Job, step: StepKey, now: number): Job {
   if (step === 'own_error' && !j.incident?.ownError) return j;
   const title = PLAYBOOK.find((s) => s.key === step)!.title;
-  return withIncident(j, now, (i) => ({ ...i, steps: { ...i.steps, [step]: now }, ...(step === 'customer' ? { nextCustomerUpdateAt: now + 20 * MIN } : {}) }), `${title}: done (${REVIEWER})`);
+  const owned = step === 'keep_driver' && (!j.escalation || j.escalation.at > now) ? escalate(j, 'ops', now) : j;
+  return withIncident(owned, now, (i) => ({ ...i, steps: { ...i.steps, [step]: now }, ...(step === 'customer' ? { nextCustomerUpdateAt: now + 20 * MIN } : {}) }), `${title}: done (${REVIEWER})`);
 }
 
 /** Ops records what happens next. "Keys found" lets the driver go; the others end the drive for today. */
@@ -509,16 +511,16 @@ export function agreeDeliveryDeadline(j: Job, deadline: number, now: number): Jo
 export function bookReplacement(j: Job, pickupAt: number, now: number, agreement?: { deadline: number; driverConfirmed: boolean }): Job {
   const task = j.incident?.rebooking;
   if (!task || task.status !== 'open' || !Number.isFinite(pickupAt) || pickupAt <= now) return j;
-  if (!agreement?.driverConfirmed || !Number.isFinite(agreement.deadline) || agreement.deadline < pickupAt + j.driveMin * MIN + HANDOVER_MS + MARGIN_MS) return j;
+  if (!agreement || !Number.isFinite(agreement.deadline) || agreement.deadline < pickupAt + j.driveMin * MIN + HANDOVER_MS + MARGIN_MS) return j;
   const sameDay = new Date(pickupAt).toDateString() === new Date(now).toDateString();
   if ((j.incident?.outcome?.type === 'later_today' && !sameDay) || (j.incident?.outcome?.type === 'new_date' && sameDay)) return j;
-  return withIncident(j, now, i => ({ ...i, rebooking: { ...task, status: 'booked', pickupAt, deadline: agreement.deadline, driverConfirmed: true, bookedAt: now, replacementId: `${j.id}-R` } }), `Replacement confirmed: pickup ${hm(pickupAt)}, delivery ${hm(agreement.deadline)}, driver availability checked; owner ${task.owner}`);
+  return withIncident(j, now, i => ({ ...i, rebooking: { ...task, status: 'booked', pickupAt, deadline: agreement.deadline, driverConfirmed: agreement.driverConfirmed, bookedAt: now, replacementId: `${j.id}-R` } }), `Replacement confirmed: pickup ${hm(pickupAt)}, delivery ${hm(agreement.deadline)}, ${agreement.driverConfirmed ? 'same driver confirmed' : 'needs another driver'}; owner ${task.owner}`);
 }
 
 export function replacementJob(j: Job): Job | null {
   const task = j.incident?.rebooking;
-  if (task?.status !== 'booked' || !task.pickupAt || !task.replacementId || !task.deadline || !task.driverConfirmed) return null;
-  return { id: task.replacementId, driverId: j.driverId, driverName: j.driverName, customer: j.customer, pilot: j.pilot, from: j.from, to: j.to, area: j.area, km: j.km, driveMin: j.driveMin, pickupAt: task.pickupAt, bookedAt: task.bookedAt, deadline: task.deadline, reward: j.reward, price: j.price, contact: j.contact, backup: j.backup, keyLocation: j.keyLocation, firstDrive: j.firstDrive, dispatchReady: j.dispatchReady };
+  if (task?.status !== 'booked' || !task.pickupAt || !task.replacementId || !task.deadline) return null;
+  return { id: task.replacementId, driverId: task.driverConfirmed ? j.driverId : '', driverName: task.driverConfirmed ? j.driverName : 'Unassigned transport', unassigned: !task.driverConfirmed, previousDriverId: task.driverConfirmed ? undefined : j.driverId, customer: j.customer, pilot: j.pilot, from: j.from, to: j.to, area: j.area, km: j.km, driveMin: j.driveMin, pickupAt: task.pickupAt, bookedAt: task.bookedAt, deadline: task.deadline, reward: j.reward, price: j.price, contact: j.contact, backup: j.backup, keyLocation: j.keyLocation, firstDrive: task.driverConfirmed ? j.firstDrive : false, dispatchReady: task.driverConfirmed ? j.dispatchReady : false };
 }
 
 // ---------- The driver's taps ----------
@@ -582,7 +584,7 @@ export function driverTimeline(j: Job, now: number): { at: number; text: string 
   };
   const start = assistStart(j, now);
   if (start !== null) {
-    push(start, j.problemAt === start ? 'You reported a problem' : 'No keys after 5 minutes');
+    push(start, j.problemAt === start ? 'You reported a problem' : `No keys after ${NO_KEYS_ASSIST_MS / MIN} minutes`);
   }
   const sent = j.texts ?? [];
   if (sent.length) push(sent[0].at, `The ${sent.map((t) => t.role.toLowerCase()).join(' and ')} ${sent.length > 1 ? 'were' : 'was'} texted`);
@@ -649,9 +651,10 @@ export function reportProblem(j: Job, now: number, reason: PickupReason = 'other
 /** The job this driver has today, if any: from an hour before pickup until it is delivered or closed. */
 export function currentJob(jobs: Job[], driverId: string, now: number): Job | null {
   return (
-    jobs.find(
+    [...jobs].sort((a, b) => Number(!!b.solutionExample) - Number(!!a.solutionExample)).find(
       (j) =>
         !j.unassigned && j.driverId === driverId &&
+        !(j.asInCase && jobs.some(x => x.solutionExample && x.driverId === driverId)) &&
         !done(j.deliveredAt, now) &&
         !(j.incident?.closedAt !== undefined && j.incident.outcome?.type !== 'keys_found') &&
         now >= j.pickupAt - 2 * HOUR,
@@ -669,7 +672,7 @@ export function jobFact(j: Job, now: number): string {
   const handling = a
     ? `; ${texted ? 'contact texted' : 'nothing sent to the customer yet'}, a person calls at ${hm(a.until)} if not solved`
     : jobAlert(j, now)?.kind === 'escalated'
-      ? '; a person is on it, calls within 5 min'
+      ? '; Ops call due now (10 min from report)'
       : '';
   return `On a job now: pickup in ${j.area} at ${hm(j.pickupAt)}, status: ${where}${handling}`;
 }
@@ -703,6 +706,7 @@ type JobSeed = {
   deliver?: number;
   problem?: number;
   asInCase?: boolean;
+  solutionExample?: boolean;
   newSite?: boolean;
 };
 
@@ -714,10 +718,10 @@ type JobSeed = {
  */
 const JOBS: JobSeed[] = [
   { name: 'Filip Nyström', pickupInMin: -150, hours: 3, from: 'Workshop, Nacka', to: 'Dealership, Södermalm', area: 'Nacka', km: 9, driveMin: 25, reward: 320, price: 520, customer: 'Nacka Bil & Service', confirm24: -23 * 60, confirm60: -50, arrive: -5, keys: 3, depart: 10, deliver: 40 },
-  { name: 'Julia Lindgren', pickupInMin: -12, hours: 3, from: 'Dealership, Solna', to: 'Customer, Upplands Väsby', area: 'Solna', km: 35, driveMin: 50, reward: 500, price: 780, customer: 'Solna Bilcenter', pilot: true, arrive: -2, problem: 3 },
+  { name: 'Julia Lindgren', pickupInMin: -12, hours: 3, from: 'Dealership, Solna', to: 'Customer, Upplands Väsby', area: 'Solna', km: 35, driveMin: 50, reward: 500, price: 780, customer: 'Solna Bilcenter', pilot: true, arrive: -2, problem: 1 },
   { name: 'Isak Bergström', pickupInMin: 45, hours: 2, from: 'Leasing depot, Bromma', to: 'Customer, Kungsholmen', area: 'Bromma', km: 11, driveMin: 30, reward: 340, price: 560, customer: 'Bromma Leasing', confirm24: -22 * 60, confirm60: -55, arrive: -6, keys: 2, depart: 8, deliver: 45 },
   { name: 'Agnes Ekström', pickupInMin: 180, hours: 3, from: 'Rental hub, Södermalm', to: 'Workshop, Huddinge', area: 'Södermalm', km: 16, driveMin: 30, reward: 350, price: 580, customer: 'City Rental Stockholm', confirm24: -21 * 60, confirm60: -50, arrive: -4, keys: 3, depart: 9, deliver: 45 },
-  // Our first drive from this address, tomorrow morning: a person calls the site today.
+  // Our first drive from this address tomorrow: the same confirmation checks apply.
   { name: 'Linnea Björk', pickupInMin: 20 * 60, hours: 3, from: 'Leasing depot, Täby', to: 'Customer, Danderyd', area: 'Täby', km: 12, driveMin: 25, reward: 330, price: 540, customer: 'Täby Leasing', confirm24: -23 * 60, confirm60: -50, newSite: true, arrive: -4, keys: 3, depart: 9, deliver: 40 },
   { name: 'Omar Khalil', pickupInMin: 330, hours: 3, from: 'Dealership, Sundbyberg', to: 'Customer, Täby', area: 'Sundbyberg', km: 18, driveMin: 35, reward: 360, price: 600, customer: 'Sundbyberg Motor', confirm60: -45, arrive: -3, keys: 4, depart: 10, deliver: 50 },
 ];
@@ -784,6 +788,12 @@ export function seedJobs(apps: Applicant[], now: number, opts: { asInCase?: bool
     out.push(job);
   });
   return out;
+}
+
+/** Proposed solution replay: start before the wait, with no fabricated contact or Ops actions. */
+export function solutionExample(j: Job): Job {
+  const { asInCase: _case, incident: _incident, problemAt: _problem, problemReason: _reason, escalation: _escalation, texts: _texts, arrivedAt: _arrived, keysAt: _keys, departedAt: _departed, deliveredAt: _delivered, contactReply: _reply, ...base } = j;
+  return { ...base, id: 'JOB-SOLUTION', solutionExample: true };
 }
 
 // ---------- A new driver's first drive ----------

@@ -8,9 +8,9 @@ A clickable prototype for the Flovi Operations Specialist case, built by Hjalmar
 
 Exceptions first. Julia's pickup opens at Tuesday 09:30: 25 minutes waiting, no keys, no contact, delivery due 12:00. The playbook keeps the driver informed, checks our booking, escalates to the pickup contact/backup and updates the customer and internal pilot account owner.
 
-Ops recommends a feasible next step and logs the confirmed choice. If the customer is unreachable, an Ops stop requires confirmed duty-lead authority. Resolution and delivery are separate. Replacement booking requires customer-agreed pickup **and delivery** plus confirmation that the driver is available; a replacement first drive stays linked to activation.
+Ops recommends a feasible next step and logs the confirmed choice. If the customer is unreachable, an Ops stop requires confirmed duty-lead authority. Resolution and delivery are separate. Replacement timing requires customer-agreed pickup **and delivery**. Same-driver confirmation is optional: otherwise a separate unassigned transport stays visible with an owner. The incident can close while that transport remains open. A confirmed same-driver replacement preserves first-drive tracking.
 
-Prevention confirms contact, backup and key location at booking, then at T−24 h and T−60 min. Calls happen only on missing replies. Short-notice bookings get one immediate confirmation. A reported problem is immediate; a normal check-in without a key update gets a five-minute grace period before the assistant checks in.
+Prevention confirms contact, backup and key location at booking, then at T−24 h and T−60 min. Calls happen only on missing replies. Short-notice bookings get one immediate confirmation. A reported problem starts AI support immediately; Ops calls by 10 minutes from that report if unresolved (earlier for safety/deadline risk). Escalation never starts a second countdown. A normal check-in without a key update gets five minutes for handover before the assistant checks in.
 
 ## Case 2: Driver Funnel
 
@@ -18,19 +18,19 @@ The candidate queue keeps **Next step**, urgency and missing items visible. A na
 
 Written checks cover licence, identity and photo. Proposed experience tiers are minimum 1 year, 1 to <2 years simple drives first, and ≥2 years standard. All demo first drives are easy standard-car routes; later progression is not automated. Other suitability grounds require an agreed Flovi policy and Operations Manager / Team Lead review. Ordering the proposed extract does not block acceptance; showing it is required before driving.
 
-Drivers self-book matching jobs. No booking: a reminder at 7 days and Ops contact at 14 days. Actual blockers take precedence: no fitting work is an owner task; an extract still in the post cannot have its check booked yet. Contact outcomes change the next action. A booked drive without delivery stays operational work; a released reservation leaves the customer transport visible as unassigned.
+Drivers self-book matching jobs. Ready drivers without a booking receive a reminder at day 7 and Ops contact at day 14 after acceptance. These are separate from the three pre-decision document nudges (2/24/72 h); outstanding extracts use the pre-drive-check flow. Actual blockers take precedence: no fitting work is an owner task; an extract still in the post cannot have its check booked yet. Contact outcomes change the next action. A booked drive without delivery stays operational work; a released reservation leaves the customer transport visible as unassigned.
 
 At 14 days, an incomplete application gets a **human review**, not a claim that the driver has not responded. Check recent replies/progress before closing; keep engaged applicants open. Administrative closure is distinct from a suitability rejection.
 
 ## Measure and improve
 
 Four primary metrics:
-- **Application → active:** first delivery within 30 days of registration among registrations with 30+ days of follow-up; all mature history. Pilot target 35%; case cohort baseline unknown.
+- **New active ÷ applications:** new active drivers divided by new applications in the last 30 days. Target 35%; the case's monthly flow is 25/120 ≈21%. This compares monthly flows, not the conversion of the same applicants.
 - **Documents within 7 days:** mature registrations; pilot target 85%. The case's ~70% has no defined completion window.
 - **Mean decision time:** registration to first human decision, comparable to the case's six-day mean and 48-hour target. Median, share within 48 h and open overdue work remain available.
 - **Activation within 14 days:** initial acceptances with 14+ days of follow-up; pilot target 75%, based on completed drives.
 
-Acceptance, first-drive delivery outcome and the monthly flow ratio sit under **Guardrails and throughput**. Delivery outcome uses the original deadline, incident status and assessed customer feedback; customer-caused incidents are not driver fault. Unknown feedback stays unknown. The 95% outcome guardrail is a pilot hypothesis. Monthly new active ÷ applications is throughput across different people, not conversion or a target.
+Acceptance, first-drive delivery outcome and mature-cohort conversion sit under **Guardrails and cohort detail**. Delivery outcome uses the original deadline, incident status and assessed customer feedback; customer-caused incidents are not driver fault. Unknown feedback stays unknown. The 95% outcome guardrail is a pilot hypothesis. Mature-cohort conversion is first delivery within 30 days among registrations aged 30+ days. It is a supporting diagnostic without a target; 35% belongs only to the monthly flow KPI.
 
 Weekly: identify a blocker, choose one process change and compare appropriate outcomes. The report has numerical checks, not a guarantee that its interpretation is correct. No business improvement is claimed from demo actions. No driver-capacity or recruitment conclusion is drawn from a fixed jobs-per-driver ratio. AI answer share is diagnostic, with no 95% automation target.
 
@@ -44,7 +44,7 @@ Five days before a conditional first booking is a planning floor, **not a guaran
 
 ## Explore the demo
 
-**Explore cases** starts an eleven-step user walkthrough with fresh data. Each step links a problem to its solution and a normal control. A focus border and scroll point to the relevant area. The guide does not accept, book, deliver or invent customer replies. Navigation stays free; completion and prerequisites say what actually happened. Step 5 starts a blank application; Ahmed remains the same person from review through first delivery. Ida and Anton are explicit separate blocker examples. The optional weekly report and HubSpot mapping are supporting detail, not extra required demo steps.
+**Explore cases** starts a sixteen-step user walkthrough with fresh data: nine Case 1 actions, then seven Case 2 actions. Case 1 is a labelled solution replay from arrival at 09:05, with phone and Live Ops side by side; the original brief remains a separate 09:30 call after 25 minutes waiting. Each step links a problem to its solution and a normal control. A focus border and scroll point to the relevant area. The guide does not accept, book, deliver or invent customer replies. Navigation stays free; completion and prerequisites say what actually happened. The first Case 2 step starts a blank application; Ahmed remains the same person from review through first delivery. Ida and Anton are explicit separate blocker examples. The optional weekly report and HubSpot mapping are supporting detail, not extra required demo steps.
 
 ## Run
 

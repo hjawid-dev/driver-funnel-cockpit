@@ -209,12 +209,12 @@ describe('threads', () => {
     expect(waitingThreads(threads).some((t) => t.name === 'Julia Lindgren')).toBe(false);
     expect(contentGaps(threads).length).toBeGreaterThanOrEqual(2);
   });
-  it('alerts after 5 minutes, and puts it first, when something is wrong on a drive', () => {
+  it('alerts after 10 minutes, and puts it first, when something is wrong on a drive', () => {
     const normal = askForPerson(emptyThread(a), NOW - MIN);
     const urgent = addAiAnswer(addDriverMessage(emptyThread(mk({ id: 'DRV-2002', name: 'Julia Lindgren' })), 'keys missing!', NOW), 'A person is coming.', [], 'urgent', NOW);
     expect(waitingThreads([normal, urgent])[0]).toBe(urgent);
     const ev = chatEvents([normal, urgent], NOW, NOW + 10 * MIN);
-    expect(ev).toEqual([expect.objectContaining({ at: NOW + 5 * MIN, title: expect.stringMatching(/^Urgent: Julia Lindgren/) })]);
+    expect(ev).toEqual([expect.objectContaining({ at: NOW + 10 * MIN, title: expect.stringMatching(/^Urgent: Julia Lindgren/) })]);
   });
   it('tells the assistant when the driver is on a drive right now', () => {
     const onDrive = mk({ decision: { type: 'accepted', at: NOW - DAY, by: 'Hjalmar' }, firstGig: { bookedFor: NOW - 20 * MIN } });

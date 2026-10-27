@@ -54,10 +54,10 @@ describe('Play the case: Part 1 as the brief gives it', () => {
     expect(t.messages.length).toBeGreaterThan(0);
   });
 
-  it('the normal demo day is unchanged: Julia reported 9 minutes ago, with the pre-pickup check', () => {
+  it('the default demo day has an overdue ten-minute call, with the pre-pickup check', () => {
     const day = seedJobs(generateSeed(NOW), NOW).find((j) => j.driverName === 'Julia Lindgren')!;
     expect(day.asInCase).toBeUndefined();
-    expect((NOW - day.problemAt!) / MIN).toBe(9);
+    expect((NOW - day.problemAt!) / MIN).toBe(11);
     expect(pickupChecks(day, NOW)).toHaveLength(2);
   });
 });

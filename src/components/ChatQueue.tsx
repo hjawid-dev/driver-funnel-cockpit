@@ -40,7 +40,7 @@ export function ChatQueue({ threads, now, onThread, onViewChat, only }: Props) {
         <section>
           <SectionHeader
             title={`Waiting for a person · ${waiting.length}`}
-            info={<p>Questions the assistant handed over. Reply within {formatDuration(CHAT_SLA_MS)}, or 5 minutes when something is wrong on a drive happening now. Urgent ones are always on top.</p>}
+            info={<p>Questions the assistant handed over. Reply within {formatDuration(CHAT_SLA_MS)}, or 10 minutes when something is wrong on a drive happening now. Urgent ones are always on top.</p>}
           />
           {waiting.length === 0 ? (
             <p className="flex items-center gap-2 rounded-xl bg-card p-4 text-sm text-muted">

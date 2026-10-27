@@ -57,7 +57,7 @@ export function byOpsPriority(jobs: Job[], now: number): Job[] {
 
 /** The playbook step to do now on an open incident: the first one not done. Null when only closing is left, or nothing. */
 export function currentStep(j: Job, now?: number): PlaybookStep | null {
-  if (j.incident?.outcome) return j.incident.closedAt !== undefined ? null : PLAYBOOK.find(s => s.key === 'close')!;
+  if (j.incident?.outcome) return j.incident.closedAt !== undefined ? null : PLAYBOOK.find(s => s.key === (j.incident?.rebooking?.status === 'open' ? 'decide' : 'close'))!;
   if (now !== undefined && !j.incident?.outcome && now >= incidentClock(j, now).decideBy) return PLAYBOOK.find(s => s.key === 'decide')!;
   const steps = j.incident?.steps ?? {};
   return PLAYBOOK.find((s) => !steps[s.key] && !(s.key === 'decide' && j.incident?.outcome)) ?? null;

@@ -91,13 +91,14 @@ describe('pre-pickup check', () => {
 });
 
 describe('alerts: the app notices before anyone has to call', () => {
-  it('normal check-in allows five minutes for keys; an explicit problem still escalates after five assistant minutes', () => {
+  it('normal check-in allows five minutes for keys, then ten assistant minutes', () => {
     const j = checkIn(job(), NOW);
     expect(assisting(j, NOW + 4 * MIN)).toBeNull();
-    expect(assisting(j, NOW + 5 * MIN)).toEqual({ since: NOW + 5 * MIN, until: NOW + 10 * MIN });
+    expect(assisting(j, NOW + 5 * MIN)).toEqual({ since: NOW + 5 * MIN, until: NOW + 15 * MIN });
     expect(jobAlert(j, NOW + 4 * MIN)).toBeNull();
-    expect(jobAlert(j, NOW + 10 * MIN)).toMatchObject({ kind: 'escalated', why: 'time', at: NOW + 10 * MIN });
-    expect(assisting(j, NOW + 10 * MIN)).toBeNull();
+    expect(jobAlert(j, NOW + 10 * MIN)).toBeNull();
+    expect(jobAlert(j, NOW + 15 * MIN)).toMatchObject({ kind: 'escalated', why: 'time', at: NOW + 15 * MIN });
+    expect(assisting(j, NOW + 15 * MIN)).toBeNull();
   });
   it('not checked in 10 minutes after pickup time', () => {
     expect(jobAlert(job(), NOW + 11 * MIN)?.kind).toBe('not_arrived');
@@ -113,7 +114,7 @@ describe('alerts: the app notices before anyone has to call', () => {
   it('a problem the driver reports goes to the assistant first, not to a person', () => {
     const j = reportProblem(job(), NOW + MIN);
     expect(jobAlert(j, NOW + MIN)).toBeNull();
-    expect(assisting(j, NOW + MIN)?.until).toBe(NOW + 6 * MIN);
+    expect(assisting(j, NOW + MIN)?.until).toBe(NOW + 11 * MIN);
     // Reporting is not sending: nothing goes to the customer until the driver taps Send.
     expect(j.texts).toBeUndefined();
     expect(assistantLog(j, NOW + MIN).map((e) => e.text).join(' ')).not.toMatch(/Automated text/);
@@ -173,7 +174,7 @@ describe('alerts: the app notices before anyone has to call', () => {
     expect(t.status).toBe('ai');
     expect(t.messages.at(-1)?.text).toMatch(/We texted the service desk and the site manager for you.*waiting time is paid.*a person from ops calls you/);
     // Texts switched off: the reply says a person calls, never that anyone was texted.
-    expect(pickupReported(emptyThread(null), 'keys_missing', ['service desk'], null, NOW, false).messages.at(-1)?.text).toMatch(/^Thanks. A person from ops calls you within 5 minutes/);
+    expect(pickupReported(emptyThread(null), 'keys_missing', ['service desk'], null, NOW, false).messages.at(-1)?.text).toMatch(/^Thanks. A person from ops calls you now/);
     expect(chatStats([t], NOW + MIN)).toMatchObject({ handedOver: 0, byAi: 1 });
     expect(pickupReported(emptyThread(null), 'unsafe', [], null, NOW).messages.at(-1)?.text).toMatch(/112/);
   });
@@ -288,11 +289,11 @@ describe("the driver's phone says one thing at a time", () => {
   it('assistant, waiting for the call, ops on it, decided: one state, never two', () => {
     const reported = reportProblem(job(), NOW + MIN);
     expect(driverIncidentState(reported, NOW + 2 * MIN)).toBe('assistant');
-    expect(driverIncidentState(reported, NOW + 7 * MIN)).toBe('waiting_call'); // the assistant's 5 minutes ran out
+    expect(driverIncidentState(reported, NOW + 11 * MIN)).toBe('waiting_call'); // ten minutes from the reported problem
     const called = markStep(reported, 'keep_driver', NOW + 8 * MIN);
     expect(driverIncidentState(called, NOW + 8 * MIN)).toBe('ops_working');
     const decided = setOutcome(called, 'keys_found', NOW + 12 * MIN);
-    expect(driverIncidentState(decided, NOW + 12 * MIN)).toBe('decided'); // no more "a person calls you within 5 minutes"
+    expect(driverIncidentState(decided, NOW + 12 * MIN)).toBe('decided'); // no new countdown after the decision
     expect(driverIncidentState(job(), NOW)).toBeNull();
   });
   it('the timeline shows what happened, in order', () => {
@@ -327,8 +328,8 @@ describe('the demo day', () => {
 
   it('Julia is the case: pilot customer, 35 km, 500/780 SEK, no keys, nobody confirmed; the assistant tried, then a person', () => {
     expect(julia).toMatchObject({ pilot: true, km: 35, reward: 500, price: 780 });
-    expect(jobAlert(julia, NOW)).toMatchObject({ kind: 'escalated', why: 'time', at: NOW - 4 * MIN });
-    expect(assistantLog(julia, NOW).map((e) => e.at - NOW)).toEqual([-9 * MIN, -9 * MIN, -9 * MIN, -4 * MIN]);
+    expect(jobAlert(julia, NOW)).toMatchObject({ kind: 'escalated', why: 'time', at: NOW - MIN });
+    expect(assistantLog(julia, NOW).map((e) => e.at - NOW)).toEqual([-11 * MIN, -11 * MIN, -11 * MIN, -MIN]);
     expect(pickupChecks(julia, NOW).map((c) => c.state)).toEqual(['no_reply', 'no_reply']);
     expect(openIncidents(jobs, NOW).map((j) => j.id)).toEqual([julia.id]);
     expect(currentJob(jobs, julia.driverId, NOW)?.id).toBe(julia.id);

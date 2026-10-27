@@ -76,8 +76,9 @@ describe('application → active (north star)', () => {
   it('new active drivers ÷ new applications in the last 30 days', () => {
     const apps = [accepted(10, 2), mk({ registeredAt: NOW - DAY }), mk({ registeredAt: NOW - 2 * DAY }), mk({ registeredAt: NOW - 40 * DAY })];
     const k = kpi(apps, 'appToActive');
-    expect(k.northStar).not.toBe(true);
-    expect(k.status).toBe('info');
+    expect(k.northStar).toBe(true);
+    expect(k.target).toBe('Target 35%');
+    expect(k.status).toBe('risk');
     expect(k.caption).toContain('1 new active ÷ 3 applications');
   });
 });

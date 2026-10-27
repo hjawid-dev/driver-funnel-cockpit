@@ -7,8 +7,8 @@ import { REASON_LABEL, type PickupReason } from '../sms';
 
 /** Ops answers a handed-over question within this time (staffed hours). */
 export const CHAT_SLA_MS = 15 * MIN;
-/** Something is wrong on a drive happening now: a person answers within 5 minutes, around the clock. */
-export const CHAT_SLA_URGENT_MS = 5 * MIN;
+/** Something is wrong on a drive happening now: a person answers within 10 minutes, around the clock. */
+export const CHAT_SLA_URGENT_MS = 10 * MIN;
 
 export function slaFor(t: ChatThread): number {
   return t.reason === 'urgent' ? CHAT_SLA_URGENT_MS : CHAT_SLA_MS;
@@ -110,7 +110,7 @@ export function pickupReported(t: ChatThread, reason: PickupReason, roles: strin
   // A reason with a template sends the text on the tap; if it couldn't go out, a person has it already.
   const texts = texted
     ? `Thanks. We texted the ${roles.join(' and the ')} for you. Stay where you are: your waiting time is paid.${by}`
-    : 'Thanks. A person from ops calls you within 5 minutes. Stay where you are: your waiting time is paid.';
+    : `Thanks. A person from ops calls you${until ? ` by ${hm(until)}` : ' now'}. Stay where you are: your waiting time is paid.`;
   const reply: Record<PickupReason, string> = {
     keys_missing: texts,
     no_contact: texts,
@@ -127,7 +127,7 @@ export function textsSentNote(t: ChatThread, roles: string[], body: string, now:
   return add(t, { from: 'note', text: `Sent to the ${roles.join(' and the ')}: "${body}"`, at: now });
 }
 
-/** The driver asked for a call ("Call me now"): a person calls within 5 minutes; Live ops has it as urgent. */
+/** The driver asked for a call ("Call me now"): a person calls within 10 minutes; Live ops has it as urgent. */
 export function callRequested(t: ChatThread, now: number): ChatThread {
   return add(add(t, { from: 'driver', text: 'Please call me.', at: now }), { from: 'note', text: "Okay, I've asked ops to call you.", at: now });
 }
@@ -367,9 +367,9 @@ const HISTORY: { name: string; daysAgo: number; lines: Line[]; waiting?: Handove
     ['ai', 'Wait 15 minutes and message ops here in the chat. Never leave the keys anywhere the job doesn\'t say.', 0.2, { sources: ['delivery'] }],
     // Today, 9 minutes ago (when her job's problemAt is): stuck at the pickup. She picked the reason, the fixed text went out, then a person.
     ['driver', "I'm at the pickup in Solna and the keys aren't in the key box. The dealer isn't answering.", 1287],
-    ['ai', "Stay where you are, Julia: your waiting time is paid. Tap what's wrong below, and the pickup contact gets a fixed message. If it isn't solved within 5 minutes, a person from ops calls you.", 1287.1, { sources: ['waiting-pickup'], handover: 'pickup' }],
+    ['ai', "Stay where you are, Julia: your waiting time is paid. Tap what's wrong below, and the pickup contact gets a fixed message. If it isn't solved within 10 minutes, a person from ops calls you.", 1287.1, { sources: ['waiting-pickup'], handover: 'pickup' }],
     ['driver', "Problem at the pickup: keys aren't where the job says.", 1287.2],
-    ['ai', 'Thanks. We texted the service desk and the site manager for you. Stay where you are: your waiting time is paid. If it isn\'t solved within 5 minutes, a person from ops calls you.', 1287.3],
+    ['ai', 'Thanks. We texted the service desk and the site manager for you. Stay where you are: your waiting time is paid. If it isn\'t solved within 10 minutes, a person from ops calls you.', 1287.3],
   ] },
   { name: 'Emma Holmberg', daysAgo: 1.4, lines: [
     ['driver', 'Can I cancel a job I took for Saturday?', 0],

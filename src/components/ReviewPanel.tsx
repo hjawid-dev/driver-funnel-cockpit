@@ -105,7 +105,7 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
                     </Tick>
                   )}
                   {m.key === 'licence' && a.docs.licence === 'uploaded' && <button type="button" onClick={() => onUpdate(receiveDocument(a, 'licence', 'verified', now))} className="mt-1 text-xs font-semibold text-indigo">Log licence validity and years verified</button>}
-                  {m.key === 'id' && a.docs.id === 'uploaded' && <button type="button" onClick={() => onUpdate(receiveDocument({ ...a, idMethod: 'manual' }, 'id', 'verified', now))} className="mt-1 text-xs font-semibold text-indigo">Log manual identity check completed</button>}
+                  {!hardReject && m.key === 'id' && (a.idMethod === 'manual' || a.docs.id === 'uploaded') && ['uploaded', 'verified'].includes(a.docs.id) && <Tick checked={a.docs.id === 'verified'} onChange={v => onUpdate(receiveDocument({ ...a, idMethod: 'manual' }, 'id', v ? 'verified' : 'uploaded', now))}>Identity verified manually by reviewer</Tick>}
                   {!hardReject && m.key === 'photo' && photoSubmitted && (
                     <Tick checked={!!a.photoApproved} onChange={(v) => onUpdate(setPhotoApproved(a, v, now))}>
                       Photo meets the standard

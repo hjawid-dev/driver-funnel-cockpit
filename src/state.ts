@@ -2,12 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Applicant, Gig } from './lib/types';
 import { generateSeed } from './lib/seed';
 import { firstGigOffers } from './lib/gigs';
-import { firstDriveResult, replacementJob, syncFirstDrive } from './lib/liveOps';
+import { firstDriveResult, replacementJob, solutionExample, syncFirstDrive } from './lib/liveOps';
 import { materializeAutomation } from './lib/automation';
 import { completeFirstGig } from './lib/actions';
 import { generateGigs } from './lib/gigs';
 import { restore, serialize, STORAGE_KEY, type DemoData } from './lib/persist';
-import { seedThreads } from './lib/chat/threads';
+import { emptyThread, seedThreads } from './lib/chat/threads';
 import type { ChatThread } from './lib/chat/types';
 import { seedJobs, type Job } from './lib/liveOps';
 import { MIN } from './lib/time';
@@ -71,7 +71,7 @@ export function useClock(intervalMs = 30_000) {
   return { now, offset, advance, resetTime, setTo, pause, resume };
 }
 
-function fresh(now: number, asInCase = false): DemoData {
+function fresh(now: number, asInCase = false, replay = false): DemoData {
   const apps = generateSeed(now).map(a => materializeAutomation(a, now));
   const gigs = generateGigs(now);
   for (let i = 0; i < apps.length; i++) {
@@ -81,7 +81,11 @@ function fresh(now: number, asInCase = false): DemoData {
       apps[i] = { ...a, firstGig: available ? { gigId: available.id, bookedFor: available.at, bookedAt: now - MIN } : undefined };
     }
   }
-  return { apps, gigs, threads: seedThreads(apps, now, asInCase ? null : 9 * MIN), jobs: apps.reduce((jobs, a) => syncFirstDrive(jobs, a, gigs), seedJobs(apps, now, { asInCase })) };
+  const baseJobs = seedJobs(apps, now, { asInCase });
+  if (replay) { const index = baseJobs.findIndex(j => j.asInCase); if (index >= 0) baseJobs[index] = solutionExample(baseJobs[index]); }
+  const threads = seedThreads(apps, now, asInCase ? null : 11 * MIN);
+  const replayDriver = replay && baseJobs.find(j => j.solutionExample)?.driverId;
+  return { apps, gigs, threads: threads.map(t => t.applicantId === replayDriver ? emptyThread(apps.find(a => a.id === replayDriver)!) : t), jobs: apps.reduce((jobs, a) => syncFirstDrive(jobs, a, gigs), baseJobs) };
 }
 
 function load(): DemoData {
@@ -163,8 +167,8 @@ export function useDemoData() {
       }
       let jobs = d.jobs.map(j => j.id === next.id ? next : j);
       const replacement = replacementJob(next);
-      if (replacement?.firstDrive && driver && !driver.firstGig?.doneAt && driver.firstGig?.gigId === next.id) {
-        apps = apps.map(a => a.id !== driver.id ? a : { ...a, firstGig: { ...a.firstGig, gigId: replacement.id, bookedFor: replacement.pickupAt, bookedAt: next.incident!.rebooking!.bookedAt }, events: [...(a.events ?? []), { kind: 'booked', at: next.incident!.rebooking!.bookedAt!, by: 'Hjalmar', reason: replacement.id }] });
+      if (replacement && driver && !driver.firstGig?.doneAt && driver.firstGig?.gigId === next.id) {
+        apps = apps.map(a => a.id !== driver.id ? a : { ...a, firstGig: replacement.driverId === driver.id ? { ...a.firstGig, gigId: replacement.id, bookedFor: replacement.pickupAt, bookedAt: next.incident!.rebooking!.bookedAt } : undefined, events: [...(a.events ?? []), { kind: replacement.driverId === driver.id ? 'booked' : 'released', at: next.incident!.rebooking!.bookedAt!, by: 'Hjalmar', reason: replacement.id }] });
       }
       if (replacement && !jobs.some(j => j.id === replacement.id)) jobs = [...jobs, replacement];
       return { ...d, apps, jobs, gigs: next.incident?.outcome && next.incident.outcome.type !== 'keys_found' ? d.gigs.filter(g => g.id !== next.id) : d.gigs };
@@ -177,8 +181,8 @@ export function useDemoData() {
   }, []);
 
   /** Fresh demo data; returns the applicants so callers can take a new baseline. */
-  const reset = useCallback((at = Date.now(), asInCase = false): Applicant[] => {
-    const next = fresh(at, asInCase);
+  const reset = useCallback((at = Date.now(), asInCase = false, replay = false): Applicant[] => {
+    const next = fresh(at, asInCase, replay);
     setData(next);
     return next.apps;
   }, []);

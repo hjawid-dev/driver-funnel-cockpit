@@ -36,7 +36,7 @@ const ROWS: { cockpit: string; hubspot: string; required: string; workflow: stri
     cockpit: 'Driver questions',
     hubspot: 'Help desk ticket (chat handover)',
     required: 'handover_reason (asked / not in articles / account / sensitive / urgent) · urgent = ongoing drive',
-    workflow: 'Routed to driver ops · SLA alert at 15 min, 5 min when urgent · "not in articles" adds a knowledge-base task',
+    workflow: 'Routed to driver ops · SLA alert at 15 min, 10 min when urgent · "not in articles" adds a knowledge-base task',
   },
   {
     cockpit: 'Rejected',
