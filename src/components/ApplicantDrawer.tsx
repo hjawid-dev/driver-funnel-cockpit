@@ -89,11 +89,12 @@ export function ApplicantDrawer({ applicant: a, apps, gigs, now, onClose, onUpda
               {stage === 'accepted' && <div className={`mt-1 text-xs ${next.needsAction ? 'text-white/75' : 'text-muted'}`}>{next.status}</div>}
             </div>
           )}
-          <Facts a={a} now={now} />
+          <p className="text-xs text-muted">Owner: <strong className="text-navy">{a.owner ?? 'Hjalmar'}</strong>{(stage === 'review' || stage === 'registered') && <> · Decide by <span className="num">{formatDateTime(a.registeredAt + 48 * 3600000)}</span></>}</p>
           {stage === 'registered' && <MissingPanel key={a.id} a={a} now={now} onResult={onResult} />}
           {stage === 'accepted' && <ActivationPanel key={a.id} a={a} apps={apps} gigs={gigs} now={now} onUpdate={onUpdate} onResult={onResult} onViewAsDriver={onViewAsDriver} />}
           {stage !== 'review' && <Documents a={a} />}
           {stage === 'review' && <ReviewPanel key={a.id} a={a} now={now} onUpdate={onUpdate} onResult={onResult} />}
+          <CollapsibleSection title="Applicant details"><Facts a={a} now={now} /></CollapsibleSection>
           <Timeline a={a} now={now} />
           <Log a={a} />
         </div>

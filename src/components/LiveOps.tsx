@@ -529,12 +529,10 @@ function AssistWork({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJo
           <span className="block text-xs font-normal text-muted">unless the keys are found first</span>
         </Now>
       </div>
-      <TimeList entries={assistantLog(j, now)} />
-      {sent && (
-        <blockquote className="rounded-lg border border-lavender bg-card/50 px-3 py-2 text-xs leading-relaxed">
-          <span className="font-semibold">Sent {hm(sent.at)}:</span> {sent.body}
-        </blockquote>
-      )}
+      <CollapsibleSection title="Contact message and activity" summary={`${assistantLog(j, now).length} events`}>
+        <TimeList entries={assistantLog(j, now)} />
+        {sent && <blockquote className="mt-2 rounded-lg border border-lavender bg-card/50 px-3 py-2 text-xs leading-relaxed"><span className="font-semibold">Sent {hm(sent.at)}:</span> {sent.body}</blockquote>}
+      </CollapsibleSection>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => onJob(escalate(j, 'ops', now), `${j.id}: you took over from the assistant.`)} className={BTN}>
           Take over now
@@ -728,9 +726,11 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
           <button data-guide="booking-correct" type="button" disabled={done} onClick={() => onJob(recordOwnError(j, false, '', now), 'Booking details checked and correct.')} className={BTN}>
             <Check size={14} aria-hidden /> Log checked: our details are right
           </button>
+          <details className="text-sm"><summary className="cursor-pointer font-semibold text-indigo">Details are incorrect — record a correction</summary><div data-guide="booking-error" className="mt-2 space-y-2">
           <label className="block text-xs">Corrected pickup address<input aria-label="Corrected pickup address" value={correctedFrom} onChange={e => setCorrectedFrom(e.target.value)} maxLength={150} className="block w-full rounded border p-2" /></label><label className="block text-xs">Corrected contact phone<input aria-label="Corrected contact phone" value={correctedContact} onChange={e => setCorrectedContact(e.target.value)} maxLength={30} className="block w-full rounded border p-2" /></label>
           <label className="block text-xs">Or record an error and what was corrected<input aria-label="Booking correction" value={correction} onChange={e => setCorrection(e.target.value)} maxLength={300} className="mt-1 block w-full rounded border p-2 text-sm" /></label>
           <button data-guide="booking-correction-save" type="button" disabled={!correction.trim()} onClick={() => onJob(recordOwnError({ ...j, from: correctedFrom.trim(), contact: { ...j.contact, phone: correctedContact.trim() } }, true, correction, now), 'Our booking error and correction logged. Call the booker with the corrected details.')} className={BTN}>Log error found and corrected</button>
+          </div></details>
         </>
       );
     }

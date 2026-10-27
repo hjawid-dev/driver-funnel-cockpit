@@ -67,7 +67,9 @@ describe('requested process corrections', () => {
     expect(guideStatus('onboarding', data).kind).toBe('pending');
     const a = mk({ id: 'NEW', source: 'self', name: 'User entered name' });data.apps = [...apps, a];
     expect(guideDestination('onboarding', data, a.id).driverId).toBe(a.id);
-    expect(guideStatus('onboarding', data, a.id).kind).toBe('complete');
+    expect(guideStatus('onboarding', data, a.id).kind).toBe('pending');
+    expect(guideStatus('onboarding', data, a.id).text).toContain('Registration saved');
+    expect(guideStatus('onboarding', { ...data, apps: [...apps, { ...a, docsCompleteAt: at }] }, a.id).kind).toBe('complete');
     expect(guideStatus('criteria', data).kind).toBe('pending');
     const targets = followUpTargets(data, at);
     expect(targets.reminder?.name).toBe('Ida Sjöberg');expect(targets.call?.name).toBe('Anton Wallin');

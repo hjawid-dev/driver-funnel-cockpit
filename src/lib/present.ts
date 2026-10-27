@@ -37,6 +37,44 @@ export const PRESENT_STEPS: PresentStep[] = [
   { key: 'measure', part: 2, title: 'Improve the process using actual outcomes.', solution: 'Track monthly new active/applications (target 35%), documents, decision time and first-drive activation.', instruction: 'Inspect the four metrics; use the report to choose one weekly improvement.', location: 'Funnel metrics' },
 ];
 
+/** Chapters describe the process; the existing steps and business actions stay intact. */
+export const PRESENT_CHAPTERS: { part: 1 | 2; label: string; keys: PresentKey[] }[] = [
+  { part: 1, label: 'Report & AI', keys: ['incident', 'assistant'] },
+  { part: 1, label: 'Ops takes over', keys: ['playbook', 'booking_check', 'contact', 'customer'] },
+  { part: 1, label: 'Decision & closure', keys: ['decision', 'close'] },
+  { part: 1, label: 'Prevention', keys: ['prevent'] },
+  { part: 2, label: 'Documents', keys: ['onboarding', 'reminders'] },
+  { part: 2, label: 'Decision within 48h', keys: ['queue', 'criteria'] },
+  { part: 2, label: 'First drive', keys: ['activate'] },
+  { part: 2, label: 'Follow-up', keys: ['followup'] },
+  { part: 2, label: 'Measure', keys: ['measure'] },
+];
+
+export function guideIntro(key: PresentKey, data: DemoData, viewedName: string | null = null) {
+  const j = incidentTarget(data.jobs), a = reviewTarget(data.apps);
+  const intros: Record<PresentKey, { role: string; title: string; context: string }> = {
+    incident: { role: 'Driver · Julia', title: 'Report missing keys', context: 'Delivery is due at 12:00. Report the pickup problem on Julia’s phone so Ops sees it immediately.' },
+    assistant: { role: 'Driver · Julia → AI', title: 'Get help immediately', context: 'AI contacts the pickup site. Try “Still waiting”; if unresolved, Ops calls within 10 minutes of the report.' },
+    playbook: { role: 'Ops · Julia’s pickup', title: 'Call Julia and take ownership', context: 'The problem is unresolved. Confirm paid waiting and explain what happens next.' },
+    booking_check: { role: 'Ops · Julia’s pickup', title: 'Check our booking first', context: 'Verify the pickup details before escalating to the site. Record a correction only if something is wrong.' },
+    contact: { role: 'Ops · Julia’s pickup', title: 'Call the contact and backup', context: 'Use the same incident record to see what AI tried, then log the human contact attempts.' },
+    customer: { role: 'Ops · Julia’s pickup', title: 'Keep the customer informed', context: 'Log the customer update, then confirm the pilot account owner was told.' },
+    decision: { role: 'Ops · Customer’s decision', title: 'Record the agreed outcome', context: 'Choose the customer’s outcome. A new time needs pickup and delivery deadlines; the same driver is optional.' },
+    close: { role: 'Ops · Julia’s incident', title: 'Close the incident responsibly', context: 'Record compensation, cause and follow-up. Any replacement needing a driver stays open.' },
+    prevent: { role: 'Ops · Separate pickup example', title: 'Catch the problem before arrival', context: 'Omar’s pickup shows the preventive checks: confirmation messages first, calls only when replies are missing.' },
+    onboarding: { role: 'Driver · Your new application', title: 'Make documents easy to finish', context: 'About 30% leave documents unfinished. Try the short application, then follow its missing-item checklist.' },
+    reminders: { role: 'Driver → Ops · Separate example: Nora', title: 'Recover an unfinished application', context: 'Nora is missing her licence. Read the reminder, then log the owner’s manual follow-up in Ops.' },
+    queue: { role: 'Ops · Decision queue', title: 'Prioritise the 48-hour deadline', context: 'Decisions take about six days in the case. Open the oldest deadline and inspect its Next step.' },
+    criteria: { role: 'Ops · Ahmed’s application', title: 'Apply the same written checks', context: 'Complete Ahmed’s checks and record the permitted decision. His 1.5 licence years means simple drives first.' },
+    activate: { role: 'Driver · Ahmed → Live Ops', title: 'Turn acceptance into a first delivery', context: a?.firstGig?.doneAt ? 'Ahmed has delivered and is active. Next, explore separate examples of drivers who have not booked.' : a?.firstGig?.bookedFor ? 'First drive booked — not active yet. Open the same job in Live Ops and follow it through delivery.' : a?.decision?.type === 'rejected' ? 'Ahmed was rejected, so booking is unavailable. Revisit his checks or continue to the separate follow-up examples.' : !a?.decision ? 'Ahmed needs a review decision before offers are available. Open his checks to continue.' : 'Ahmed chooses a suitable first drive himself. Book on his phone, then follow the same transport through delivery.' },
+    followup: { role: viewedName === 'Ida Sjöberg' ? 'Separate example · Ida · Driver' : viewedName === 'Anton Wallin' ? 'Separate example · Anton · Ops' : 'Ops · Separate follow-up examples', title: 'Act on the actual blocker', context: viewedName === 'Ida Sjöberg' ? 'Read Ida’s earlier day-7 reminder in her messages. Ready drivers still unbooked at day 14 get Ops contact; document reminders are separate.' : viewedName === 'Anton Wallin' ? 'Anton has no matching drive. The owner checks route demand and availability; another reminder will not solve that blocker.' : 'Compare Ida’s day-7 reminder with Anton’s missing route match. Ahmed’s booking and delivery stay unchanged.' },
+    measure: { role: 'Ops manager · Process review', title: 'Measure whether the process improves', context: 'Documents → completion. Reviews → decision time. First drives → activation. New active ÷ applications has the 35% target.' },
+  };
+  const intro = intros[key];
+  if (key === 'prevent' && j?.incident?.outcome?.type === 'keys_found' && !j.incident.steps.keep_driver) return { ...intro, context: 'The pickup was solved before human takeover, so escalation was unnecessary. Omar’s separate example shows prevention.' };
+  return intro;
+}
+
 // The people are deliberately stable: Julia for the incident, Nora for documents, Ahmed from review to delivery.
 export const reviewTarget = (apps: Applicant[]) => apps.find(a => a.name === 'Ahmed Hassan') ?? null;
 export const activationTarget = (apps: Applicant[], _gigs?: Gig[], _now?: number) => reviewTarget(apps);
@@ -106,7 +144,10 @@ export function guideStatus(key: PresentKey, data: DemoData, newApplicantId: str
     return j?.incident?.outcome && (!task || task.status === 'booked') ? complete(task && !task.driverConfirmed ? 'New time logged; replacement still needs a driver.' : 'Decision recorded.') : pending(j?.incident?.outcome && task ? 'Confirm the new pickup and delivery deadline; same-driver confirmation is optional.' : 'Choose the customer’s outcome in Decision point.');
   }
   if (key === 'close') return j?.incident?.closedAt ? complete('Incident closed. Any unassigned replacement remains open work.') : pending('Complete compensation, cause and pilot follow-up, then close the incident.');
-  if (key === 'onboarding') return newApplicantId && data.apps.some(x => x.id === newApplicantId) ? complete('Registration tried; documents are not complete yet. Explore the checklist, then see Nora’s reminder example.') : pending('Start application, enter your demo details and press Continue.');
+  if (key === 'onboarding') {
+    const own = data.apps.find(x => x.id === newApplicantId);
+    return own?.docsCompleteAt ? complete('Document checklist complete.') : own ? pending('Registration saved — continue with the document checklist.') : pending('Start application and enter demo details.');
+  }
   if (key === 'criteria') return a?.decision ? complete(a.decision.type === 'rejected' ? 'Decision recorded: rejected. The first-drive step will explain why booking is unavailable.' : 'Ahmed accepted. Continue to his first drive.') : pending('Read the criteria, complete the required checks and record the decision.');
   if (key === 'activate') return a?.firstGig?.doneAt ? complete('Ahmed delivered the first drive and is active.') : a?.firstGig?.bookedFor ? pending('Booking recorded, not active yet. Open the job in Live Ops; use demo time and the driver’s normal controls through delivery.') : a?.decision?.type === 'rejected' ? pending('Ahmed was rejected; no offers can be booked. You can continue to the follow-up examples.') : !a?.decision ? pending('Complete Ahmed’s review decision before choosing a drive.') : pending('Choose a matching route using Pick this drive on Ahmed’s phone.');
   return { kind: 'explore', text: '' };

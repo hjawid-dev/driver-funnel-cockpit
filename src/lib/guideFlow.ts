@@ -12,7 +12,7 @@ export function guideAdvance(before: GuideSnapshot, after: GuideSnapshot, part: 
     const p = incidentTarget(before.data.jobs), j = incidentTarget(after.data.jobs);
     if (!p || !j || p.id !== j.id) return null;
     const a = p.incident, b = j.incident;
-    if (b?.closedAt && !a?.closedAt) return next('prevent', 'Incident closed');
+    if (b?.closedAt && !a?.closedAt) return next('prevent', b.outcome?.type === 'keys_found' && !b.steps.keep_driver ? 'Pickup solved before human takeover · escalation not needed' : 'Incident closed · unfinished transport work stays open');
     if ((b?.rebooking?.status === 'booked' && a?.rebooking?.status !== 'booked') || (b?.outcome && !a?.outcome && !b.rebooking)) return next('close', 'Customer decision saved');
     const customerDone = (i: typeof a) => !!i?.steps.customer && (!j.pilot || !!i.accountOwnerAt);
     if (customerDone(b) && !customerDone(a)) return next('decision', 'Customer and account owner updated');

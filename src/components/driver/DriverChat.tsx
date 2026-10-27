@@ -84,6 +84,8 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
   const assist = job ? assisting(job, now) : null;
   // A stuck pickup speaks for itself, in one place: the thread's own banner stays out of the way.
   const onPickup = !!job && !!driverIncidentState(job, now) && !['driving', 'delivered'].includes(driverStatus(job, now));
+  const history = onPickup && job?.problemAt ? timeline.filter(m => m.at < job.problemAt!) : [];
+  const currentMessages = history.length ? timeline.filter(m => m.at >= job!.problemAt!) : timeline;
   const until = assist ? new Date(assist.until).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
   // While the assistant has the pickup: first what is wrong (the same short list as the job card), then the
   // answers that close it. The AI never picks the reason and never writes the text: the driver does.
@@ -172,17 +174,15 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
 
   return (
     <div className="flex h-full flex-col">
-      <p className="flex items-start gap-1.5 border-b border-lavender bg-card px-4 py-2 text-[11px] leading-snug text-muted">
+      <div className="flex items-start gap-1.5 border-b border-lavender bg-card px-4 py-2 text-[11px] leading-snug text-muted">
         <Bot size={14} className="mt-px shrink-0 text-indigo" aria-hidden />
-        <span>
-          <strong className="text-navy">You're chatting with an AI assistant.</strong> It answers from our help articles, can suggest things for you to
-          confirm, and can't decide on applications. Ask for a person any time. Demo: don't write real personal details.
-        </span>
-      </p>
+        <div><strong className="text-navy">AI assistant · Use fictional details.</strong><details className="mt-0.5"><summary className="cursor-pointer text-indigo">About the assistant</summary><p className="mt-1">Answers from our help articles. You confirm suggested actions; people decide applications. Ask for a person any time.</p></details></div>
+      </div>
 
       <div data-guide="inbox" className="flex-1 space-y-2.5 overflow-y-auto px-4 py-3" aria-live="polite">
         {timeline.length === 0 && !busy && <p className="pt-2 text-sm font-semibold">Hi{a ? ` ${a.name.split(' ')[0]}` : ''}! What can I help you with?</p>}
-        {timeline.map((m) => (
+        {history.length > 0 && <details className="text-xs text-muted"><summary className="cursor-pointer">Earlier messages · {history.length}</summary><div className="mt-2 space-y-2.5">{history.map(m => <Message key={m.id} m={m} onConfirm={() => confirm(m)} onDecline={() => onThread(resolveProposal(t, m.id, 'declined', now))} />)}</div></details>}
+        {currentMessages.map((m) => (
           <Message key={m.id} m={m} onConfirm={() => confirm(m)} onDecline={() => onThread(resolveProposal(t, m.id, 'declined', now))} />
         ))}
         {busy && (
@@ -192,7 +192,7 @@ export function DriverChat({ applicant: a, thread, apps, gigs, jobs = [], now, o
         )}
         {onPickup ? (
           <>
-            <PickupStatus j={job!} now={now} />
+            {driverIncidentState(job!, now) !== 'assistant' && <PickupStatus j={job!} now={now} />}
           </>
         ) : t.status !== 'ai' && (
           <p className="rounded-lg bg-warn-bg px-3 py-2 text-xs text-warn">
@@ -288,6 +288,7 @@ function Bubble({ side, tone, children }: { side: 'left' | 'right'; tone: 'drive
 const time = (at: number) => formatDateTime(at).split(', ')[1];
 
 function Message({ m, onConfirm, onDecline }: { m: ChatMsg; onConfirm: () => void; onDecline: () => void }) {
+  if (m.from === 'note' && m.text.startsWith('Sent to ')) return <details className="rounded-lg border border-lavender px-3 py-2 text-xs text-muted"><summary className="cursor-pointer text-indigo">View message sent to pickup contacts</summary><p className="mt-1 whitespace-pre-line">{m.text}</p></details>;
   if (m.from === 'note')
     return m.actionDone ? (
       <p className="mx-auto flex max-w-[90%] items-start justify-center gap-1.5 rounded-lg bg-ok-bg px-3 py-1.5 text-center text-xs text-ok">

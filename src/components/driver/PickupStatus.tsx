@@ -38,14 +38,14 @@ export function PickupStatus({ j, now, onInbox }: { j: Job; now: number; onInbox
         {state === 'decided' ? ' is paid.' : state === 'assistant' || state === 'waiting_call' ? '. Stay where you are.' : '.'}
       </p>
       {steps.length > 0 && (
-        <ol className="mt-2 space-y-0.5 border-t border-navy/10 pt-2 text-xs">
+        <details className="mt-2 border-t border-navy/10 pt-2 text-xs"><summary className="cursor-pointer text-indigo">Pickup activity · {steps.length} updates</summary><ol className="mt-1 space-y-0.5">
           {steps.map((s, i) => (
             <li key={i} className="flex gap-2">
               <span className="num w-10 shrink-0 text-muted">{hm(s.at)}</span>
               <span>{s.text}</span>
             </li>
           ))}
-        </ol>
+        </ol></details>
       )}
       {onInbox && (
         <button data-guide="phone-chat" type="button" onClick={onInbox} className="mt-1.5 text-sm font-semibold text-indigo hover:underline">

@@ -30,7 +30,7 @@ function targetFor(key: PresentKey, { data, now, visited }: GuideFocusContext): 
     return (tried ? by('guide-clock') : by('chat-wait')) ?? by('guide-clock') ?? by('call-driver') ?? next();
   }
   if (key === 'playbook') return by('call-driver') ?? next();
-  if (key === 'booking_check') return by('booking-correction-save') ?? by('booking-correct') ?? next();
+  if (key === 'booking_check') return by('booking-correction-save') ?? by('booking-error') ?? by('booking-correct') ?? next();
   if (key === 'contact') return by('call-contacts') ?? next();
   if (key === 'customer') return !j?.incident?.steps.customer ? by('customer-update') : j.pilot && !j.incident.accountOwnerAt ? by('account-owner') : next();
   if (key === 'decision') return j?.incident?.rebooking?.status === 'open' ? by('replacement') : j?.incident?.outcome ? next() : by('customer-outcomes');
@@ -49,7 +49,10 @@ function targetFor(key: PresentKey, { data, now, visited }: GuideFocusContext): 
   if (key === 'prevent') return textButton('Log this check confirmed by phone') ?? next();
   if (key === 'onboarding') {
     if (!phone || chat) return toPhone();
-    return find('[data-guide-done="false"]', phone) ?? by('phone-primary', phone) ?? by('phone-photo', phone) ?? by('phone-slot', phone) ?? next();
+    const missing = find('[data-guide-done="false"]', phone);
+    if (missing) return missing;
+    if (phone.querySelector('[data-guide="phone-primary"]:disabled')) return null;
+    return by('phone-primary', phone) ?? by('phone-photo', phone) ?? by('phone-slot', phone) ?? next();
   }
   if (key === 'reminders') return dialog ? by('manual-followup', dialog) ?? next() : by('guide-reminders');
   if (key === 'queue') {
@@ -77,7 +80,7 @@ function targetFor(key: PresentKey, { data, now, visited }: GuideFocusContext): 
   if (key === 'followup') return !visited.includes('followup_reminder') ? by('guide-followup-reminder') : !visited.includes('followup_call') ? by('guide-followup-call') : next();
   if (key === 'measure' && find('[data-guide="report-error"]')) return textButton('Try again');
   if (key === 'measure' && visited.includes('report') && !find('[role="dialog"]')) return next();
-  if (key === 'measure') return find('[data-guide="report-ready"]') ? by('report-close') : find('[data-guide="report-loading"]') ? null : by('weekly-report') ?? by('guide-report') ?? next();
+  if (key === 'measure') return find('[data-guide="report-ready"]') ? by('report-close') : find('[data-guide="report-loading"]') ? null : next();
   return next();
 }
 

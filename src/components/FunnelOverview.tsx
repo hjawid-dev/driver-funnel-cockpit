@@ -44,6 +44,7 @@ export function FunnelStages({ funnel, onStage }: { funnel: Funnel; onStage: (k:
           <p className="text-muted">Click a stage to see current work. Pending documents and booked first drives are waiting, not lost.</p>
         </InfoTip>
       </h2>
+      <p className="mb-2 text-xs text-muted">Reached = all-history total · Waiting now = current work, not confirmed drop-off.</p>
       <ol className="grid grid-cols-1 overflow-hidden rounded-xl border border-lavender sm:grid-cols-5">
         {tiles.map((t, i) => {
           const edge = i > 0 ? edges[i - 1] : null;
@@ -60,7 +61,7 @@ export function FunnelStages({ funnel, onStage }: { funnel: Funnel; onStage: (k:
                     </span>
                   )}
                 </span>
-                <span className="num mt-0.5 block text-2xl font-semibold tracking-tight group-hover:text-indigo">{t.reached}</span>
+                <span className="mt-0.5 block text-xs text-muted">Reached <strong className="num ml-1 text-2xl font-semibold tracking-tight text-navy group-hover:text-indigo">{t.reached}</strong></span>
                 <span aria-hidden className="mt-1 block h-1.5 rounded-full bg-card">
                   <span className={`block h-full rounded-full ${biggest ? 'bg-bad' : 'bg-indigo'}`} style={{ width: `${Math.max(4, (t.reached / top) * 100)}%` }} />
                 </span>
@@ -72,7 +73,7 @@ export function FunnelStages({ funnel, onStage }: { funnel: Funnel; onStage: (k:
                   <span className="mt-1.5 block text-xs text-muted">&nbsp;</span>
                 )}
                 <span className="mt-0.5 flex items-center gap-0.5 text-xs font-semibold text-indigo group-hover:underline">
-                  <span className="num">{here}</span>&nbsp;{HERE_NOW[t.key]}
+                  {t.key === 'active' ? 'Now: ' : t.key === 'reviewed' ? 'Decision: ' : 'Waiting now: '}<span className="num">{here}</span>&nbsp;{HERE_NOW[t.key]}
                   <ArrowRight size={11} aria-hidden />
                 </span>
               </button>

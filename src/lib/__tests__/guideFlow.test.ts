@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { guideAdvance, type GuideSnapshot } from '../guideFlow';
 import { generateSeed } from '../seed';
 import { generateGigs } from '../gigs';
-import { seedJobs, solutionExample, reportReason, markStep, recordOwnError, tellAccountOwner, setOutcome, bookReplacement, type Job } from '../liveOps';
+import { seedJobs, solutionExample, reportReason, gotKeys, markStep, recordOwnError, tellAccountOwner, setOutcome, bookReplacement, type Job } from '../liveOps';
 import { caseTime, DAY, MIN } from '../time';
 import { NOW } from './helpers';
 import { reviewTarget, docsTarget, followUpTargets } from '../present';
@@ -22,6 +22,11 @@ describe('guide follows real actions without changing business data', () => {
     expect(guideAdvance(before, reported, 1)?.key).toBe('assistant');
     expect(guideAdvance(reported, { ...reported, now: at + 10 * MIN - 1 }, 1)).toBeNull();
     expect(guideAdvance(reported, { ...reported, now: at + 10 * MIN }, 1)?.key).toBe('playbook');
+  });
+  it('explains why a pickup solved before takeover skips the human playbook', () => {
+    const s = fixture(), reported = withJob(s, reportReason(s.data.jobs[0], 'keys_missing', at));
+    const solved = withJob(reported, gotKeys(reported.data.jobs[0], at + MIN), at + MIN);
+    expect(guideAdvance(reported, solved, 1)).toEqual({ key: 'prevent', message: 'Pickup solved before human takeover · escalation not needed' });
   });
   it('follows each manually logged playbook action', () => {
     let s = fixture();

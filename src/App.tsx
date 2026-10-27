@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CalendarClock, Route } from 'lucide-react';
 import { useClock, useDemoData } from './state';
 import { computeFunnel, computeKpis, type FunnelKey } from './lib/kpis';
@@ -32,7 +32,7 @@ import { WorkQueue } from './components/WorkQueue';
 import { filterItems, QUEUE_FILTER_LABEL, queueCounts, workItems, type QueueFilter } from './lib/workQueue';
 import { clearGuideFocus, highlightGuideStep, openGuideSection } from './lib/guideFocus';
 import { guideAdvance, type GuideSnapshot } from './lib/guideFlow';
-import { docsTarget, PRESENT_STEPS, reviewTarget, guideDestination, presentEvidence, guideStatus, followUpTargets } from './lib/present';
+import { docsTarget, PRESENT_STEPS, reviewTarget, guideDestination, guideIntro, presentEvidence, guideStatus, followUpTargets } from './lib/present';
 
 /**
  * Two connected jobs, one page each.
@@ -48,6 +48,11 @@ const PAGE_SUB: Record<Page, string> = {
 const FILTERS: QueueFilter[] = ['action', 'missing', 'review', 'awaiting', 'all'];
 
 const TEXTS_KEY = 'driver-funnel-cockpit-texts';
+
+/** Only the walkthrough changes disclosure; every section remains available to explore. */
+function GuideSection({ guided, open, title, children }: { guided: boolean; open: boolean; title: string; children: ReactNode }) {
+  return guided ? <details open={open} className="rounded-xl border border-lavender bg-white p-3"><summary className="cursor-pointer text-sm font-semibold text-indigo">{title}</summary><div className="mt-4">{children}</div></details> : <>{children}</>;
+}
 
 export default function App() {
   const clock = useClock();
@@ -476,7 +481,7 @@ export default function App() {
   const guideIncident = jobs.find(j => j.solutionExample) ?? jobs.find(j => j.asInCase);
   const guideDriver = reviewTarget(apps);
   const guideJob = jobs.find(j => j.firstDrive && j.id === guideDriver?.firstGig?.gigId);
-  const guideJumpAt = ['assistant', 'playbook'].includes(currentPresent?.key ?? '') && guideIncident?.problemAt && !guideIncident.incident?.steps.keep_driver ? guideIncident.problemAt + 10 * 60000
+  const guideJumpAt = ['assistant', 'playbook'].includes(currentPresent?.key ?? '') && guideIncident?.problemAt && !guideIncident.incident?.closedAt && !guideIncident.incident?.steps.keep_driver ? guideIncident.problemAt + 10 * 60000
     : currentPresent?.key === 'decision' && guideIncident && !guideIncident.incident?.outcome ? incidentClock(guideIncident, now).decideBy
     : currentPresent?.key === 'activate' && guideJob && !guideJob.deliveredAt ? (!guideJob.departedAt ? guideJob.pickupAt : guideJob.departedAt + guideJob.driveMin * 60000) : null;
   const guideJumpLabel = guideJumpAt && guideJumpAt > now ? currentPresent?.key === 'activate' ? `Move demo time to ${guideJob?.departedAt ? 'delivery' : 'pickup'}` : ['assistant', 'playbook'].includes(currentPresent?.key ?? '') ? 'Move demo time to Ops call deadline (10 min)' : 'Move demo time to decision point' : null;
@@ -574,7 +579,7 @@ export default function App() {
             </div>
           </div>
         </header>
-        {present !== null && <PresentBar feedback={guideFeedback} reportBusy={reportBusy} step={present} onStep={goStep} onExit={() => { clearTimeout(guideTimer.current); guideRevision.current++; setPresent(null); setGuideFeedback(''); clock.resume(); }} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} status={currentPresent ? guideStatus(currentPresent.key, presentData, guideApplicantId, now) : { kind: 'explore', text: '' }} onExplore={guideExplore} jumpLabel={guideJumpLabel} onJump={() => { if (guideJumpAt && guideJumpAt > now) onAdvance(guideJumpAt - now); }} />}
+        {present !== null && <PresentBar incidentClosed={!!guideIncident?.incident?.closedAt} intro={guideIntro(PRESENT_STEPS[present].key, presentData, open?.name ?? (phoneOpen ? apps.find(a => a.id === phoneId)?.name ?? null : null))} visited={guideVisited} needsDecision={!guideDriver?.decision || guideDriver.decision.type === 'rejected'} firstDriveBooked={!!guideDriver?.firstGig?.bookedFor && !guideDriver.firstGig.doneAt} feedback={guideFeedback} reportBusy={reportBusy} step={present} onStep={goStep} onExit={() => { clearTimeout(guideTimer.current); guideRevision.current++; setPresent(null); setGuideFeedback(''); clock.resume(); }} evidence={currentPresent ? presentEvidence(currentPresent.key, presentData) : ''} status={currentPresent ? guideStatus(currentPresent.key, presentData, guideApplicantId, now) : { kind: 'explore', text: '' }} onExplore={guideExplore} jumpLabel={guideJumpLabel} onJump={() => { if (guideJumpAt && guideJumpAt > now) onAdvance(guideJumpAt - now); }} />}
         </div>
 
         <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-6 space-y-6">
@@ -585,8 +590,13 @@ export default function App() {
 
           {page === 'funnel' ? (
             <>
-              <FunnelKpis kpis={kpis} baseline={baseline} onReport={openReport} reportBusy={reportBusy} />
-              <FunnelStages funnel={funnel} onStage={onStage} />
+              <GuideSection key={`metrics-${present}`} guided={present !== null} open={currentPresent?.key === 'measure'} title="Process performance · 4 metrics">
+                <FunnelKpis kpis={kpis} baseline={baseline} onReport={openReport} reportBusy={reportBusy} />
+              </GuideSection>
+              <GuideSection key={`stages-${present}`} guided={present !== null} open={false} title="Funnel overview · stage history and current work">
+                <FunnelStages funnel={funnel} onStage={onStage} />
+              </GuideSection>
+              <GuideSection key={`queue-${present}`} guided={present !== null} open={!!currentPresent && ['queue', 'criteria', 'followup'].includes(currentPresent.key)} title={`Candidate work queue · ${apps.length} applicants`}>
               <section id="queue" aria-labelledby="queue-title" className="scroll-mt-[calc(var(--present-top,0px)+1rem)]">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <h2 id="queue-title" className="flex items-center gap-1.5 text-sm font-semibold">
@@ -621,6 +631,7 @@ export default function App() {
                   <WorkQueue key={filter} items={shownItems} filter={filter} onOpen={openApplicant} />
                 )}
               </section>
+              </GuideSection>
             </>
           ) : (
             <LiveOps jobs={present !== null ? jobs.filter(j => !j.asInCase) : jobs} now={now} onJob={onJob} onViewChat={openDriverChat} selected={liveSel} onSelect={setLiveSel} focus={null} threads={threads} waitingQuestions={questions} onThread={onThread} />
