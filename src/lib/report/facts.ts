@@ -1,6 +1,6 @@
 import type { Job } from '../liveOps';
 import type { Applicant, Gig } from '../types';
-import { activationReasons, supplyDemand } from '../activation';
+import { activationReasons } from '../activation';
 import type { ChatThread } from '../chat/types';
 import { computeFunnel, computeKpis, isReviewDecision, median } from '../kpis';
 import { deriveStage, isAccepted } from '../stage';
@@ -104,7 +104,7 @@ export function weeklyFacts(apps: Applicant[], threads: ChatThread[], now: numbe
   // Why the accepted drivers haven't driven, and whether there is work for them: demand, not only drivers.
   const why = activationReasons(awaiting, apps, gigs, now);
   const whyCount = (r: string) => why.find((x) => x.reason === r)?.count ?? 0;
-  const supply = supplyDemand(apps, gigs, now);
+  // Job counts do not establish usable driver capacity; do not infer over-supply.
 
   const humanDecisions = apps.filter(a => firstDecision(a) && firstDecision(a)!.reason !== 'no_response_14d' && firstDecision(a)!.at >= a.registeredAt && firstDecision(a)!.at <= now);
   const decisionHours = humanDecisions.map(a => (firstDecision(a)!.at-a.registeredAt)/HOUR);
@@ -135,26 +135,20 @@ export function weeklyFacts(apps: Applicant[], threads: ChatThread[], now: numbe
     { id: 'prequal_rejections', label: 'Pre-qualifying rejections before document submission', value: apps.filter(a => a.decision?.type === 'rejected' && !firstSubmissionAt(a) && a.decision.reason !== 'no_response_14d').length, unit: '' as const, good: null },
     // Now against target
     status('document_completion', 'Documents within 7 days (mature registration cohort)', '%', kpi.docCompletion ?? null, 85, true),
-    status('time_to_decision', 'Time from registration to decision, median of all decisions', 'h', kpi.timeToDecision ?? null, 48, false),
+    status('time_to_decision', 'Time from registration to decision, mean of all decisions', 'h', kpi.timeToDecision ?? null, 48, false),
     status('activation', 'Activation: first drive within 14 days of acceptance', '%', kpi.activation ?? null, 75, true),
-    status('application_to_active', 'New active drivers ÷ new applications, last 30 days (a flow, the north star)', '%', kpi.appToActive ?? null, 35, true),
-    status('first_drive_quality', 'First drives on time without incident', '%', kpi.quality ?? null, 95, true),
-    status('chat_target', 'Answered-by-AI target', '%', round(chat.rate), 95, true),
+    status('application_to_active', 'Application to active within 30 days (mature cohort; pilot target)', '%', kpi.cohortConversion ?? null, 35, true),
+    status('first_drive_quality', 'First-drive delivery outcome: original deadline, no incident, satisfied', '%', kpi.quality ?? null, 95, true),
+    // AI answer share is diagnostic, never a target for suppressing handovers.
 
     // Where it is stuck right now
     { id: 'review_queue', label: 'Files waiting for a decision', value: review.length, unit: '', good: null },
     { id: 'review_overdue', label: 'Files waiting more than 48 h (overdue)', value: review.filter((a) => now - a.registeredAt > 48 * HOUR).length, unit: '', good: null },
     { id: 'awaiting_first_drive', label: 'Accepted drivers without a first drive', value: awaiting.length, unit: '', good: null },
+    { id: 'awaiting_call_due', label: 'First-booking calls due after 14 days', value: awaiting.filter(a => now - a.decision!.at >= 14 * DAY && now - a.decision!.at < 30 * DAY && !a.firstGig?.bookedFor && !a.activationReason && a.extractShown).length, unit: '', good: null },
     { id: 'awaiting_over_7_days', label: 'Accepted 7+ days ago without a first drive booked', value: awaiting.filter((a) => now - a.decision!.at > 7 * DAY && !a.firstGig?.bookedFor).length, unit: '', good: null },
     { id: 'awaiting_no_fit', label: 'Accepted drivers with no first drive that fits their area or times (demand, not the driver)', value: whyCount('no_fit'), unit: '', good: null },
     { id: 'awaiting_extract', label: 'Accepted drivers who have not shown their extract yet (shown on video before the first drive)', value: whyCount('extract'), unit: '', good: null },
-    ...(gigs.length
-      ? [
-          { id: 'open_jobs_14d', label: 'Open jobs in the next 14 days', value: supply.openJobs, unit: '' as const, good: null },
-          { id: 'drivers_for_open_jobs', label: 'Drivers the open jobs in the next 14 days keep busy (assumed jobs per driver)', value: supply.driversNeeded, unit: '' as const, good: null },
-          { id: 'drivers_active_and_waiting', label: 'Active drivers plus accepted drivers waiting for a first drive', value: supply.active + supply.waiting, unit: '' as const, good: null },
-        ]
-      : []),
     { id: 'pickup_incidents', label: 'Stuck pickups closed this week', value: closedWeek.length, unit: '', good: null },
     { id: 'pickup_solved_by_assistant', label: 'Stuck pickups solved by the assistant, no person needed', value: closedWeek.filter((j) => j.incident!.by === 'assistant').length, unit: '', good: null },
     { id: 'pickup_our_error', label: 'Stuck pickups caused by our own error (address, time, booking)', value: closedWeek.filter((j) => j.incident!.cause === 'our_error').length, unit: '', good: null },

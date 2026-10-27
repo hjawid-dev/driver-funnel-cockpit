@@ -56,10 +56,10 @@ export function outstandingDocs(a: Applicant): DocKey[] {
 
 const ASK: Record<DocKey, { missing: string; pending: string }> = {
   extract: {
-    missing: 'Order your own extract from the criminal record (belastningsregistret) at polisen.se. It takes a few days, so start today. Show it in the onboarding call if it has arrived, otherwise in a short check before your first drive. Do not wait for it to book your call. We never keep a copy.',
+    missing: 'Order your own extract from the criminal record (belastningsregistret) at polisen.se. Processing can take two weeks plus post, so start early. Show it in the onboarding call if it has arrived, otherwise in a short check before your first drive. Do not wait for it to book your call. We never keep a copy.',
     pending: 'Your extract is on its way. Book your onboarding call now; show the extract before your first drive, without sending a copy; we never keep a copy.',
   },
-  id: { missing: 'Verify your ID with BankID. It takes one minute.', pending: 'Finish your BankID verification.' },
+  id: { missing: 'Verify your ID with BankID or submit ID for manual review.', pending: 'Finish BankID verification or contact Ops about manual ID review.' },
   licence: { missing: 'Upload a photo of the front and back of your driving licence.', pending: 'Finish uploading your driving licence.' },
   photo: { missing: 'Upload a profile photo: face clearly visible, no sunglasses.', pending: 'Finish uploading your profile photo.' },
 };
@@ -68,7 +68,7 @@ const ASK: Record<DocKey, { missing: string; pending: string }> = {
 export function nudgeMessage(a: Applicant): string {
   const first = a.name.split(' ')[0];
   const items = outstandingDocs(a);
-  if (!items.length) return `Hi ${first}, your file is complete. We'll review it within 48 hours.`;
+  if (!items.length) return `Hi ${first}, your file is complete. Your original decision deadline is ${formatDateTime(a.registeredAt + 48 * HOUR)}; completing documents does not restart the clock.`;
   const lines = items.map((k) => `• ${ASK[k][a.docs[k] === 'pending' ? 'pending' : 'missing']}`);
   return [`Hi ${first}, you're almost ready for your first drive. ${items.length === 1 ? 'One thing left' : `${items.length} things left`}:`, ...lines].join('\n');
 }

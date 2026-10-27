@@ -83,8 +83,8 @@ export const ACTIVATION_REASON_ORDER: ActivationReason[] = ['booked', 'extract',
 export function activationReason(a: Applicant, apps: Applicant[], gigs: Gig[], now: number): ActivationReason {
   if (a.firstGig?.bookedFor) return needsExtract(a) ? 'extract' : 'booked';
   if (a.activationReason) return a.activationReason.reason;
-  if (!firstGigOffers(a, gigs, apps, now).length) return 'no_fit';
   if (needsExtract(a)) return 'extract';
+  if (!firstGigOffers(a, gigs, apps, now).length) return 'no_fit';
   return 'not_picked';
 }
 

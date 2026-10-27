@@ -80,7 +80,7 @@ describe('prevention that reaches the cause: the site, the account owner, the dr
     const decided = (o: Outcome) => setOutcome(julia, o, NOW);
     expect(cancelPayFor(decided('cancelled'))).toBe(250);
     expect(cancelPayFor(decided('new_date'))).toBe(250);
-    expect(cancelPayFor(decided('later_today'))).toBe(0);
+    expect(cancelPayFor(decided('later_today'))).toBe(250);
     expect(cancelPayFor(decided('keys_found'))).toBe(0);
     expect(driverUpdate(julia, 'cancelled', NOW)).toMatch(/plus 250 SEK, half the job's pay/);
     const r = closeIncident(decided('cancelled'), { waitPaid: true, feeWaived: true, cause: 'customer_keys', reviewBooked: true }, NOW);

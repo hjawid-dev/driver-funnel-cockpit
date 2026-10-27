@@ -29,12 +29,12 @@ describe('the candidate queue', () => {
     const s = items.find((w) => w.a.id === 'S')!;
     expect(r).toMatchObject({ needsAction: false, next: 'Reminders run by themselves' });
     expect(r.detail).toMatch(/Missing: extract, photo/);
-    expect(s).toMatchObject({ needsAction: true, next: 'Close the file: no response', tone: 'bad' });
+    expect(s).toMatchObject({ needsAction: true, next: 'Review recent contact; close only if no longer progressing', tone: 'warn' });
   });
 
   it('asks for a call when an accepted driver has had no first gig in 14 days', () => {
-    const a = mk({ docsCompleteAt: NOW - 20 * DAY, decision: { type: 'accepted', at: NOW - 15 * DAY, by: 'Hjalmar' } });
-    expect(workItems([a], [], NOW)[0]).toMatchObject({ stage: 'accepted', next: 'Call the driver', needsAction: true });
+    const a = mk({ extractShown: true, docsCompleteAt: NOW - 20 * DAY, decision: { type: 'accepted', at: NOW - 15 * DAY, by: 'Hjalmar' } });
+    expect(workItems([a], generateGigs(NOW), NOW)[0]).toMatchObject({ stage: 'accepted', next: 'Call the driver', needsAction: true });
   });
 
   it('adds up on the seed: the three lists hold everyone not yet active, rejected or closed', () => {

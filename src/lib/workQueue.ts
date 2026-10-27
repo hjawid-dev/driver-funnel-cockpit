@@ -3,7 +3,8 @@ import { deriveStage } from './stage';
 import { slaStatus } from './sla';
 import { isNoResponse, nudgeState, outstandingDocs } from './nudges';
 import { activationBucket, activationReason, ACTIVATION_REASON_LABEL } from './activation';
-import { ago } from './time';
+import { ago, DAY } from './time';
+import type { Job } from './liveOps';
 import { evaluate } from './criteria';
 
 /**
@@ -38,18 +39,19 @@ export interface WorkItem {
   rank: number;
 }
 
-const DOC_SHORT: Record<DocKey, string> = { licence: 'licence', id: 'BankID', extract: 'extract', photo: 'photo' };
+const DOC_SHORT: Record<DocKey, string> = { licence: 'licence', id: 'ID verification', extract: 'extract', photo: 'photo' };
 
 function missingItem(a: Applicant, now: number): WorkItem {
   const missing = outstandingDocs(a).map((k) => DOC_SHORT[k]);
   const detail = `${missing.length ? `Missing: ${missing.join(', ')}` : 'Nothing missing'} · registered ${ago(a.registeredAt, now)}`;
   const base = { a, stage: 'registered' as const, detail };
   if (a.prequalIssue) return { ...base, status: "Doesn't meet a must-have", tone: 'bad', next: 'Close the file with a reason', needsAction: true, rank: 2 };
-  if (isNoResponse(a, now)) return { ...base, status: 'No response in 14 days', tone: 'bad', next: 'Close the file: no response', needsAction: true, rank: 2 };
+  if (isNoResponse(a, now)) return { ...base, status: 'Incomplete after 14 days', tone: 'warn', next: 'Review recent contact; close only if no longer progressing', needsAction: true, rank: 2 };
   const sla = slaStatus(a.registeredAt, now);
   if (sla.bucket === 'overdue') return { ...base, status: `Decision ${sla.label.toLowerCase()}`, tone: 'bad', next: 'Owner contacts applicant: resolve missing documents', needsAction: true, rank: 1 };
+  if (sla.bucket === 'warn') return { ...base, status: `Decision ${sla.label.toLowerCase()}`, tone: 'warn', next: 'Owner contacts applicant: resolve missing documents', needsAction: true, rank: 3 };
   const n = nudgeState(a, now);
-  if (n.nextAt === null && !a.reminders?.offAt) return { ...base, status: 'All three reminders sent', tone: 'warn', next: 'Request the documents in person', needsAction: true, rank: 5 };
+  if (n.nextAt === null && !a.reminders?.offAt) return { ...base, status: 'Reminder schedule complete', tone: 'warn', next: 'Request the documents in person', needsAction: true, rank: 5 };
   return { ...base, status: n.label, tone: 'muted', next: 'Reminders run by themselves', needsAction: false, rank: 8 };
 }
 
@@ -67,28 +69,41 @@ function reviewItem(a: Applicant, now: number): WorkItem {
   };
 }
 
-function awaitingItem(a: Applicant, apps: Applicant[], gigs: Gig[], now: number): WorkItem {
+function awaitingItem(a: Applicant, apps: Applicant[], gigs: Gig[], now: number, jobs: Job[]): WorkItem {
   const bucket = activationBucket(a.decision!.at, now);
   const reason = activationReason(a, apps, gigs, now);
   const base = { a, stage: 'accepted' as const, detail: `${ACTIVATION_REASON_LABEL[reason]} · accepted ${ago(a.decision!.at, now)}` };
-  if (a.firstGig?.bookedFor) return { ...base, status: reason === 'extract' ? 'Booked; pre-drive check outstanding' : 'First drive booked', tone: reason === 'extract' ? 'warn' : 'ok', next: reason === 'extract' ? 'Complete the pre-drive check before release deadline' : 'Track the booked drive in Live Ops', needsAction: reason === 'extract', rank: reason === 'extract' ? 2 : 7 };
+  if (a.firstGig?.bookedFor) {
+    const job = jobs.find(j => j.id === a.firstGig?.gigId);
+    const interrupted = job?.incident?.outcome && job.incident.outcome.type !== 'keys_found';
+    if (interrupted || (job ? now > job.deadline : now > a.firstGig.bookedFor)) return { ...base, status: interrupted ? 'First drive interrupted' : 'Delivery not recorded', tone: 'bad', next: 'Resolve the first drive in Live Ops; confirm delivery or replacement', needsAction: true, rank: 0 };
+    return { ...base, status: reason === 'extract' ? 'Booked; pre-drive check outstanding' : 'First drive booked', tone: reason === 'extract' ? 'warn' : 'ok', next: reason === 'extract' ? 'Complete the pre-drive check before release deadline' : 'Track the booked drive in Live Ops', needsAction: reason === 'extract', rank: reason === 'extract' ? 2 : 7 };
+  }
   if (reason === 'not_interested') return { ...base, status: 'No longer interested', tone: 'muted', next: 'No action unless the driver wants to return', needsAction: false, rank: 9 };
+  if (reason === 'unreachable') {
+    const retryDue = now >= a.activationReason!.at + 3 * DAY;
+    return { ...base, status: retryDue ? 'Contact retry due' : 'Contact attempt logged', tone: retryDue ? 'warn' : 'muted', next: retryDue ? 'Retry contact with the driver' : 'Retry 3 days after the logged attempt (proposed)', needsAction: retryDue, rank: retryDue ? 3 : 8 };
+  }
+  if (reason === 'declined') return { ...base, status: 'Follow-up logged: offers declined', tone: 'muted', next: 'Driver chooses another matching drive; review availability if none fit', needsAction: false, rank: 8 };
+  if (reason === 'extract') {
+    const ready = a.docs.extract === 'ready';
+    return { ...base, status: ready ? 'Extract ready for check' : 'Waiting for extract to arrive', tone: ready ? 'warn' : 'muted', next: ready ? 'Driver books the pre-drive check' : 'Driver marks extract arrived when received; no check to book yet', needsAction: ready, rank: ready ? 5 : 8 };
+  }
+  if (reason === 'no_fit') return { ...base, status: 'No matching first drive', tone: 'warn', next: 'Owner checks route demand and availability', needsAction: true, rank: 5 };
   if (bucket === 'call') return { ...base, status: 'No first booking in 14 days', tone: 'bad', next: 'Call the driver', needsAction: true, rank: 1 };
-  if (bucket === 'dormant') return { ...base, status: 'Dormant, 30+ days', tone: 'muted', next: 'Monthly re-engagement', needsAction: false, rank: 9 };
-  if (reason === 'booked') return { ...base, status: 'First gig booked', tone: 'ok', next: 'Nothing: on track', needsAction: false, rank: 7 };
+  if (bucket === 'dormant') return { ...base, status: 'Dormant, 30+ days', tone: 'muted', next: 'Review in monthly re-engagement batch (proposed)', needsAction: false, rank: 9 };
   if (bucket === 'book') return { ...base, status: 'No first gig booked after 7 days', tone: 'warn', next: 'Automatic reminder: choose a first drive in the app', needsAction: false, rank: 3 };
-  if (reason === 'extract') return { ...base, status: 'Extract not shown yet', tone: 'warn', next: 'Book the extract check', needsAction: true, rank: 5 };
-  return { ...base, status: 'On track', tone: 'muted', next: 'Driver chooses a matching job in the app', needsAction: false, rank: 8 };
+  return { ...base, status: 'Matching drives available', tone: 'muted', next: 'Driver chooses a matching job in the app', needsAction: false, rank: 8 };
 }
 
 /** Everyone still on the way to active, each with a status and a next action. */
-export function workItems(apps: Applicant[], gigs: Gig[], now: number): WorkItem[] {
+export function workItems(apps: Applicant[], gigs: Gig[], now: number, jobs: Job[] = []): WorkItem[] {
   const items: WorkItem[] = [];
   for (const a of apps) {
     const s = deriveStage(a);
     if (s === 'registered') items.push(missingItem(a, now));
     else if (s === 'review') items.push(reviewItem(a, now));
-    else if (s === 'accepted') items.push(awaitingItem(a, apps, gigs, now));
+    else if (s === 'accepted') items.push(awaitingItem(a, apps, gigs, now, jobs));
   }
   return items.sort((x, y) => x.rank - y.rank || since(x) - since(y));
 }

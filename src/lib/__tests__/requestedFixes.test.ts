@@ -32,9 +32,9 @@ describe('requested process corrections', () => {
     expect(workItems([booked], [], NOW)[0]).toMatchObject({ needsAction: false, status: 'First drive booked' });
   });
   it('does not require a call before fourteen days just because a driver has not booked', () => {
-    expect(workItems([accepted(2)], [], NOW)[0]).toMatchObject({ needsAction: false, next: 'Driver chooses a matching job in the app' });
-    expect(workItems([accepted(8)], [], NOW)[0]).toMatchObject({ needsAction: false, next: 'Automatic reminder: choose a first drive in the app' });
-    expect(workItems([accepted(15)], [], NOW)[0]).toMatchObject({ needsAction: true, next: 'Call the driver' });
+    expect(workItems([accepted(2)], generateGigs(NOW), NOW)[0]).toMatchObject({ needsAction: false, next: 'Driver chooses a matching job in the app' });
+    expect(workItems([accepted(8)], generateGigs(NOW), NOW)[0]).toMatchObject({ needsAction: false, next: 'Automatic reminder: choose a first drive in the app' });
+    expect(workItems([accepted(15)], generateGigs(NOW), NOW)[0]).toMatchObject({ needsAction: true, next: 'Call the driver' });
   });
   it('stops booking follow-up after the driver says they are no longer interested', () => {
     const a = { ...accepted(35), activationReason: { reason: 'not_interested' as const, at: NOW - 30 * DAY } };

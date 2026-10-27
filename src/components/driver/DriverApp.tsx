@@ -57,7 +57,7 @@ export function DriverApp({ applicant: a, apps, gigs, threads, jobs = [], now, o
   const job = a ? currentJob(jobs, a.id, now) : null;
 
   return (
-    <div className="flex h-full flex-col bg-white text-navy">
+    <div data-demo-target="driver" className="flex h-full flex-col bg-white text-navy">
       <header className="bg-navy px-4 pb-3 pt-4 text-white">
         <div className="flex items-center justify-between gap-2">
           {view === 'steps' ? (
@@ -256,7 +256,7 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
         <div className="mt-1 grid grid-cols-4 gap-1.5">
           {[
             [0.5, '< 1 yr'],
-            [1.5, '1–2 yrs'],
+            [1.5, '1–<2 yrs'],
             [3, '2–5 yrs'],
             [6, '5+ yrs'],
           ].map(([v, l]) => (
@@ -268,7 +268,7 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
       </fieldset>
       <fieldset>
         <legend className="text-sm font-semibold">Are you {MIN_AGE} or older?</legend>
-        <p className="text-xs text-muted">Our insurance requires it.</p>
+        <p className="text-xs text-muted">Proposed insurance threshold for this demo; Flovi must confirm the actual requirement.</p>
         <div className="mt-1 grid grid-cols-2 gap-1.5">
           <Choice value={true} current={age} set={setAge}>Yes</Choice>
           <Choice value={false} current={age} set={setAge}>No</Choice>
@@ -363,7 +363,7 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump, onDecide }: { a: 
           </Title>
           <Card tone="soft">
             <ol className="space-y-1.5 text-sm">
-              <li>1. Order your own extract at polisen.se today. It comes by post and can take up to two weeks.</li>
+              <li>1. Order your own extract at polisen.se today. Processing may take two weeks plus postal delivery; some international checks take longer.</li>
               <li>2. You don't have to wait for it: book your onboarding call right away. We decide in the call.</li>
               <li>3. Show it to us on video before your first drive. <strong>We never keep a copy or write down what it says.</strong></li>
             </ol>
@@ -393,7 +393,7 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onJump, onDecide }: { a: 
               Your call: <strong>{formatDateTime(a.callAt!)}</strong>
             </p>
             <p className="mt-1 text-xs text-muted">
-              15 minutes, video.{' '}
+              Standard calls: 15 minutes on video.{' '}
               {a.docs.extract === 'ready' ? 'Have your extract at hand: you can show it in the call.' : 'Your extract is on its way: you show it before your first drive, not in the call.'}
             </p>
             {a.docs.extract === 'pending' && (
@@ -562,10 +562,10 @@ function CallStep({ a, apps, now, onBook }: { a: Applicant; apps: Applicant[]; n
   }
   return (
     <div className="space-y-3">
-      <Title icon={<CalendarCheck size={16} />} sub="15 minutes on video: how jobs work, a few questions, and the decision. If your extract has arrived you can show it too; if not, you show it before your first drive.">
+      <Title icon={<CalendarCheck size={16} />} sub="15 min on video: how jobs work, your questions and the decision. Standard weekday blocks do not fit? Contact Ops in AI assistant for an exception. An arrived extract can be shown now; otherwise before driving.">
         Book your onboarding call
       </Title>
-      {(!slots.length || slots[0] > a.registeredAt + 48 * 3600000) && <p className="rounded-lg bg-warn-bg p-3 text-sm">The available calls exceed the 48-hour decision target. Contact ops for an earlier review; booking later does not reset the deadline.</p>}
+      {(!slots.length || slots[0] > a.registeredAt + 48 * 3600000) && <p className="rounded-lg bg-warn-bg p-3 text-sm">These calls miss your original 48-hour deadline. Contact Ops for an earlier review; the deadline does not reset.</p>}
       {[...byDay.entries()].map(([day, ts]) => (
         <div key={day}>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">{day}</p>
@@ -605,7 +605,7 @@ function ExtractCard({ a, apps, now, onUpdate }: { a: Applicant; apps: Applicant
       {released && <p className="mt-1 text-sm">Your drive {formatDateTime(released.bookedFor)} was released for reassignment because the extract wasn't shown in time. You're still accepted.</p>}
       {state === 'ordered' && (
         <>
-          <p className="mt-1 text-sm text-muted">Ordered from Polisen. When it arrives, book a 5-minute video check. We only look at it and never keep a copy.</p>
+          <p className="mt-1 text-sm text-muted">Waiting for post: processing may take two weeks plus delivery. Mark it arrived before booking a check. Reservations stay conditional.</p>
           <button type="button" onClick={() => onUpdate(receiveDocument(a, 'extract', 'ready', now))} className="mt-2 w-full rounded-lg bg-indigo py-2 text-sm font-semibold text-white hover:bg-navy">
             My extract has arrived
           </button>
@@ -614,7 +614,7 @@ function ExtractCard({ a, apps, now, onUpdate }: { a: Applicant; apps: Applicant
       {state === 'ready' && (
         <>
           <p className="mt-1 text-sm text-muted">
-            {missed ? `Your check ${formatDateTime(a.extractCheckAt!)} didn't happen. Pick a new time:` : 'Pick a time for a 5-minute video check:'}
+            {missed ? `Your check ${formatDateTime(a.extractCheckAt!)} didn't happen. Pick a new time:` : 'Pick a check time (about 5 min; 15 min reserved):'}
           </p>
           <SlotGrid
             slots={callSlots(now, apps.filter((x) => x.id !== a.id), 8).filter((t) => by === null || t <= by)}
@@ -641,7 +641,7 @@ function SlotGrid({ slots, onPick }: { slots: number[]; onPick: (t: number) => v
     const day = new Date(t).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
     byDay.set(day, [...(byDay.get(day) ?? []), t]);
   }
-  if (!slots.length) return <p className="mt-1.5 text-sm">No free time before the drive. Ask the AI assistant and we'll find one.</p>;
+  if (!slots.length) return <p className="mt-1.5 text-sm">No standard time before the deadline. Contact Ops to arrange an exception; the reservation remains conditional.</p>;
   return (
     <div className="mt-1.5 space-y-2">
       {[...byDay.entries()].map(([day, ts]) => (
@@ -666,7 +666,7 @@ function OffersStep({ a, apps, gigs, now, onPick }: { a: Applicant; apps: Applic
     <div className="space-y-3">
       <Title
         icon={<Sparkles size={16} />}
-        sub={needsExtract(a) ? 'Pick your first drive. Short and easy, with ops on standby, from 5 days ahead so your extract has time to arrive.' : 'Pick your first drive. Available matching jobs are short and easy, with ops on standby.'}
+        sub={needsExtract(a) ? 'Pick your first drive. Short and easy, with ops on standby, from 5 days ahead as a planning floor. Postal arrival is not guaranteed; the reservation is conditional.' : 'Pick your first drive. Available matching jobs are short and easy, with ops on standby.'}
       >
         Welcome aboard, {a.name.split(' ')[0]}!
       </Title>
@@ -793,7 +793,7 @@ function PrequalStop({ a, now, onUpdate, first }: { a: Applicant; now: number; o
       <Card tone="warn">
         <p className="text-sm">
           One requirement isn't met:{' '}
-          <strong>{a.prequalIssue === 'licence' ? 'a B licence held for at least 1 year' : `being ${MIN_AGE} or older (insurance requirement)`}</strong>. Your application
+          <strong>{a.prequalIssue === 'licence' ? 'a B licence held for at least 1 year' : `being ${MIN_AGE} or older (proposed insurance threshold)`}</strong>. Your application
           pauses here, so you don't need to send any documents.
         </p>
       </Card>
@@ -855,7 +855,7 @@ function Review({ k, a, apps, now, onUpdate }: { k: ReviewKey; a: Applicant; app
           <Card tone="soft">
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
               <dt className="text-muted">Licence</dt>
-              <dd>{a.licenceYears < 1 ? 'under 1 year' : a.licenceYears < 2 ? '1–2 years' : a.licenceYears < 5 ? '2–5 years' : '5+ years'}</dd>
+              <dd>{a.licenceYears < 1 ? 'under 1 year' : a.licenceYears < 2 ? '1 to <2 years' : a.licenceYears < 5 ? '2–5 years' : '5+ years'}</dd>
               <dt className="text-muted">Age {MIN_AGE}+</dt>
               <dd>{a.prequalIssue === 'age' ? 'No' : 'Yes'}</dd>
               <dt className="text-muted">Can drive</dt>
@@ -932,7 +932,7 @@ function AnswersForm({ a, onSave, onCancel }: { a: Applicant; onSave: (ans: { li
       <fieldset>
         <legend className="text-sm font-semibold">How long have you had a B licence?</legend>
         <div className="mt-1 grid grid-cols-4 gap-1.5">
-          {([[0.5, '< 1 yr'], [1.5, '1–2 yrs'], [3, '2–5 yrs'], [6, '5+ yrs']] as const).map(([v, l]) => (
+          {([[0.5, '< 1 yr'], [1.5, '1–<2 yrs'], [3, '2–5 yrs'], [6, '5+ yrs']] as const).map(([v, l]) => (
             <button key={l} type="button" aria-pressed={licence === v} onClick={() => setLicence(v)} className={opt(licence === v)}>
               {l}
             </button>

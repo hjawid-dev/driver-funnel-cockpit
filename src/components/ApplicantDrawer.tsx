@@ -50,7 +50,7 @@ export function ApplicantDrawer({ applicant: a, apps, gigs, now, onClose, onUpda
     <div className="fixed inset-0 z-[70] lg:z-50">
       <div className="anim-fade absolute inset-0 bg-navy/40" onClick={onClose} aria-hidden />
       <aside
-        role="dialog"
+        data-demo-target="candidate" role="dialog"
         aria-modal="true"
         aria-labelledby="drawer-title"
         className="anim-drawer absolute inset-y-0 right-0 flex w-full sm:w-[520px] flex-col bg-white shadow-2xl"
@@ -116,8 +116,8 @@ function Facts({ a, now }: { a: Applicant; now: number }) {
       title="Applicant"
       info={
         <>
-          <p>The licence is checked with Transportstyrelsen and the ID with BankID.</p>
-          <p>Decision deadline: 48 calendar hours from registration.</p>
+          <p>Demo verification: licence validity and years are logged by a reviewer; ID uses BankID or manual review. Production services are simulated.</p>
+          <p>Decision deadline: 48 calendar hours from registration, including document collection. Owner and backup contact applicants before the deadline and arrange an earlier review if standard calls do not fit. Open incomplete cases remain SLA misses.</p>
           <p>Registered: {formatDateTime(a.registeredAt)}.</p>
           <p>File complete: {a.docsCompleteAt ? <When ts={a.docsCompleteAt} now={now} /> : 'Not yet'}.</p>
           {a.source === 'self' && <p>Source: applied in the driver app.</p>}

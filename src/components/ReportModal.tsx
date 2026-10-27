@@ -124,12 +124,12 @@ export function ReportModal({ apps, threads, jobs = [], gigs = [], now, onClose,
               </section>
 
               <section className="rounded-xl bg-warn-bg/60 p-4">
-                <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-warn">Largest pending stage</h3>
+                <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-warn">Largest current queue</h3>
                 <p className="text-sm">{reply.report.leak.text}</p>
               </section>
 
               <section>
-                <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted">Suggested this week</h3>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted">Review and choose this week’s action</h3>
                 <ol className="space-y-1.5 text-sm">
                   {reply.report.actions.map((a, i) => (
                     <li key={i} className="flex gap-2">
@@ -140,15 +140,15 @@ export function ReportModal({ apps, threads, jobs = [], gigs = [], now, onClose,
               </section>
 
               {gaps.length > 0 && (
-                <section>
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted">Questions the help articles don't cover yet</h3>
+                <details>
+                  <summary className="cursor-pointer text-xs font-semibold text-muted">Optional: help content gaps</summary>
                   <ul className="space-y-1 text-sm text-muted">
                     {gaps.map((g, i) => (
                       <li key={i}>“{g}”</li>
                     ))}
                   </ul>
                   <p className="mt-1 text-xs text-muted">Listed by code from the chat. The AI never sees what drivers wrote.</p>
-                </section>
+                </details>
               )}
             </>
           )}

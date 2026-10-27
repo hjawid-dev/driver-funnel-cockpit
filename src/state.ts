@@ -163,8 +163,11 @@ export function useDemoData() {
       }
       let jobs = d.jobs.map(j => j.id === next.id ? next : j);
       const replacement = replacementJob(next);
+      if (replacement?.firstDrive && driver && !driver.firstGig?.doneAt && driver.firstGig?.gigId === next.id) {
+        apps = apps.map(a => a.id !== driver.id ? a : { ...a, firstGig: { ...a.firstGig, gigId: replacement.id, bookedFor: replacement.pickupAt, bookedAt: next.incident!.rebooking!.bookedAt }, events: [...(a.events ?? []), { kind: 'booked', at: next.incident!.rebooking!.bookedAt!, by: 'Hjalmar', reason: replacement.id }] });
+      }
       if (replacement && !jobs.some(j => j.id === replacement.id)) jobs = [...jobs, replacement];
-      return { ...d, apps, jobs };
+      return { ...d, apps, jobs, gigs: next.incident?.outcome && next.incident.outcome.type !== 'keys_found' ? d.gigs.filter(g => g.id !== next.id) : d.gigs };
     });
   }, []);
 

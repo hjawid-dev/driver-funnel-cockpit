@@ -20,6 +20,8 @@ export interface Job {
   id: string; // "JOB-201"
   driverId: string;
   driverName: string;
+  unassigned?: boolean;
+  previousDriverId?: string;
   customer: string; // a company
   pilot: boolean;
   from: string;
@@ -88,7 +90,7 @@ export function causeFromReason(r: PickupReason | undefined): IncidentCause {
 }
 
 export type StepKey = 'keep_driver' | 'own_error' | 'escalate' | 'customer' | 'decide' | 'close';
-export type Outcome = 'keys_found' | 'later_today' | 'new_date' | 'cancelled';
+export type Outcome = 'keys_found' | 'later_today' | 'new_date' | 'cancelled' | 'ops_stopped';
 
 export interface Incident {
   steps: Partial<Record<StepKey, number>>;
@@ -113,14 +115,14 @@ export interface Incident {
   waitingEndedAt?: number;
   nextCustomerUpdateAt?: number;
   ownError?: { at: number; found: boolean; note?: string };
-  rebooking?: { owner: string; dueAt: number; status: 'open' | 'booked'; pickupAt?: number; bookedAt?: number; replacementId?: string };
+  rebooking?: { owner: string; dueAt: number; status: 'open' | 'booked'; pickupAt?: number; bookedAt?: number; replacementId?: string; deadline?: number; driverConfirmed?: boolean };
   log: { at: number; text: string }[];
 }
 
 // ---------- The rulebook ----------
 
 /** No keys this long after the driver checks in → the assistant takes it, without anyone having to call. */
-export const NO_KEYS_ASSIST_MS = 0;
+export const NO_KEYS_ASSIST_MS = 5 * MIN;
 /** The assistant's minutes: it texts the contact and keeps the driver calm. Not solved by then → a person. */
 export const ASSIST_MS = 5 * MIN;
 /** A person takes over at the latest this long before the customer must decide, whatever the assistant's clock says. */
@@ -167,24 +169,29 @@ export interface Check {
   key: '24h' | '60min';
   label: string;
   sentAt: number;
+  replyBy: number;
   state: CheckState;
 }
 
 function check(key: Check['key'], sentAt: number, wait: number, repliedAt: number | undefined, j: Job, now: number): Check {
-  const label = key === '24h' ? 'T−24 h' : 'T−60 min';
-  if (now < sentAt) return { key, label, sentAt, state: 'scheduled' };
-  if (done(repliedAt, now) && repliedAt! >= sentAt) return { key, label, sentAt, state: 'confirmed' };
-  if (done(j.phoneChecks?.[key], now) && j.phoneChecks![key]! >= sentAt) return { key, label, sentAt, state: 'by_phone' };
-  return { key, label, sentAt, state: now - sentAt >= wait ? 'no_reply' : 'waiting' };
+  const label = j.bookedAt !== undefined && j.bookedAt >= j.pickupAt - 2 * HOUR ? 'At late booking' : key === '24h' ? 'T−24 h' : 'T−60 min';
+  if (now < sentAt) return { key, label, sentAt, replyBy: sentAt + wait, state: 'scheduled' };
+  if (done(repliedAt, now) && repliedAt! >= sentAt) return { key, label, sentAt, replyBy: sentAt + wait, state: 'confirmed' };
+  if (done(j.phoneChecks?.[key], now) && j.phoneChecks![key]! >= sentAt) return { key, label, sentAt, replyBy: sentAt + wait, state: 'by_phone' };
+  return { key, label, sentAt, replyBy: sentAt + wait, state: now - sentAt >= wait ? 'no_reply' : 'waiting' };
 }
 
 /** The two messages to the pickup contact: confirm the time, where the keys are, and who is on site. */
 export function pickupChecks(j: Job, now: number): Check[] {
   // As in the case: nobody confirmed anything before the pickup.
   if (j.asInCase) return [];
+  // A late booking gets one relevant confirmation, not two identical messages.
+  if (j.bookedAt !== undefined && j.bookedAt >= j.pickupAt - 2 * HOUR) return [
+    check('60min', j.bookedAt, Math.min(REPLY_WAIT_60_MS, Math.max(0, (j.pickupAt - j.bookedAt) / 2)), j.confirmed60At, j, now),
+  ];
   return [
     check('24h', Math.max(j.pickupAt - CHECK_24_MS, j.bookedAt ?? -Infinity), REPLY_WAIT_24_MS, j.confirmed24At, j, now),
-    check('60min', Math.max(j.pickupAt - CHECK_60_MS, j.bookedAt ?? -Infinity), REPLY_WAIT_60_MS, j.confirmed60At, j, now),
+    check('60min', j.pickupAt - CHECK_60_MS, REPLY_WAIT_60_MS, j.confirmed60At, j, now),
   ];
 }
 
@@ -250,6 +257,7 @@ export function escalation(j: Job, now: number): { at: number; why: EscalationWh
 /** Why this job needs a person now, if it does. The earliest trigger counts. The assistant's minutes come first. */
 export function jobAlert(j: Job, now: number): Alert | null {
   if (closed(j, now)) return null;
+  if (!j.unassigned && now > j.deadline && !done(j.deliveredAt, now)) return { at: j.deadline, kind: 'escalated', why: 'deadline', text: 'Delivery overdue; confirm status with the driver' };
   if (done(j.keysAt, now) && !j.incident) return null;
   const alerts: Alert[] = [];
   const e = escalation(j, now);
@@ -355,12 +363,12 @@ export interface PlaybookStep {
 
 /** The real-time playbook from the deck: six moves, decision before the last departure. */
 export const PLAYBOOK: PlaybookStep[] = [
-  { key: 'keep_driver', title: 'Keep the driver', what: 'Call the driver: stay until the decision point, I\'m on it. Your waiting time is paid, also if the drive is cancelled. If they leave, the delivery is lost for certain.' },
+  { key: 'keep_driver', title: 'Keep the driver', what: 'Call the driver: stay until the decision point, I\'m on it. Your waiting time is paid, also if the drive is cancelled. If continuing is unsafe or no longer feasible, escalate to the duty lead.' },
   { key: 'own_error', title: 'Rule out our own error', what: 'Check address, time, contact and that the confirmations went out. It decides who to call.' },
   { key: 'escalate', title: 'Call the contact, then the backup', what: 'The next rung after a text: a call. The driver asks anyone on site (reception, workshop, key box) meanwhile.' },
   { key: 'customer', title: 'Customer hears it from us', what: 'Send an update before they ask: what happened, what we are doing, when they hear from us next. A pilot customer: tell the account owner too.' },
-  { key: 'decide', title: 'Decision point', what: 'No keys by then? The customer picks: later today, a new date or cancel. They decide, we bring the options.' },
-  { key: 'close', title: 'Close the loop', what: 'Pay the waiting time regardless (and half the reward if the drive didn\'t happen), log the cause, waive the fee in the pilot, book 15 minutes with the booker.' },
+  { key: 'decide', title: 'Decision point', what: 'Recommend a feasible option and confirm it with the customer. If unreachable, escalate to the duty lead; record an Ops stop only with confirmed authority.' },
+  { key: 'close', title: 'Close the loop', what: 'Confirm waiting compensation, log the cause and owner. Proposed cancellation pay: half the reward. Book a review for pilot incidents; fee waivers need approval.' },
 ];
 
 export const OUTCOME_LABEL: Record<Outcome, string> = {
@@ -368,6 +376,7 @@ export const OUTCOME_LABEL: Record<Outcome, string> = {
   later_today: 'Customer chose later today',
   new_date: 'Customer chose a new date',
   cancelled: 'Customer cancelled',
+  ops_stopped: 'Authorised Ops stop: customer unreachable',
 };
 
 const hm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
@@ -389,7 +398,7 @@ export function markStep(j: Job, step: StepKey, now: number): Job {
 export function setOutcome(j: Job, outcome: Outcome, now: number): Job {
   if (j.incident?.closedAt !== undefined || j.incident?.outcome) return j;
   if (outcome === 'keys_found' && now > incidentClock(j, now).lastDeparture) return j;
-  const next = withIncident(j, now, (i) => ({ ...i, outcome: { type: outcome, at: now }, waitingEndedAt: now, ...(outcome === 'later_today' || outcome === 'new_date' ? { rebooking: { owner: REVIEWER, dueAt: now + HOUR, status: 'open' as const } } : {}), steps: { ...i.steps, decide: now } }), `Decision: ${OUTCOME_LABEL[outcome].toLowerCase()} (${REVIEWER})`);
+  const next = withIncident(j, now, (i) => ({ ...i, outcome: { type: outcome, at: now }, waitingEndedAt: now, ...(outcome === 'later_today' || outcome === 'new_date' || outcome === 'ops_stopped' ? { rebooking: { owner: REVIEWER, dueAt: now + HOUR, status: 'open' as const } } : {}), steps: { ...i.steps, decide: now } }), `Decision: ${OUTCOME_LABEL[outcome].toLowerCase()} (${REVIEWER})`);
   return outcome === 'keys_found' ? { ...next, keysAt: next.keysAt ?? now } : next;
 }
 
@@ -401,7 +410,7 @@ export const CANCEL_SHARE = 0.5;
 
 export function cancelPayFor(j: Job): number {
   const o = j.incident?.outcome?.type;
-  return o === 'cancelled' || o === 'new_date' ? Math.round(j.reward * CANCEL_SHARE) : 0;
+  return o && o !== 'keys_found' ? Math.round(j.reward * CANCEL_SHARE) : 0;
 }
 
 /** A pilot customer: the account owner hears it while it happens, not from the weekly report. */
@@ -417,7 +426,7 @@ export function closeIncident(j: Job, opts: { waitPaid: boolean; feeWaived: bool
   const note = cleanNote(opts.note ?? '');
   if (cause === 'other' && !note) return { ok: false, error: 'Say what happened: "other" needs a few words.' };
   if (j.pilot && !j.incident.accountOwnerAt) return { ok: false, error: 'Log the update to the pilot account owner before closing.' };
-  if (!opts.reviewBooked || !opts.reviewAt || opts.reviewAt <= now) return { ok: false, error: 'Schedule the 15-minute booker review at a future time before closing.' };
+  if (j.pilot && (!opts.reviewBooked || !opts.reviewAt || opts.reviewAt <= now)) return { ok: false, error: 'Schedule the 15-minute booker review at a future time before closing.' };
   const pay = cancelPayFor(j);
   const job = withIncident(
     j,
@@ -429,7 +438,7 @@ export function closeIncident(j: Job, opts: { waitPaid: boolean; feeWaived: bool
       cause,
       ...(note ? { causeNote: note } : {}),
       ...(pay ? { cancelPay: pay } : {}),
-      reviewBooked: true, reviewAt: opts.reviewAt, reviewOwner: REVIEWER,
+      reviewBooked: !!opts.reviewBooked, ...(opts.reviewBooked && opts.reviewAt ? { reviewAt: opts.reviewAt } : {}), reviewOwner: REVIEWER,
       waitingEndedAt: i.waitingEndedAt ?? i.outcome!.at,
       closedAt: now,
       steps: { ...i.steps, close: now },
@@ -454,8 +463,9 @@ export function driverUpdate(j: Job, outcome: Outcome, now: number): string {
     if (now > c.lastDeparture) return 'The keys are available, but the departure cut-off has passed. Wait for ops to confirm a revised delivery plan before leaving.';
     return `Keys found, thanks for waiting! You can head off: leave by ${hm(c.lastDeparture)} to make ${hm(j.deadline)}. Your waiting time from ${waitFrom} is paid.`;
   }
+  if (outcome === 'ops_stopped') return `We could not reach the customer and an authorised Ops lead stopped this pickup. You can leave. Waiting-time compensation and the proposed cancellation payment are logged by Ops; the customer transport remains a follow-up task.`;
   const what = outcome === 'later_today' ? 'to move the pickup to later today, and we\'ll come back to you about it' : outcome === 'new_date' ? 'a new date for this drive' : 'to cancel this drive';
-  const extra = outcome === 'later_today' ? '' : `, plus ${Math.round(j.reward * CANCEL_SHARE)} SEK, half the job's pay, since the drive didn't happen`;
+  const extra = `, plus ${Math.round(j.reward * CANCEL_SHARE)} SEK, half the job's pay, since the drive didn't happen`;
   return `The customer chose ${what}. You don't need to wait any longer and can leave the pickup. Your waiting time from ${waitFrom} is paid${extra}. Thanks for staying!`;
 }
 
@@ -476,6 +486,7 @@ export function customerUpdate(j: Job, now: number): string {
 
 export function pickupReadinessErrors(j: Job): string[] {
   const errors: string[] = [];
+  if (j.unassigned) errors.push('assigned and confirmed driver');
   if (!j.contact?.role?.trim() || !/^\+?[0-9][0-9 -]{5,18}$/.test(j.contact?.phone ?? '')) errors.push('named pickup contact and phone');
   if (!j.backup?.role?.trim() || !/^\+?[0-9][0-9 -]{5,18}$/.test(j.backup?.phone ?? '')) errors.push('backup contact and phone');
   if (!j.keyLocation?.trim()) errors.push('confirmed key location');
@@ -495,18 +506,19 @@ export function agreeDeliveryDeadline(j: Job, deadline: number, now: number): Jo
   return { ...j, originalDeadline: j.originalDeadline ?? j.deadline, deadline, deliveryAgreement: { deadline, at: now, by: REVIEWER } };
 }
 
-export function bookReplacement(j: Job, pickupAt: number, now: number): Job {
+export function bookReplacement(j: Job, pickupAt: number, now: number, agreement?: { deadline: number; driverConfirmed: boolean }): Job {
   const task = j.incident?.rebooking;
   if (!task || task.status !== 'open' || !Number.isFinite(pickupAt) || pickupAt <= now) return j;
+  if (!agreement?.driverConfirmed || !Number.isFinite(agreement.deadline) || agreement.deadline < pickupAt + j.driveMin * MIN + HANDOVER_MS + MARGIN_MS) return j;
   const sameDay = new Date(pickupAt).toDateString() === new Date(now).toDateString();
   if ((j.incident?.outcome?.type === 'later_today' && !sameDay) || (j.incident?.outcome?.type === 'new_date' && sameDay)) return j;
-  return withIncident(j, now, i => ({ ...i, rebooking: { ...task, status: 'booked', pickupAt, bookedAt: now, replacementId: `${j.id}-R` } }), `Customer confirmed replacement pickup ${hm(pickupAt)}; owner ${task.owner}`);
+  return withIncident(j, now, i => ({ ...i, rebooking: { ...task, status: 'booked', pickupAt, deadline: agreement.deadline, driverConfirmed: true, bookedAt: now, replacementId: `${j.id}-R` } }), `Replacement confirmed: pickup ${hm(pickupAt)}, delivery ${hm(agreement.deadline)}, driver availability checked; owner ${task.owner}`);
 }
 
 export function replacementJob(j: Job): Job | null {
   const task = j.incident?.rebooking;
-  if (task?.status !== 'booked' || !task.pickupAt || !task.replacementId) return null;
-  return { id: task.replacementId, driverId: j.driverId, driverName: j.driverName, customer: j.customer, pilot: j.pilot, from: j.from, to: j.to, area: j.area, km: j.km, driveMin: j.driveMin, pickupAt: task.pickupAt, bookedAt: task.bookedAt, deadline: task.pickupAt + Math.max(3 * HOUR, j.driveMin * MIN + HANDOVER_MS + MARGIN_MS), reward: j.reward, price: j.price, contact: j.contact, backup: j.backup, keyLocation: j.keyLocation };
+  if (task?.status !== 'booked' || !task.pickupAt || !task.replacementId || !task.deadline || !task.driverConfirmed) return null;
+  return { id: task.replacementId, driverId: j.driverId, driverName: j.driverName, customer: j.customer, pilot: j.pilot, from: j.from, to: j.to, area: j.area, km: j.km, driveMin: j.driveMin, pickupAt: task.pickupAt, bookedAt: task.bookedAt, deadline: task.deadline, reward: j.reward, price: j.price, contact: j.contact, backup: j.backup, keyLocation: j.keyLocation, firstDrive: j.firstDrive, dispatchReady: j.dispatchReady };
 }
 
 // ---------- The driver's taps ----------
@@ -519,7 +531,7 @@ function takeOver(j: Job, now: number): Job {
 }
 
 export function checkIn(j: Job, now: number): Job {
-  if (pickupReadinessErrors(j).length || now < j.pickupAt - 2 * HOUR) return j;
+  if (j.unassigned || pickupReadinessErrors(j).length || now < j.pickupAt - 2 * HOUR) return j;
   const base = takeOver(j, now);
   return base.arrivedAt !== undefined ? base : { ...base, arrivedAt: now };
 }
@@ -639,11 +651,10 @@ export function currentJob(jobs: Job[], driverId: string, now: number): Job | nu
   return (
     jobs.find(
       (j) =>
-        j.driverId === driverId &&
+        !j.unassigned && j.driverId === driverId &&
         !done(j.deliveredAt, now) &&
         !(j.incident?.closedAt !== undefined && j.incident.outcome?.type !== 'keys_found') &&
-        now >= j.pickupAt - 2 * HOUR &&
-        now <= j.deadline + HOUR,
+        now >= j.pickupAt - 2 * HOUR,
     ) ?? null
   );
 }
@@ -815,19 +826,27 @@ export function firstDriveJob(a: Applicant, gig: Gig | undefined): Job | null {
 
 /** Keep the jobs in step with an applicant's first drive: add it when booked, move it when rebooked, drop it when released (until it starts). */
 export function syncFirstDrive(jobs: Job[], a: Applicant, gigs: Gig[]): Job[] {
-  const job = firstDriveJob(a, gigs.find((g) => g.id === a.firstGig?.gigId));
-  const existing = jobs.find((j) => j.driverId === a.id && j.firstDrive);
-  // Released (the extract wasn't shown): the job goes back, unless the drive has already started.
-  if (!job) return existing && existing.arrivedAt === undefined && !a.firstGig?.doneAt ? jobs.filter((j) => j !== existing) : jobs;
+  const existing = jobs.find(j => j.driverId === a.id && j.firstDrive && j.id === a.firstGig?.gigId)
+    ?? jobs.find(j => j.driverId === a.id && j.firstDrive && !j.deliveredAt && !j.incident?.closedAt);
+  // A confirmed replacement is a real transport even though it is not in the seed offer pool.
+  if (existing && existing.id === a.firstGig?.gigId && !gigs.some(g => g.id === existing.id) && a.decision?.type !== 'rejected') return jobs.map(j => j === existing ? { ...j, dispatchReady: canStartDrive(a) === null } : j);
+  const job = firstDriveJob(a, gigs.find(g => g.id === a.firstGig?.gigId));
+  if (!job) {
+    if (!existing || existing.arrivedAt !== undefined || a.firstGig?.doneAt) return jobs;
+    // The customer job remains visible and owned until another eligible driver books it.
+    return jobs.map(j => j !== existing ? j : { ...j, previousDriverId: a.id, driverId: '', driverName: 'Unassigned transport', unassigned: true, firstDrive: false, dispatchReady: false });
+  }
+  if (existing?.arrivedAt !== undefined) return jobs;
+  const open = jobs.find(j => j.id === job.id && j.unassigned);
+  if (open) return jobs.map(j => j === open ? { ...job, deadline: open.deadline, originalDeadline: open.originalDeadline } : j);
   if (!existing) return [...jobs, job];
-  if (existing.arrivedAt !== undefined) return jobs;
   if (existing.pickupAt === job.pickupAt && existing.id === job.id) return existing.dispatchReady === job.dispatchReady ? jobs : jobs.map(j => j === existing ? { ...j, dispatchReady: job.dispatchReady } : j);
-  return jobs.map((j) => (j === existing ? job : j));
+  return jobs.map(j => j === existing ? job : j);
 }
 
 /** How the first drive went, for first-gig quality: on time, and no incident. An incident brings its cause and what happened. */
 export function firstDriveResult(j: Job): { onTime: boolean; ok: boolean; customerSatisfied?: boolean; issue?: { cause: FirstGigIssue; note: string } } {
-  const onTime = (j.deliveredAt ?? Infinity) <= j.deadline;
+  const onTime = (j.deliveredAt ?? Infinity) <= (j.originalDeadline ?? j.deadline);
   const i = j.incident;
   if (!i && j.problemAt === undefined) return { onTime, ok: true, customerSatisfied: j.customerSatisfied };
   if (!i) return { onTime, ok: false, customerSatisfied: j.customerSatisfied, issue: { cause: causeFromReason(j.problemReason), note: cleanNote(j.problemReason ? REASON_LABEL[j.problemReason] : 'Problem reported at pickup') } };

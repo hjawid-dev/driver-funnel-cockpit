@@ -125,7 +125,7 @@ export const REJECT_REASONS: { value: RejectReason; label: string }[] = [
   { value: 'requirements_not_met', label: 'Suitability requirements not met' },
   { value: 'no_valid_licence', label: 'No valid B licence, or held < 1 year' },
   { value: 'id_unverified', label: "ID can't be verified" },
-  { value: 'no_response_14d', label: 'No response after 14 days' },
+  { value: 'no_response_14d', label: 'Incomplete after 14 days (human closure)' },
   { value: 'other', label: 'Other (note required)' },
 ];
 

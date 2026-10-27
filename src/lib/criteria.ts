@@ -82,7 +82,7 @@ export function evaluate(a: Applicant): Evaluation {
       : a.docs.extract === 'ready'
         ? { result: 'later', detail: 'Arrived: tick it if shown in this call. Otherwise a 5-minute check before the first drive. Doesn\'t block the decision.' }
         : a.docs.extract === 'pending'
-          ? { result: 'later', detail: 'Ordered from Polisen (post, up to 2 weeks). Shown before the first drive; doesn\'t block the decision.' }
+          ? { result: 'later', detail: 'Ordered from Polisen (processing up to 2 weeks, plus post). Shown before the first drive; doesn\'t block the decision.' }
           : { result: 'fail', detail: 'Not ordered yet' }),
   };
 
@@ -103,14 +103,14 @@ export function evaluate(a: Applicant): Evaluation {
     borderline.push({
       key: 'licence_1_2',
       chip: `Licence ${fmtYears(y)}`,
-      rule: 'Licence held 1–2 years → accept for simple drives first',
+      rule: 'Licence held 1 to <2 years → accept for simple drives first',
     });
   }
   if (a.availability === 'limited') {
     borderline.push({
       key: 'limited_availability',
       chip: 'Limited availability',
-      rule: 'Limited availability → accept, flag for activation follow-up',
+      rule: 'Limited availability → accept, check matching route demand',
     });
   }
 
@@ -164,7 +164,7 @@ export function validateDecision(a: Applicant, input: DecisionInput, now: number
     if (!input.reason) return 'Pick a reason code to reject.';
     if (input.reason === 'other' && !input.note?.trim()) return '"Other" needs a note.';
     if (input.reason === 'no_response_14d') {
-      if (stage !== 'registered' || !isNoResponse(a, now)) return 'Only incomplete files older than 14 days can be closed as no response.';
+      if (stage !== 'registered' || !isNoResponse(a, now)) return 'Only incomplete files older than 14 days can be closed as an incomplete file after human review.';
       return null;
     }
     // A pre-qualifying requirement that isn't met is closed by a person, not automatically.

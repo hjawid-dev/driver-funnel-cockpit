@@ -30,17 +30,18 @@ export function byUrgency(a: Applicant, b: Applicant): number {
 export const REVIEW_SLOTS = [9, 14];
 
 /** Next review slot from now: { at, label: "14:00 today" | "09:00 tomorrow" }. */
-export function nextReviewSlot(now: number): { at: number; time: string; day: 'today' | 'tomorrow'; label: string } {
-  const d = new Date(now);
-  for (const h of REVIEW_SLOTS) {
-    const slot = new Date(d);
-    slot.setHours(h, 0, 0, 0);
-    if (slot.getTime() > now) return { at: slot.getTime(), time: `${pad(h)}:00`, day: 'today', label: `${pad(h)}:00 today` };
+export function nextReviewSlot(now: number): { at: number; time: string; day: string; label: string } {
+  for (let offset = 0; offset < 8; offset++) {
+    const day = new Date(now); day.setDate(day.getDate() + offset);
+    if (day.getDay() === 0 || day.getDay() === 6) continue;
+    for (const h of REVIEW_SLOTS) {
+      const slot = new Date(day); slot.setHours(h, 0, 0, 0);
+      if (slot.getTime() <= now) continue;
+      const name = offset === 0 ? 'today' : offset === 1 ? 'tomorrow' : slot.toLocaleDateString('en-GB', { weekday: 'long' });
+      return { at: slot.getTime(), time: `${pad(h)}:00`, day: name, label: `${pad(h)}:00 ${name}` };
+    }
   }
-  const slot = new Date(d);
-  slot.setDate(slot.getDate() + 1);
-  slot.setHours(REVIEW_SLOTS[0], 0, 0, 0);
-  return { at: slot.getTime(), time: `${pad(REVIEW_SLOTS[0])}:00`, day: 'tomorrow', label: `${pad(REVIEW_SLOTS[0])}:00 tomorrow` };
+  throw new Error('No review block found');
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');

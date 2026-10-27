@@ -7,7 +7,7 @@ import { DAY, HOUR } from './time';
 export type KpiStatus = 'on' | 'risk' | 'off' | 'info';
 
 export interface Kpi {
-  key: 'docCompletion' | 'timeToDecision' | 'acceptance' | 'activation' | 'appToActive' | 'quality';
+  key: 'docCompletion' | 'timeToDecision' | 'acceptance' | 'activation' | 'appToActive' | 'quality' | 'cohortConversion';
   label: string;
   value: number | null; // % or hours
   display: string; // "72%" / "81 h"
@@ -87,6 +87,9 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
   const newApps = apps.filter((a) => a.registeredAt >= from && a.registeredAt <= now).length;
   const newActive = apps.filter((a) => a.firstGig?.doneAt && a.firstGig.doneAt >= from && a.firstGig.doneAt <= now && isAccepted(a) && a.firstGig.doneAt >= a.decision!.at).length;
   const northStar = pct(newActive, newApps);
+  const mature = apps.filter(a => a.registeredAt <= now - 30 * DAY);
+  const converted = mature.filter(a => a.firstGig?.doneAt !== undefined && a.firstGig.doneAt >= a.registeredAt && a.firstGig.doneAt <= a.registeredAt + 30 * DAY && a.firstGig.doneAt <= now).length;
+  const conversion = pct(converted, mature.length);
 
   // 6. First-gig quality: on time and no incident / customer happy
   const done = apps.filter((a) => a.firstGig?.doneAt && a.firstGig.doneAt <= now && isAccepted(a) && a.firstGig.doneAt >= a.decision!.at);
@@ -95,6 +98,12 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
   const quality = pct(good, assessed.length);
 
   return [
+    {
+      key: 'cohortConversion', label: 'Application → active', value: conversion, display: fmtPct(conversion),
+      target: 'Pilot target 35%', caption: `${converted} of ${mature.length} registrations with 30+ days of follow-up`,
+      info: ['Share of applicants completing a first drive within 30 days of registration. Only registrations with at least 30 days of follow-up count; all mature history.', 'The case gives monthly volumes (25 active / 120 applications), not a measured cohort baseline. 35% is a pilot hypothesis to validate.'],
+      status: band(conversion, 35, 25), northStar: true,
+    },
     {
       key: 'docCompletion',
       label: 'Document completion',
@@ -110,18 +119,18 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
     },
     {
       key: 'timeToDecision',
-      label: 'Median time to decision',
-      value: med,
-      display: fmtHours(med),
-      sub: mean === null ? undefined : `mean ${fmtHours(mean)} · ops median ${fmtHours(opsMed)}`,
+      label: 'Mean time to decision',
+      value: mean,
+      display: fmtHours(mean),
+      sub: `Median ${fmtHours(med)} · ${fmtPct(within48)} within 48 h · ops median ${fmtHours(opsMed)}`,
       target: 'Target < 48 h',
       caption: `${decided.length} decisions${oldest !== null ? ` · oldest in queue ${Math.floor(oldest)} h` : ''}`,
       info: [
-        `Median time from registration to decision. Decided within 48 h: ${fmtPct(within48)}. The case gives an average (mean) of about 6 days; the median is shown because a few very slow files pull a mean up.`,
+        `Mean time from registration to first human decision (case-comparable). Decided within 48 h: ${fmtPct(within48)}. The case gives an average (mean) of about 6 days; the median is available as supporting context. Open overdue cases must also be reviewed, as undecided files are not yet in this duration.`,
         `Ops part, from complete file to decision: median ${opsMed === null ? '–' : Math.round(opsMed)} h, ${fmtPct(opsWithin48)} within 48 h. The rest is the applicant getting documents in, which is why the extract is ordered first.`,
         `${decided.length} decisions${oldest !== null ? ` · oldest in queue ${Math.floor(oldest)} h` : ''}`,
       ],
-      status: band(med, 48, 72, false),
+      status: band(mean, 48, 72, false),
     },
     {
       key: 'acceptance',
@@ -146,7 +155,7 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
       target: 'Target 75%',
       caption: `${activated} of ${actCohort.length} accepted 14+ days ago`,
       info: [
-        'Share of accepted drivers who completed a first gig within 14 days, counting those accepted at least 14 days ago. After 7 days without a booking, ops follows up.',
+        'Share completing a first drive within 14 days among initial acceptances with 14+ days of follow-up. No booking: reminder at day 7, Ops contact at day 14. A passed booking without delivery still needs follow-up.',
         `${activated} of ${actCohort.length}`,
       ],
       status: band(actRate, 75, 60),
@@ -157,25 +166,24 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
       value: northStar,
       display: fmtPct(northStar),
       sub: 'North star · a 30-day flow',
-      target: 'Target 35%',
+      target: 'Throughput only',
       caption: `Last 30 days · ${newActive} new active ÷ ${newApps} applications (a flow, not a cohort)`,
       info: [
         'A flow, like the case\'s "25 of 120 a month": drivers who completed a first gig in the last 30 days, divided by applications in the same 30 days. They are not the same people, so it is throughput, not conversion.',
-        'With 60+ days of history, add the cohort version: of those who applied in a month, how many became active within 30 days.',
+        'Application → active is the separate cohort measure. A flow ratio can rise when registrations fall, and can exceed 100% while clearing older applications.',
         `${newActive} new active ÷ ${newApps} applications · case baseline 21%`,
       ],
-      status: band(northStar, 35, 25),
-      northStar: true,
+      status: 'info',
     },
     {
       key: 'quality',
-      label: 'First-gig quality',
+      label: 'First-drive delivery outcome',
       value: quality,
       display: fmtPct(quality),
       sub: 'on time, no incident',
       target: 'Guardrail ≥ 95%',
       caption: `${good} of ${assessed.length} assessed first gigs · ${done.length - assessed.length} pending customer feedback`,
-      info: ['All-history share of completed first gigs on time, without a reported incident and with customer satisfaction confirmed. Missing feedback is not assumed positive.', `${good} of ${assessed.length} assessed first gigs; ${done.length - assessed.length} pending customer feedback`],
+      info: ['All-history delivery outcome against the original deadline: on time, no reported incident, satisfied customer. This is not a driver fault score: customer-caused incidents also count. Read the logged cause; missing feedback is unknown. The 95% pilot guardrail is unvalidated.', `${good} of ${assessed.length} assessed first gigs; ${done.length - assessed.length} pending customer feedback`],
       status: band(quality, 95, 90),
     },
   ];
@@ -185,7 +193,7 @@ const SHORT_REASON: Record<RejectReason, string> = {
   requirements_not_met: 'Requirements',
   no_valid_licence: 'Licence',
   id_unverified: 'ID',
-  no_response_14d: 'No response',
+  no_response_14d: 'Incomplete file',
   other: 'Other',
 };
 
@@ -332,6 +340,7 @@ export const HIGHER_IS_BETTER: Record<Kpi['key'], boolean | null> = {
   activation: true,
   appToActive: true,
   quality: true,
+  cohortConversion: true,
 };
 
 export interface KpiDelta {

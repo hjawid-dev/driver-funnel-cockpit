@@ -30,18 +30,19 @@ export function PresentBar({ step, onStep, onExit, evidence, status, onExplore, 
       </div>
       <h2 className="mt-2 text-sm font-semibold text-navy">{s.title}</h2>
       <p className="mt-1 text-sm text-navy"><strong className="text-indigo">Solution: </strong>{s.solution}</p>
-      <p className="mt-1 text-xs text-muted">{s.instruction}</p>
+      <p className="mt-1 text-sm text-navy">{status.kind === 'pending' ? status.text.replace('To continue: ', '') : s.instruction}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-        <button type="button" onClick={() => onExplore('target')} className="rounded-md border border-indigo px-2.5 py-1.5 font-semibold text-indigo">Show in app: {s.location}</button>
+        <button type="button" onClick={() => onExplore('target')} className="rounded-md border border-indigo px-2.5 py-1.5 font-semibold text-indigo">Show: {s.location}</button>
         {s.key === 'onboarding' && <button type="button" onClick={() => onExplore('start')} className="rounded border border-lavender px-2 py-1.5 font-semibold text-indigo">View application start</button>}
         {s.key === 'reminders' && <button type="button" onClick={() => onExplore('reminders')} className="rounded border border-lavender px-2 py-1.5 font-semibold text-indigo">Open Ops reminder schedule</button>}
+        {s.key === 'activate' && <button type="button" onClick={() => onExplore('job')} className="rounded border border-lavender px-2 py-1.5 font-semibold text-indigo">Track same job in Live Ops</button>}
         {['activate'].includes(s.key) && <button type="button" onClick={() => onExplore('criteria')} className="rounded border border-lavender px-2 py-1.5 font-semibold text-indigo">Open Ahmed’s checks</button>}
-        {s.key === 'followup' && <><button type="button" onClick={() => onExplore('followup_reminder')} className="rounded border border-lavender px-2 py-1.5 font-semibold text-indigo">See 7-day reminder example</button><button type="button" onClick={() => onExplore('followup_call')} className="rounded border border-lavender px-2 py-1.5 font-semibold text-indigo">See 14-day call example</button></>}
+        {s.key === 'followup' && <><button type="button" onClick={() => onExplore('followup_reminder')} className="rounded border border-lavender px-2 py-1.5 font-semibold text-indigo">See 7-day reminder</button><button type="button" onClick={() => onExplore('followup_call')} className="rounded border border-lavender px-2 py-1.5 font-semibold text-indigo">See demand blocker</button></>}
         {s.key === 'measure' && <button type="button" onClick={() => onExplore('report')} className="rounded-md bg-indigo px-3 py-1.5 font-semibold text-white">Open weekly report</button>}
         {jumpLabel && <button type="button" onClick={onJump} className="rounded border border-lavender px-2 py-1.5 font-semibold text-muted">{jumpLabel}</button>}
       </div>
-      <p role="status" className={`mt-2 rounded-md px-2.5 py-1.5 text-xs font-semibold ${status.kind === 'complete' ? 'bg-ok-bg text-ok' : status.kind === 'pending' ? 'bg-lavender/50 text-indigo' : 'bg-card text-muted'}`}>{status.kind === 'complete' ? '✓ ' : ''}{status.text}</p>
-      {evidence && <p role="status" className="mt-2 text-xs text-muted">{evidence}</p>}
+      {status.kind === 'complete' && <p role="status" className={`mt-2 rounded-md px-2.5 py-1.5 text-xs font-semibold ${status.kind === 'complete' ? 'bg-ok-bg text-ok' : status.kind === 'pending' ? 'bg-lavender/50 text-indigo' : 'bg-card text-muted'}`}>{status.kind === 'complete' ? '✓ ' : ''}{status.text}</p>}
+      {evidence && <details className="mt-1 text-xs text-muted"><summary className="cursor-pointer">Current record</summary>{evidence}</details>}
     </div>
   </section>;
 }

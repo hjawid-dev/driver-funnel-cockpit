@@ -44,7 +44,7 @@ export function driverContext(a: Applicant | null, gigs: Gig[], now: number, job
     const where = st === 'check_booked' ? `5-minute check booked ${formatDateTime(a.extractCheckAt!)}` : st === 'ready' ? 'arrived, 5-minute check not booked yet' : 'ordered, not arrived yet';
     facts.push(`Extract not shown yet (${where}). No drive until it is shown${by ? `, by ${formatDateTime(by)}` : ''}; a first drive can be booked before`);
   }
-  if (a.decision?.type === 'accepted_simple') facts.push('Accepted for simple drives first (licence held 1–2 years)');
+  if (a.decision?.type === 'accepted_simple') facts.push('Accepted for simple drives first (licence held 1 to <2 years)');
   if (a.availability === 'limited') facts.push(`Availability: ${a.availabilityNote ?? 'limited'}`);
   const g = a.firstGig?.gigId ? gigs.find((x) => x.id === a.firstGig?.gigId) : undefined;
   const start = a.firstGig?.bookedFor;

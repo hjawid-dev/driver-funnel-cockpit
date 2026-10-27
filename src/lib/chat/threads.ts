@@ -316,7 +316,7 @@ const HISTORY: { name: string; daysAgo: number; lines: Line[]; waiting?: Handove
   ] },
   { name: 'Ali Mohammed', daysAgo: 3, lines: [
     ['driver', 'I have had my licence for 18 months, can I still apply?', 0],
-    ['ai', 'Yes. With 1–2 years you can be accepted for simple drives first: shorter drives with standard cars. After a few drives without remarks you get the full range.', 0.2, { sources: ['licence-years', 'simple-drives'] }],
+    ['ai', 'Yes. With 1 to <2 years you can be accepted for simple drives first: shorter drives with standard cars. All demo first drives are simple; further progression requires an agreed policy and is not automated here.', 0.2, { sources: ['licence-years', 'simple-drives'] }],
   ] },
   { name: 'Ida Sjöberg', daysAgo: 3.4, lines: [
     ['driver', 'I can only drive weekends, is that a problem?', 0],

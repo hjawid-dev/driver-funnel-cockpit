@@ -18,7 +18,7 @@ import type { ActionResult } from './actions';
 export const CHECK_MINUTES = 5;
 /** Shown at the latest the day before the first drive, or the drive goes to another driver. */
 export const SHOW_BY_MS = 24 * HOUR;
-/** Before the extract is shown, first drives are offered from 5 days ahead, so there is time for it to arrive. */
+/** Before the extract is shown, first drives are offered from 5 days ahead, as a planning floor, not a guarantee of postal arrival. */
 export const OFFER_LEAD_MS = 5 * DAY;
 
 export type ExtractState = 'shown' | 'check_booked' | 'ready' | 'ordered' | 'missing';

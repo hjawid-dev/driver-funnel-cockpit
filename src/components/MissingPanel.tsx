@@ -39,7 +39,7 @@ export function MissingPanel({ a, now, onResult }: Props) {
     onResult(
       a.prequalIssue === 'licence'
         ? applyDecision(a, { type: 'rejected', reason: 'no_valid_licence' }, now)
-        : applyDecision(a, { type: 'rejected', reason: 'other', note: `Below the minimum age set by our insurance (${MIN_AGE})` }, now),
+        : applyDecision(a, { type: 'rejected', reason: 'other', note: `Below the proposed minimum insurance age (${MIN_AGE})` }, now),
       true,
     );
 
@@ -49,7 +49,7 @@ export function MissingPanel({ a, now, onResult }: Props) {
         <DrawerSection title="Pre-qualifying">
           <div className="rounded-lg bg-warn-bg p-3 text-sm">
             <p className="font-semibold text-warn">
-              {a.prequalIssue === 'licence' ? 'Says the B licence is held under 1 year' : `Says they are under ${MIN_AGE} (insurance requirement)`}
+              {a.prequalIssue === 'licence' ? 'Says the B licence is held under 1 year' : `Says they are under ${MIN_AGE} (proposed insurance threshold)`}
             </p>
             <p className="mt-1 text-xs text-muted">
               Nothing was decided automatically. Check the answer with the applicant if needed, then close the file. They get the reason and can ask for a review.
@@ -90,7 +90,7 @@ export function MissingPanel({ a, now, onResult }: Props) {
 
       <DrawerSection title="Nudges" aside={<span className="text-xs text-muted">{nudge.autoSent.length} auto reminders sent</span>} info={<>
         <p className="font-semibold">Reminder schedule</p>
-        <p>Automatic reminders after 2, 24 and 72 hours. The driver can pause or stop them in the chat.</p>
+        <p>Proposed reminders at 2, 24 and 72 hours; the 72-hour reminder does not extend the 48-hour decision target. Owner contacts applicants at 24 hours if documents are missing. The driver can pause or stop them in the chat.</p>
         <ol className="space-y-1">
           {NUDGE_OFFSETS.map((o, i) => {
             const at = a.registeredAt + o;
@@ -104,7 +104,7 @@ export function MissingPanel({ a, now, onResult }: Props) {
           })}
           {nudge.manual.map((t) => (
             <li key={t}>
-              <span className="font-semibold">Manual reminder</span>
+              <span className="font-semibold">Manual follow-up logged</span>
               <span className="num block text-muted">{formatDateTime(t)} · logged by Ops</span>
             </li>
           ))}
@@ -120,7 +120,7 @@ export function MissingPanel({ a, now, onResult }: Props) {
             onClick={() => onResult(logNudge(a, now))}
             className="inline-flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-2 text-sm font-semibold text-white hover:bg-navy"
           >
-            <Send size={15} aria-hidden /> Send nudge now
+            <Send size={15} aria-hidden /> Log manual follow-up
           </button>
           {stale && (
             <button
@@ -128,11 +128,11 @@ export function MissingPanel({ a, now, onResult }: Props) {
               onClick={() => onResult(closeNoResponse(a, now), true)}
               className="inline-flex items-center gap-1.5 rounded-lg border border-bad px-3 py-2 text-sm font-semibold text-bad hover:bg-bad hover:text-white"
             >
-              <Ban size={15} aria-hidden /> Close: no response
+              <Ban size={15} aria-hidden /> Close incomplete file
             </button>
           )}
         </div>
-        {stale && <p className="mt-1.5 text-xs text-muted">Over 14 days with documents missing. Closing logs the reason code "No response after 14 days".</p>}
+        {stale && <p className="mt-1.5 text-xs text-muted">Review recent replies and progress before closing. Keep engaged applicants open; closure records an incomplete file, not a suitability rejection.</p>}
       </DrawerSection>
     </>
   );

@@ -6,13 +6,13 @@ const ROWS: { cockpit: string; hubspot: string; required: string; workflow: stri
     cockpit: 'Missing documents',
     hubspot: 'Registered',
     required: 'Pre-qualifying answers (licence years, minimum age set by insurance, availability) · status for licence, ID, photo · extract ordered: yes/no',
-    workflow: 'Nudges at +2 h, +24 h, +72 h via driver chat · a requirement not met is shown to the applicant and a human closes the file · task "no response 14 days"',
+    workflow: 'Nudges at +2 h, +24 h, +72 h via driver chat · a requirement not met is shown to the applicant and a human closes the file · human review of incomplete files at 14 days; check recent contact before closure',
   },
   {
     cockpit: '(automatic)',
     hubspot: 'Documents submitted',
     required: 'Licence, ID and photo in place, extract ordered (it comes by post, so the decision does not wait for it) · docs_complete_at',
-    workflow: 'Auto-move to Under review · reviewer task in the next review slot (09:00 / 14:00)',
+    workflow: 'Auto-move to Under review · reviewer task in the next review slot (weekday blocks 09:00 / 14:00; exception before SLA breach)',
   },
   {
     cockpit: 'Review queue',
@@ -23,7 +23,7 @@ const ROWS: { cockpit: string; hubspot: string; required: string; workflow: stri
   {
     cockpit: 'Awaiting first gig',
     hubspot: 'Accepted',
-    required: 'accept_variant (standard / simple drives first / activation flag) · extract_shown_at (yes/no only) · extract_check_at · welcome_call_at · first_gig_booked_for · activation_reason',
+    required: 'accept_variant (standard / simple drives first / activation flag) · extract_shown_at (yes/no only) · extract_check_at · first_gig_booked_for · activation_reason',
     workflow: 'Extract shown in a 5-minute check, by the day before the first drive, or the drive is released · matching offers after acceptance · driver reminder at 7 d without booking · call task at 14 d · dormant at 30 d',
   },
   {
@@ -123,12 +123,12 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl bg-card p-4 text-sm">
-              <h3 className="font-semibold">Configured in HubSpot</h3>
-              <p className="mt-1 text-xs text-muted">Most of the ops side is setup, not code:</p>
+              <h3 className="font-semibold">Proposed HubSpot setup</h3>
+              <p className="mt-1 text-xs text-muted">Proposed production configuration; none is connected in this demo:</p>
               <ul className="mt-2 space-y-1 text-xs">
                 <li>Pipeline stages, required fields and reason-code dropdowns</li>
                 <li>Workflows for reminders, SLA alerts and tasks (the "Move time" button shows them running)</li>
-                <li>Meetings for booking the onboarding call in the 09:00 and 14:00 slots</li>
+                <li>Weekday review blocks at 09:00 and 14:00; four 15-minute appointments per block, with owner/backup exceptions before 48 hours</li>
                 <li>Funnel and KPI reports from the timestamps</li>
                 <li>The help desk inbox and ticket SLAs for questions the assistant hands over</li>
                 <li>The knowledge base: the 36 help articles the assistant answers from</li>
@@ -161,12 +161,12 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
 
           <div className="mt-4 rounded-xl border border-lavender p-4 text-sm">
             <h3 className="flex items-center gap-1.5 font-semibold">
-              <ShieldCheck size={16} className="text-ok" aria-hidden /> Privacy and fairness, built in
+              <ShieldCheck size={16} className="text-ok" aria-hidden /> Proposed data-handling controls
             </h3>
             <ul className="mt-2 grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
               <li>
-                <strong>No criminal-record data stored.</strong> The applicant orders their own extract and shows it, voluntarily, before the first drive. Only
-                "extract shown: yes" is recorded (GDPR art. 10).
+                <strong>No criminal-record data stored.</strong> Proposed control: the applicant shows an extract before the first drive. The method and handling require policy/legal validation. Only
+                "extract shown: yes" is recorded. This does not certify the method's legal suitability.
               </li>
               <li>
                 <strong>No traffic-offence data.</strong> Licence validity is checked with Transportstyrelsen; offences are never recorded.

@@ -1,86 +1,25 @@
 import { ArrowRight, FileText, TriangleAlert } from 'lucide-react';
 import { kpiDelta, type Funnel, type FunnelKey, type Kpi } from '../lib/kpis';
-import { StatusChip } from './ui';
+import { CollapsibleSection, StatusChip } from './ui';
 import { InfoTip } from './InfoTip';
 
-/** The four metrics the case asks about, in this order. Acceptance and first-gig quality are in the weekly report. */
-export const FUNNEL_KPIS: Kpi['key'][] = ['appToActive', 'docCompletion', 'timeToDecision', 'activation', 'acceptance', 'quality'];
-
-const LABEL: Partial<Record<Kpi['key'], string>> = { activation: 'First-gig activation' };
-const PERIOD: Partial<Record<Kpi['key'], string>> = {
-  appToActive: 'Last 30 days',
-  docCompletion: 'Within 7 days',
-  activation: 'Within 14 days',
-};
-
-/** The case's own numbers, kept apart from the demo sample so the two are never mixed. */
-const CASE_BASELINE: Partial<Record<Kpi['key'], string>> = {
-  appToActive: 'Case: 25 of 120 ≈ 21%',
-  docCompletion: 'Case: ~70% eventually; 7-day baseline unknown',
-  timeToDecision: 'Case: 6 days (mean)',
-  activation: 'Case: not measured',
-};
-
+export const FUNNEL_KPIS: Kpi['key'][] = ['cohortConversion', 'docCompletion', 'timeToDecision', 'activation'];
+const PERIOD: Partial<Record<Kpi['key'], string>> = { cohortConversion: 'Within 30 days · mature cohorts', docCompletion: 'Within 7 days · mature cohorts', activation: 'Within 14 days · mature cohorts', appToActive: '30-day flow · different people' };
 export function FunnelKpis({ kpis, baseline, onReport }: { kpis: Kpi[]; baseline: Kpi[]; onReport: () => void }) {
-  const shown = FUNNEL_KPIS.map((k) => kpis.find((x) => x.key === k)!).filter(Boolean);
-  return (
-    <section aria-labelledby="kpi-title">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h2 id="kpi-title" className="flex items-center gap-1 text-sm font-semibold">
-          How the funnel performs
-          <InfoTip label="About these numbers">
-            <p>Live demo data. Open a metric's question mark for its definition, sample and case baseline.</p>
-            <p className="text-muted">Targets are proposed, except the case's 48-hour decision target. Cohort rates only count applicants with enough follow-up time.</p>
-          </InfoTip>
-          <span className="ml-2 text-xs font-normal text-muted">Targets proposed</span>
-        </h2>
-        <button type="button" onClick={onReport} className="flex items-center gap-1.5 text-sm font-semibold text-indigo hover:underline">
-          <FileText size={15} aria-hidden /> Weekly report
-        </button>
-      </div>
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-        {shown.map((k) => {
-          const d = kpiDelta(baseline.find((b) => b.key === k.key), k);
-          return (
-            <article key={k.key} className={`rounded-xl border p-3 sm:p-4 ${k.northStar ? 'border-indigo/40 bg-lavender/40' : 'border-lavender bg-white'}`}>
-              <h3 className="flex items-center gap-1 text-sm font-semibold leading-tight">
-                {LABEL[k.key] ?? k.label}
-                <InfoTip label={`About ${(LABEL[k.key] ?? k.label).toLowerCase()}`}>
-                  {k.info.map((line, i) => (
-                    <p key={i} className={i > 0 ? 'text-muted' : undefined}>
-                      {line}
-                    </p>
-                  ))}
-                  {k.sub && <p className="text-muted">{k.sub}</p>}
-                  <p className="text-muted">{k.caption}</p>
-                  {CASE_BASELINE[k.key] && <p className="text-muted">{CASE_BASELINE[k.key]}</p>}
-                </InfoTip>
-              </h3>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="num text-2xl font-semibold tracking-tight">{k.display}</span>
-                {d && (
-                  <span key={d.text} title="Change since the demo started" className={`anim-rise num rounded-md px-1.5 py-0.5 text-xs font-semibold ${d.good === null ? 'bg-idle-bg text-idle' : d.good ? 'bg-ok-bg text-ok' : 'bg-bad-bg text-bad'}`}>
-                    {d.text}
-                  </span>
-                )}
-              </div>
-              {PERIOD[k.key] && <p className="mt-1 text-xs text-muted">{PERIOD[k.key]}</p>}
-              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                <StatusChip status={k.status} />
-                {k.key === 'acceptance' ? <span className="text-muted">Guardrail</span> : k.key === 'timeToDecision' ? (
-                  <span className="text-muted">Case target &lt; 48 h</span>
-                ) : (
-                  <span className="flex items-center gap-1 text-muted">
-                    {k.target}
-                  </span>
-                )}
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </section>
-  );
+  const card = (k: Kpi) => {
+    const d = kpiDelta(baseline.find(b => b.key === k.key), k);
+    return <article key={k.key} className={`rounded-xl border p-3 sm:p-4 ${k.northStar ? 'border-indigo/40 bg-lavender/40' : 'border-lavender bg-white'}`}>
+      <h3 className="flex items-center gap-1 text-sm font-semibold leading-tight">{k.label}<InfoTip label={`About ${k.label.toLowerCase()}`}>{k.info.map((line, i) => <p key={i}>{line}</p>)}{k.sub && <p>{k.sub}</p>}<p>{k.caption}</p></InfoTip></h3>
+      <div className="mt-1.5 flex flex-wrap items-center gap-2"><span className="num whitespace-nowrap text-2xl font-semibold">{k.display}</span>{d && <span title="Change in this demo only" className="num rounded bg-card px-1.5 text-xs">{d.text}</span>}</div>
+      {PERIOD[k.key] && <p className="mt-1 text-xs text-muted">{PERIOD[k.key]}</p>}
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs"><StatusChip status={k.status} /><span className="text-muted">{k.key === 'timeToDecision' ? 'Case target ≤ 48 h' : k.target}</span></div>
+    </article>;
+  };
+  return <section aria-labelledby="kpi-title" data-demo-target="metrics">
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><h2 id="kpi-title" className="flex items-center gap-1 text-sm font-semibold">How the funnel performs<InfoTip label="About these numbers"><p>Demo data. Targets and cohort windows are pilot hypotheses, except the case's 48-hour registration-to-decision target.</p><p>Owner and backup review the open queue daily, including missing documents. Arrange an exception before 48 hours if standard weekday calls do not fit; an incomplete case remains an explicit SLA miss.</p><p>Each week: choose one blocker, test one process change and compare mature cohort outcomes. Large queues are work in progress, not proof of the cause.</p></InfoTip><span className="ml-2 text-xs font-normal text-muted">Pilot targets</span></h2><button type="button" onClick={onReport} className="flex items-center gap-1.5 text-sm font-semibold text-indigo"><FileText size={15} />Weekly report</button></div>
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{FUNNEL_KPIS.map(key => kpis.find(k => k.key === key)).filter((k): k is Kpi => !!k).map(card)}</div>
+    <div className="mt-3"><CollapsibleSection title="Guardrails and throughput" summary="Acceptance · delivery outcome · monthly flow"><div className="grid gap-3 sm:grid-cols-3">{kpis.filter(k => !FUNNEL_KPIS.includes(k.key)).map(card)}</div></CollapsibleSection></div>
+  </section>;
 }
 
 /** Who sits at each stage now: the list a click on the stage opens. */

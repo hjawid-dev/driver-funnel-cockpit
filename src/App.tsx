@@ -334,7 +334,7 @@ export default function App() {
   // ---- What the two pages show ----
   const funnel = useMemo(() => computeFunnel(apps), [apps]);
   const kpis = useMemo(() => computeKpis(apps, now), [apps, now]);
-  const items = useMemo(() => workItems(apps, gigs, now), [apps, gigs, now]);
+  const items = useMemo(() => workItems(apps, gigs, now, jobs), [apps, gigs, now, jobs]);
   const counts = queueCounts(items, apps.length);
   const shownItems = filterItems(items, filter);
   const openItem = items.find((w) => w.a.id === openId) ?? null;
@@ -398,12 +398,22 @@ export default function App() {
       const examples = followUpTargets(presentData, now);
       setPage('funnel'); setFilter('awaiting'); setOpenId((view === 'followup_reminder' ? examples.reminder : examples.call)?.id ?? null);
     } else if (view === 'job') {
-      setPage('live'); setLiveSel(jobs.find(j => j.firstDrive && j.driverId === reviewTarget(apps)?.id)?.id ?? null);
+      setPage('live'); setLiveSel(jobs.find(j => j.firstDrive && j.id === reviewTarget(apps)?.firstGig?.gigId)?.id ?? null);
+      setTimeout(() => document.querySelector<HTMLElement>('[data-demo-target="job-detail"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     }
   };
+  const guideFocusVersion = [reviewTarget(apps)?.extractShown, reviewTarget(apps)?.photoApproved, reviewTarget(apps)?.onboardingCompletedAt, reviewTarget(apps)?.decision?.type, jobs.find(j => j.asInCase)?.incident?.log.length].join(':');
+  useEffect(() => {
+    if (!currentPresent) return;
+    const timer = setTimeout(() => focusGuideStep(currentPresent.key), 150);
+    return () => { clearTimeout(timer); document.querySelectorAll('[data-demo-focus]').forEach(el => el.removeAttribute('data-demo-focus')); };
+  }, [present, openId, phoneOpen, liveSel, guideFocusVersion]);
   const guideIncident = jobs.find(j => j.asInCase);
-  const guideJumpAt = currentPresent?.key === 'decision' && guideIncident && !guideIncident.incident?.outcome ? incidentClock(guideIncident, now).decideBy : null;
-  const guideJumpLabel = guideJumpAt && guideJumpAt > now ? `Move demo time to decision point (${new Date(guideJumpAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })})` : null;
+  const guideDriver = reviewTarget(apps);
+  const guideJob = jobs.find(j => j.firstDrive && j.id === guideDriver?.firstGig?.gigId);
+  const guideJumpAt = currentPresent?.key === 'decision' && guideIncident && !guideIncident.incident?.outcome ? incidentClock(guideIncident, now).decideBy
+    : currentPresent?.key === 'activate' && guideJob && !guideJob.deliveredAt ? (!guideJob.departedAt ? guideJob.pickupAt : guideJob.departedAt + guideJob.driveMin * 60000) : null;
+  const guideJumpLabel = guideJumpAt && guideJumpAt > now ? currentPresent?.key === 'activate' ? `Move demo time to ${guideJob?.departedAt ? 'delivery' : 'pickup'}` : 'Move demo time to decision point' : null;
   // While presenting, the header and the bar stick to the top; drawers and dialogs open below them.
   const topRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -511,11 +521,11 @@ export default function App() {
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <h2 id="queue-title" className="flex items-center gap-1.5 text-sm font-semibold">
                     Candidates
-                    <Proposed title="The follow-up rules are my proposal, not given in the case: reminders at 2, 24 and 72 h, close after 14 days without a reply, two review slots a day, the driver books from matching offers, reminder at 7 days without booking, call at 14." />
+                    <Proposed title="The follow-up rules are my proposal, not given in the case: reminders at 2, 24 and 72 h, human review of incomplete files at 14 days; review recent replies before closure, two weekday review blocks; owner/backup arranges an exception before 48 h when documents or available call times are a blocker, the driver books from matching offers, reminder at 7 days without booking, call at 14." />
                   </h2>
                   <span className="flex items-center gap-1.5 text-xs text-muted">
                     <CalendarClock size={14} className="text-indigo" aria-hidden />
-                    Next review slot <strong className="num font-semibold text-navy">{slot.time}</strong> {slot.day} · in {formatDuration(slot.at - now)}
+                    Next review block <strong className="num font-semibold text-navy">{slot.time}</strong> {slot.day} · in {formatDuration(slot.at - now)}
                   </span>
                 </div>
                 <div role="tablist" aria-label="Filter candidates" className="mb-3 flex gap-1 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">

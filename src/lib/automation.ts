@@ -4,7 +4,7 @@ import { NUDGE_OFFSETS, NO_RESPONSE_MS, nudgeMessage, reminderSilenced } from '.
 import { DAY, HOUR, atLocal, formatDateTime } from './time';
 import type { ChatThread } from './chat/types';
 import { slaFor } from './chat/threads';
-import { assistStart, jobAlert, pickupChecks, REPLY_WAIT_24_MS, REPLY_WAIT_60_MS, type Job } from './liveOps';
+import { assistStart, jobAlert, pickupChecks, type Job } from './liveOps';
 import { SHOW_BY_MS } from './extract';
 
 /**
@@ -76,11 +76,11 @@ function deriveAutomationEvents(apps: Applicant[], from: number, to: number): Au
 
     // 14 days without a complete file: a person closes it (never automatic).
     const t14 = a.registeredAt + NO_RESPONSE_MS;
-    if (!completeBy(t14) && !decidedBy(t14)) push(t14, 'ops', 'close_task', `Task: ${a.name} has not answered in 14 days. Review and close.`);
+    if (!completeBy(t14) && !decidedBy(t14)) push(t14, 'ops', 'close_task', `Task: ${a.name}'s file is incomplete after 14 days. Review recent contact before any closure.`);
 
     // Extract call reminder.
     if (a.callAt) {
-      push(a.callAt - HOUR, 'driver', 'call_reminder', 'Your call is in 1 hour', `Have your extract ready. We only look at it and never keep a copy. Call at ${time(a.callAt)}.`);
+      push(a.callAt - HOUR, 'driver', 'call_reminder', 'Your call is in 1 hour', `If your extract has arrived, have it ready; otherwise show it before driving. No copy is stored. Call at ${time(a.callAt)}.`);
       push(a.callAt - HOUR, 'ops', 'call_reminder', `Onboarding call with ${a.name} at ${time(a.callAt)}`);
     }
 
@@ -120,7 +120,7 @@ function deriveAutomationEvents(apps: Applicant[], from: number, to: number): Au
       'Welcome aboard!',
       shownBy(d.at)
         ? `Hi ${first(a)}, you're accepted. Pick your first drive below: short, easy jobs with ops on standby.`
-        : `Hi ${first(a)}, you're accepted! One thing before your first drive: show us your criminal-record extract in a 5-minute video check when it arrives. Pick your first drive below; it starts at least 5 days from now so the extract has time to arrive.`,
+        : `Hi ${first(a)}, you're accepted! One thing before your first drive: show us your criminal-record extract in a 5-minute video check when it arrives. Pick your first drive below; the reservation is conditional until the pre-drive check is complete. Five days is a planning floor, not a promise that the extract will arrive.`,
     );
     push(d.at, 'driver', 'offers', 'First-gig offers ready', 'Check the current matching jobs in your application. If none fit, your owner follows up; no job is guaranteed until booked.');
     // The 5-minute extract check, when the extract arrived after the decision.
@@ -146,7 +146,7 @@ function deriveAutomationEvents(apps: Applicant[], from: number, to: number): Au
     const gig = a.firstGig;
     const reminderAt = gig?.bookedFor ? gig.bookedFor - 12 * HOUR : 0;
     if (gig?.bookedFor && (!gig.doneAt || gig.doneAt > reminderAt)) {
-      push(reminderAt, 'driver', 'gig_reminder', 'Your first drive is tomorrow', `Start ${time(gig.bookedFor)}. Ops is on standby the whole drive.`);
+      push(reminderAt, 'driver', 'gig_reminder', 'Your first drive is coming up', `Start ${time(gig.bookedFor)}. Ops is on standby the whole drive.`);
     }
     if (gig?.doneAt) push(gig.doneAt, 'driver', 'activated', 'You are now an active driver', 'Great first drive. New jobs show up in the app every day.');
 
@@ -154,8 +154,8 @@ function deriveAutomationEvents(apps: Applicant[], from: number, to: number): Au
     const bookedBy = (t: number) => booked && (gig?.bookedAt ?? d.at) <= t;
     const done = (t: number) => !!gig?.doneAt && gig.doneAt <= t;
     const interestedAt = (t: number) => a.activationReason?.reason !== 'not_interested' || a.activationReason.at > t;
-    if (interestedAt(d.at + 7 * DAY) && !bookedBy(d.at + 7 * DAY) && !done(d.at + 7 * DAY)) push(d.at + 7 * DAY, 'driver', 'book_task', 'Choose your first drive', `Hi ${first(a)}, ready to get started? Open your application to see the current short, easy jobs near you and pick one that fits. If none fit, contact Ops through the AI assistant.`);
-    if (interestedAt(d.at + 14 * DAY) && !bookedBy(d.at + 14 * DAY) && !done(d.at + 14 * DAY)) push(d.at + 14 * DAY, 'ops', 'call_task', `Task: call ${a.name}, no first booking after 14 days`);
+    if (interestedAt(d.at + 7 * DAY) && !bookedBy(d.at + 7 * DAY) && !done(d.at + 7 * DAY)) push(d.at + 7 * DAY, 'driver', 'book_task', 'Choose your first drive', `Hi ${first(a)}, check your application for the next step: show your extract if outstanding, then choose a matching drive. If no jobs fit, contact Ops; you do not need to book an unsuitable drive.`);
+    if (interestedAt(d.at + 14 * DAY) && !bookedBy(d.at + 14 * DAY) && !done(d.at + 14 * DAY) && !(a.activationReason && a.activationReason.at <= d.at + 14 * DAY)) push(d.at + 14 * DAY, 'ops', 'call_task', `Task: call ${a.name}, no first booking after 14 days`);
     if (interestedAt(d.at + 30 * DAY) && !booked && !done(d.at + 30 * DAY)) push(d.at + 30 * DAY, 'ops', 'dormant', `${a.name} marked dormant (label only, nothing is blocked)`);
   }
   return out.sort((x, y) => x.at - y.at);
@@ -222,7 +222,7 @@ export function liveOpsEvents(jobs: Job[], from: number, to: number): AutoEvent[
     for (const c of pickupChecks(j, to)) {
       if (c.state === 'scheduled') continue;
       if (inWindow(c.sentAt)) out.push({ ...base, at: c.sentAt, kind: 'pickup_check', title: `Pre-pickup message (${c.label}) to ${j.contact.role.toLowerCase()} for ${j.id}, ${j.from}` });
-      const deadline = c.sentAt + (c.key === '24h' ? REPLY_WAIT_24_MS : REPLY_WAIT_60_MS);
+      const deadline = c.replyBy;
       const atDeadline = pickupChecks(j, deadline).find((x) => x.key === c.key)!;
       if (inWindow(deadline) && atDeadline.state === 'no_reply') {
         out.push({ ...base, at: deadline, kind: 'pickup_task', title: `Task: no reply to the ${c.label} message for ${j.id}. Call the ${j.backup.role.toLowerCase()}.` });

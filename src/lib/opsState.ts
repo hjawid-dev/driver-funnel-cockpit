@@ -37,6 +37,7 @@ const RANK: Record<OpsState, number> = { needs_person: 0, to_close: 1, issue: 2,
 export function opsState(j: Job, now: number): OpsState {
   if (j.incident?.rebooking?.status === 'open' && j.incident.closedAt !== undefined && j.incident.closedAt <= now) return 'check_due';
   if (pickupReadinessErrors(j).length) return 'check_due';
+  if (now > j.deadline && !j.deliveredAt && !(j.incident?.closedAt && j.incident.outcome?.type !== 'keys_found')) return 'needs_person';
   const alert = jobAlert(j, now);
   if (alert) return j.incident?.outcome ? 'to_close' : 'needs_person';
   if (assisting(j, now)) return 'issue';

@@ -36,8 +36,8 @@ export const HELP: HelpArticle[] = [
     category: 'Applying',
     tags: ['requirements', 'krav', 'age', 'ålder', 'qualify', 'eligible', 'who can apply'],
     body: `To drive with us you need:
-- To be at least 20 years old (our insurance requires it).
-- A valid Swedish or EU B licence (cars) held for at least 2 years. With 1–2 years you can start with simple drives first. Under 1 year we can't offer drives yet.
+- Proposed minimum age 20; actual insurance requirements must be confirmed with Flovi.
+- Proposed policy: a valid Swedish or EU B licence held at least 1 year. From 1 to under 2 years, simple drives first; at least 2 years, standard experience tier. Flovi and its insurer must confirm thresholds.
 - Verified ID/personnummer: BankID where possible, otherwise a manual identity check by ops.
 - The right to work in Sweden.
 - A smartphone with mobile data.
@@ -66,7 +66,7 @@ The progress bar at the top shows where you are. You can stop and continue later
     tags: ['how long', 'hur lång tid', 'when', 'start', 'waiting', 'time'],
     body: `Applying takes about 10 minutes. You book your onboarding call yourself as soon as your extract is ordered, often for the same or next day, and we aim to decide in that call within 48 calendar hours of registration. If the available call is later, ops must arrange an earlier review; the target has not been met just because a call is booked.
 The criminal-record extract comes by post and can take up to two weeks, so we don't wait for it to decide. You show it before your first drive.
-If you're accepted you pick your first drive straight away. Until your extract is shown, first drives start at least 5 days ahead so it has time to arrive.`,
+If you're accepted you pick your first drive straight away. Until your extract is shown, first drives start at least 5 days ahead as a planning floor, not a guarantee of postal arrival. A reservation remains conditional until the pre-drive check is complete.`,
   },
   {
     id: 'licence-years',
@@ -74,7 +74,7 @@ If you're accepted you pick your first drive straight away. Until your extract i
     category: 'Applying',
     tags: ['new licence', 'nytt körkort', 'probation', 'prövotid', '1 year', 'licence years'],
     body: `- Under 1 year: we can't offer drives yet. You're welcome to apply again when you have had your licence for a year.
-- 1–2 years: you can be accepted for simple drives first (short drives with standard cars). After a few drives without remarks you get the full range.
+- 1 to under 2 years: you can be accepted for simple drives first (short drives with standard cars). All demo first drives are short standard-car jobs; progression to other work requires an agreed policy and is not automated here.
 - 2 years or more: you meet the licence requirement.
 A person always looks at your application; the questions at the start never reject anyone on their own.`,
   },
@@ -136,7 +136,7 @@ The app checks the photo instantly and tells you if something needs fixing. A pe
     tags: ['extract', 'utdrag', 'belastningsregistret', 'criminal record', 'polisen', 'police', 'record', 'order'],
     body: `We move customers' cars and keys, so we ask everyone to show an extract from the criminal record (belastningsregistret) before their first drive.
 1. Go to polisen.se and order an extract of your own data from the criminal record (kontroll av egna uppgifter). It is free.
-2. It comes by post, often within a week, sometimes up to two weeks.
+2. Processing can take two weeks plus postal delivery; international checks may take longer.
 3. In the app, tap "I've ordered it", or tell the assistant in the chat. Then book your onboarding call right away: you don't have to wait for the extract.
 4. When it arrives, tap "My extract has arrived". If your call is still ahead, show it there. If you're already accepted, book a 5-minute video check.
 Show it at the latest the day before your first drive. We never keep a copy and never write down what it says.`,
@@ -155,7 +155,7 @@ Please don't send the extract or details from it in the chat or by email. If you
     title: "My extract hasn't arrived",
     category: 'Documents',
     tags: ['extract late', 'not arrived', 'inte kommit', 'delay', 'post', 'waiting'],
-    body: `It comes by post, often within a week, sometimes up to two weeks. If two weeks have passed, check your order at polisen.se or order it again.
+    body: `Processing can take two weeks plus postal delivery; international checks may take longer. Check the published processing time and your existing order at polisen.se; do not place a duplicate order just because two weeks passed.
 You don't have to wait for it: finish the other steps and book your onboarding call. The decision doesn't depend on when the extract arrives.
 If you have a first drive booked, show the extract by the day before. If it hasn't arrived in time, the drive is released for reassignment, you stay accepted, and you pick a new drive once it has arrived.`,
   },
@@ -175,7 +175,7 @@ If nothing has happened in 14 days, a person on our team looks at your applicati
     title: 'Booking your onboarding call',
     category: 'The call and decision',
     tags: ['book call', 'boka samtal', 'onboarding call', 'interview', 'intervju', 'video call', 'time', 'slot'],
-    body: `As soon as your extract is ordered, the app shows free times. You don't have to wait for it to arrive. Calls are held in two daily slots, around 09:00 and 14:00 on weekdays. Pick a time and it is booked; you get a reminder 1 hour before.
+    body: `As soon as your extract is ordered, the app shows free times. You don't have to wait for it to arrive. Calls are held in two weekday review blocks, around 09:00 and 14:00 on weekdays. Each block has four 15-minute appointments. If daytime calls do not fit, contact Ops for an exception before your original 48-hour deadline; the deadline does not reset. You get a reminder 1 hour before.
 The call is 15 minutes, by video. You need your driving licence and a phone or computer with a camera, and your extract if it has arrived.`,
   },
   {
@@ -235,7 +235,7 @@ You can also widen your area or times under your profile, or ask in the chat and
     title: "What 'simple drives first' means",
     category: 'First drive',
     tags: ['simple drives', 'enkla uppdrag', 'restricted', 'limited jobs', 'new licence'],
-    body: `Drivers who have had their licence for 1–2 years start with simple drives: up to about 25 km, with standard cars (no premium cars or vans).
+    body: `Drivers who have had their licence for 1 to under 2 years start with simple drives: up to about 25 km, with standard cars (no premium cars or vans).
 After a few drives without remarks, and once you have had your licence for 2 years, you get the full range of jobs automatically.`,
   },
 
@@ -339,7 +339,7 @@ In an emergency or if anyone is hurt, call 112 first.`,
     body: `At the pickup, tap "I'm here" in today's job, and "Got the keys" when you have them. If something is wrong, tap "Problem at pickup" and pick what it is, or write here.
 Keys missing, nobody there, or the car isn't there: that one tap sends a fixed, pre-approved message to the pickup contact and the backup in the booking, and you see what was sent. It can't be changed, and nothing you or the assistant write is sent to the customer.
 Damage, an accident or feeling unsafe goes straight to a person. If anyone is hurt or you are in danger, call 112 first.
-Stay at the pickup. Your waiting time is paid from the agreed pickup time, whatever happens with the job. If the customer cancels the drive or moves it to another day while you wait, you also get half the job's pay.
+Stay at the pickup. Your waiting time is paid from the agreed pickup time, whatever happens with the job. Proposed compensation: if Ops releases you without completing the drive, half the reward is added to waiting compensation. Rates and fee-waiver authority require Flovi approval; this demo only logs confirmation.
 If it isn't solved within 5 minutes, a person from ops calls you and agrees the next step with the customer, so you never have to cancel or decide anything yourself.`,
   },
   {
@@ -428,7 +428,7 @@ Don't share sensitive details in the chat, such as health information or anythin
     category: 'Contact',
     tags: ['contact', 'kontakt', 'phone', 'telefon', 'call us', 'ring', 'email', 'opening hours', 'öppettider', 'human', 'person'],
     body: `Write in the chat. The assistant answers right away; ask for a person whenever you want.
-Ops is staffed every day 07:00–20:00 and answers within 15 minutes. During an ongoing drive, ops is reachable for the whole drive, also outside those hours.
+Proposed service model, subject to staffing approval: Ops 07:00–20:00 daily, target reply within 15 minutes; urgent support during every ongoing drive, target call within 5 minutes. These are demo service levels, not verified Flovi coverage.
 We don't have a public phone number; if a call is easier, ask in the chat and we call you.`,
   },
 ];

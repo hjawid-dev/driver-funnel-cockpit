@@ -45,14 +45,14 @@ describe('document completion', () => {
 });
 
 describe('time to decision', () => {
-  it('median hours from registration to decision (as the brief measures it), and share within 48 h', () => {
+  it('mean hours from registration to decision (case-comparable), and share within 48 h', () => {
     // Registered 24 h before the file was complete; decided h hours after the file was complete.
     const mkD = (h: number) =>
       mk({ registeredAt: NOW - 224 * HOUR, docsCompleteAt: NOW - 200 * HOUR, decision: { type: 'accepted', at: NOW - 200 * HOUR + h * HOUR, by: 'x' } });
     const k = kpi([mkD(10), mkD(20), mkD(100)], 'timeToDecision');
-    expect(k.value).toBe(44); // 24 + 20
+    expect(k.value).toBeCloseTo((34 + 44 + 124) / 3); // mean, not the 44 h median
     expect(k.info[0]).toContain('Decided within 48 h: 67%');
-    expect(k.status).toBe('on');
+    expect(k.status).toBe('risk');
   });
   it('shows the ops part, complete file → decision, next to it', () => {
     const mkD = (h: number) =>
@@ -76,7 +76,8 @@ describe('application → active (north star)', () => {
   it('new active drivers ÷ new applications in the last 30 days', () => {
     const apps = [accepted(10, 2), mk({ registeredAt: NOW - DAY }), mk({ registeredAt: NOW - 2 * DAY }), mk({ registeredAt: NOW - 40 * DAY })];
     const k = kpi(apps, 'appToActive');
-    expect(k.northStar).toBe(true);
+    expect(k.northStar).not.toBe(true);
+    expect(k.status).toBe('info');
     expect(k.caption).toContain('1 new active ÷ 3 applications');
   });
 });

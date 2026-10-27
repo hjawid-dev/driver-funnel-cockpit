@@ -85,7 +85,7 @@ describe('decided within 48 hours, the extract before the first drive', () => {
     expect(bookFirstGig(a, firstGigOffers(a, gigs, seed, t)[0], t).ok).toBe(true);
   });
 
-  it('a booked drive whose extract was not shown by the day before is released, and the job leaves Live ops', () => {
+  it('a booked drive whose extract was not shown by the day before is released, and the customer job stays visible for reassignment', () => {
     const a = acceptedWithExtractOrdered();
     const t = a.decision!.at;
     const gig = firstGigOffers(a, gigs, seed, t)[0];
@@ -100,7 +100,7 @@ describe('decided within 48 hours, the extract before the first drive', () => {
     // The job for the booked drive goes back.
     const jobs = syncFirstDrive([], booked, gigs);
     expect(jobs).toHaveLength(1);
-    expect(syncFirstDrive(jobs, released, gigs)).toEqual([]);
+    expect(syncFirstDrive(jobs, released, gigs)).toEqual([expect.objectContaining({ id: gig.id, unassigned: true, driverId: '', firstDrive: false })]);
     // Shown in time: nothing is released.
     expect(releaseIfUnchecked(markExtractShown(receiveDocument(booked, 'extract', 'ready', t), true, t), by)).toBeNull();
     expect(releaseDue([booked, released], by)).toHaveLength(1);
@@ -197,10 +197,8 @@ describe('supply and demand', () => {
   });
   it('the weekly report gets the same numbers', () => {
     const f = Object.fromEntries(weeklyFacts(seed, [], NOW, [], gigs).facts.map((x) => [x.id, x.value]));
-    const s = supplyDemand(seed, gigs, NOW);
-    expect(f.open_jobs_14d).toBe(s.openJobs);
-    expect(f.drivers_for_open_jobs).toBe(s.driversNeeded);
-    expect(f.drivers_active_and_waiting).toBe(s.active + s.waiting);
+    expect(f.drivers_for_open_jobs).toBeUndefined();
+    expect(f.drivers_active_and_waiting).toBeUndefined(); // availability cannot be inferred from historical headcount
     const groups = activationReasons(seed.filter((a) => deriveStage(a) === 'accepted'), seed, gigs, NOW);
     expect(f.awaiting_no_fit).toBe(groups.find((g) => g.reason === 'no_fit')?.count ?? 0);
     expect(f.awaiting_extract).toBe(groups.find((g) => g.reason === 'extract')?.count ?? 0);

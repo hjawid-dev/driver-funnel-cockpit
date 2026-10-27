@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Bot, CircleCheck, FilePlus2, MousePointerClick, Smartphone, UserRound } from 'lucide-react';
 import type { ChatThread } from '../lib/chat/types';
 import { HANDOVER_LABEL } from '../lib/chat/types';
-import { AI_TARGET, CHAT_SLA_MS, backToAi, slaFor, chatStats, closeGap, contentGaps, opsReply, waitingThreads } from '../lib/chat/threads';
+import { CHAT_SLA_MS, backToAi, slaFor, chatStats, closeGap, contentGaps, opsReply, waitingThreads } from '../lib/chat/threads';
 import { HELP_BY_ID } from '../content/help';
 import { REVIEWER } from '../lib/types';
 import { ago, formatDateTime, formatDuration } from '../lib/time';
@@ -79,10 +79,10 @@ export function ChatQueue({ threads, now, onThread, onViewChat, only }: Props) {
         </section>
       </div>
 
-      <section>
+      <CollapsibleSection title="Help content gaps" summary={`${gaps.length} to review`}>
         <SectionHeader
           title={`Help content gaps · ${gaps.length}`}
-          info={<p>Questions the help articles didn't cover: the articles to write next. Write or update one, then mark it added. This is how answered by AI grows towards 95%.</p>}
+          info={<p>Questions the help articles didn't cover: the articles to write next. Write or update one, then mark it added. Review answers and escalate uncertainty; AI answer share is diagnostic, not a performance target.</p>}
         />
         {gaps.length === 0 ? (
           <p className="rounded-xl bg-card p-4 text-sm text-muted">No open gaps.</p>
@@ -110,7 +110,7 @@ export function ChatQueue({ threads, now, onThread, onViewChat, only }: Props) {
             ))}
           </ul>
         )}
-      </section>
+      </CollapsibleSection>
       <CollapsibleSection title="The assistant this week" summary={stats.rate === null ? undefined : `${Math.round(stats.rate)}% answered by AI`}>
         <Stats stats={stats} />
       </CollapsibleSection>
@@ -120,7 +120,7 @@ export function ChatQueue({ threads, now, onThread, onViewChat, only }: Props) {
 
 function Stats({ stats }: { stats: ReturnType<typeof chatStats> }) {
   const rate = stats.rate === null ? null : Math.round(stats.rate);
-  const tone = rate === null ? 'text-muted' : rate >= AI_TARGET ? 'text-ok' : rate >= AI_TARGET - 10 ? 'text-warn' : 'text-bad';
+  const tone = 'text-navy';
   const reasons = Object.entries(stats.byReason) as [keyof typeof HANDOVER_LABEL, number][];
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -132,7 +132,7 @@ function Stats({ stats }: { stats: ReturnType<typeof chatStats> }) {
           </InfoTip>
         </h3>
         <p className={`num mt-1 text-2xl font-semibold ${tone}`}>{rate === null ? '–' : `${rate}%`}</p>
-        <p className="text-xs text-muted">Target {AI_TARGET}%</p>
+        <p className="text-xs text-muted">Diagnostic · check answer quality</p>
       </article>
       <article className="rounded-xl border border-lavender p-4">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold">
@@ -158,7 +158,7 @@ function Stats({ stats }: { stats: ReturnType<typeof chatStats> }) {
       <article className="rounded-xl border border-lavender p-4">
         <h3 className="text-sm font-semibold">Ops reply time</h3>
         <p className="num mt-1 text-2xl font-semibold">{stats.medianOpsReplyMin === null ? '–' : `${Math.round(stats.medianOpsReplyMin)} min`}</p>
-        <p className="text-xs text-muted">median · target 15 min</p>
+        <p className="text-xs text-muted">median · proposed service level 15 min</p>
       </article>
     </div>
   );

@@ -1,49 +1,37 @@
-# Case consistency: implementation and verification
+# Case consistency: current rules
 
-Domain rules and supporting controls for Live Ops, driver onboarding and activation, implemented on 26 October 2026.
+The 27 October audit corrections supersede earlier implementation notes.
 
-## Changes against the review
+## Funnel
 
-| Review items | Implemented behavior |
-|---|---|
-| 01 | Decision queue, missing-document escalation and automatic SLA alerts use 48 calendar hours from registration. Internal review time is separate. Call booking warns when available times miss the target. |
-| 02–03 | Extract ordered first. Ordered extracts do not block the call. BankID and a reviewer-verified manual ID route are both supported; driver help and reminder text use the same process. |
-| 04–05 | First document submission and initial decisions are preserved. Resubmission does not rewrite earlier throughput. A prequalifying rejection does not invent document completion. |
-| 06–07 | Pending stages are not labelled lost. Document completion is explicitly defined as completion within seven calendar days among mature registrations. Each metric states its population/window. |
-| 08 | Acceptance and first-drive quality are visible guardrails; the report includes review-rejection reasons and separates prequalifying exits. |
-| 09–10 | Explicit logged onboarding, licence verification and a distinct Operations Manager / Team Lead confirmation are required. Accepted candidates can receive a later generic pre-drive rejection. No extract content is collected. |
-| 11–14 | Ops, driver and chat booking share matching/eligibility checks and reservations. Rebooking selects another real job. Structured availability distinguishes weekends from weekday evenings. Completion requires a matching booked job and chronological delivery evidence. |
-| 15 | Current booking takes precedence over stale activation reasons. Available jobs are not described as proven offers or declines. Automated copy does not promise three jobs. Reserved jobs are excluded from open demand. |
-| 16–18 | Dispatch readiness validates contacts, key location and pre-drive checks. T−24 and T−60 phone confirmations are separate. Missing keys are visible on check-in. The feed does not claim a contact text without the appropriate send action. |
-| 19–20 | Own-error branch records corrections. Customer copy follows the reported problem. Customer-update due time is retained; the decision step takes priority at the cut-off. Departure after the original cut-off requires a feasible revised agreement. |
-| 21–23 | Rescheduling leaves an owned task and creates a linked replacement transport. Incident resolution and transport completion are separate. Waiting time freezes at resolution. Pilot account update and a scheduled booker review are required before closure. Compensation is explicitly a demo confirmation, not a payment integration. |
-| 24–25 | A reported problem cannot become incident-free by lacking an incident object. Customer feedback can be unknown; quality shows assessed drives and pending feedback separately. Future timestamps are excluded from current KPI windows. Job delivery and applicant activation update together. |
-| 26 | Automatic notifications are materialized once with their text/timestamp. Reload preserves history; it no longer rebases old timestamps. First submission, booking, release, decision and completion have structured events. |
-| 27 | Mean decision time, share within 48 hours and a mature 30-day registration cohort conversion are included in reporting; the separate 30-day flow remains. |
-| 28–29 | A short submission note is provided. Retention and integrations are described as proposed/simulated. The AI report badge describes numerical validation and its limits, without claiming full semantic verification. |
+- Registration-to-decision is 48 calendar hours, including document collection. Owner/backup contacts missing files from 24 h and arranges exceptions if weekday blocks cannot meet the deadline. No clock reset and no fabricated decision on an incomplete file.
+- Two weekday review blocks, each four 15-minute appointments. Extract checks use the same reservation duration; five minutes is an estimated conversation length.
+- Licence minimum 1 year; 1 to <2 simple-drive tier; ≥2 standard tier. All first-drive offers are easy standard cars. Thresholds, example age 20 and other suitability grounds require policy/insurance approval; manager consultation does not replace criteria.
+- Background check method, authenticity and handling (including video) are proposed, not certified by no-copy/voluntary wording. No extract contents are stored.
+- At 14 days, incomplete files receive human review. The internal legacy reason key `no_response_14d` now labels administrative incomplete-file closure, not proven silence. Check recent contact before closing.
+- First booking is conditional until the check is complete. Five-day offer lead is not a postal promise. Release at T−24 h leaves an unassigned customer job visible; reassignment is not guaranteed.
+- Driver books independently. Blocker-specific next actions precede day-based reminders. A logged unsuccessful attempt has a proposed three-day retry; a logged decline is not another uncompleted call. Future booking, passed undelivered job and completed first drive are different states.
 
-## Metric definitions
+## Live Ops
 
-- **North star:** first completed drives in the last 30 days divided by registrations in the same period, with an upper bound at the simulation clock. This is flow, not cohort conversion.
-- **Document completion:** first submission within seven calendar days, among applicants registered at least seven days ago. All mature history is used; this is a proposed measurement window, not a case fact.
-- **Decision time:** registration to the initial human decision. Median is shown with the mean; administrative no-response closure is excluded. The internal document-to-decision duration remains separate.
-- **Acceptance:** initial acceptances divided by reviewed initial decisions. A later pre-drive rejection does not erase the initial acceptance. Early prequalifying exits are separate.
-- **Activation:** completed first drive within 14 days of initial acceptance, among acceptances with at least 14 days of follow-up.
-- **Quality:** on-time, incident-free first deliveries with confirmed customer satisfaction, divided by deliveries whose feedback has been assessed. Uncollected feedback is counted separately and never assumed positive.
-- **Cohort conversion:** active within 30 days of registration among registrations with at least 30 days of follow-up, shown separately in the report.
+- Reported problems are immediate; ordinary arrival has five minutes for the key update before assistant intervention, then up to five assistant minutes before human escalation (earlier if urgent/deadline risk).
+- Standard confirmations T−24 h/T−60 min, calls only on missing replies. Short-notice bookings get one immediate confirmation with a bounded reply deadline.
+- Decision time is a planning estimate from assumed drive/hand-over/buffer values, not a guarantee. Recommend a feasible choice. An unreachable customer escalates to the duty lead; only confirmed authority permits recording an Ops stop.
+- Resolution differs from delivery. Replacement confirmation requires pickup, agreed delivery deadline and same-driver availability confirmation. A replacement first drive updates the applicant's booked-job link.
+- Pilot incidents require an account-owner update and a scheduled booker review. Other incidents can close with compensation, cause and an owner for asynchronous follow-up; a meeting is optional.
+- Waiting compensation, half-reward cancellation payment and incident-fee waiver are proposed policies, not payment integrations or a validated tariff. Waiver is not preselected.
 
-## Verification
+## Metrics
 
-Run `npm test` and `npm run build`. New `caseConsistency.test.ts` cases cover the findings, including returned documents, prequalifying exits, later rejection, unavailable jobs, structured availability, future completion, separate pickup checks, late departure, replacement transport and immutable notifications. Existing tests were updated where their former expectations explicitly encoded the defects.
+- Primary conversion: completed first drive within 30 days / registrations aged 30+ days, all mature history. Target 35% is a pilot hypothesis, not the case's 25/120 flow baseline.
+- Documents: first submission within seven days / mature registrations. Initial submission history survives complements.
+- Decision: mean registration → first human decision; median and within-48 h remain available. Administrative incomplete-file closure is excluded. Open overdue cases remain visible.
+- Activation: first delivery within 14 days / initial acceptances aged 14+ days. Booking never activates.
+- Supporting metrics: acceptance; original-deadline/no-incident/satisfied delivery outcome among assessed feedback (unknown stays unknown); 30-day throughput ratio. No driver-blame inference from customer incidents.
+- No AI-resolution target, fabricated forecast or jobs-per-driver recruitment recommendation. Weekly report separates flows, all-history levels and current queues; numerical validation does not certify interpretation.
 
-Browser verification covers: disabled acceptance until checks/call are logged; acceptance leading directly to real-job booking; booking without activation; timed incident closure; rebooking retained in attention; replacement job creation.
+## Verification and boundaries
 
-## Demo scope and remaining external work
+Run `npm test` and `npm run build`; audit regression tests cover the new failure paths. External messaging, verification, reviews, compensation and HubSpot remain simulated. Authenticated approvals and live transactional dispatch require production systems. No production readiness or policy approval is claimed. Existing demo history is preserved; no data-model reset is needed.
 
-- External calls, SMS, BankID/manual checks, account-owner contact, review bookings and compensation are simulated/logged. No live customer messages or payments were sent.
-- The consulted Operations Manager / Team Lead is an explicitly labelled demo role, not a separate authenticated account. Real identity/authorization and cross-device reservation transactions require a backend.
-- Data model version 9 resets older demo saves; it does not migrate them. Subsequent version-9 reloads preserve absolute history. Use Reset demo in the demo menu to explicitly start a new scenario.
-- The accompanying Google Slides update distinguishes the 59-volume gap from identified lost individuals, uses a comparable mean decision time, defines proposed cohort windows and labels the ~46 scenario as illustrative.
-- The brief's platform wording should be clarified with the interviewer; the submission note accurately names the tools used. No rebuild in another platform was performed.
-- Live AI/model credentials and real integrations were not certified by these frontend/domain tests. Existing numerical report checks remain limited to numbers; generated interpretation should still be reviewed.
-- Published from the reviewed source. Production verification is recorded separately after deployment.
+The platform choice differs from the brief and requires reviewer acceptance. Retention periods are proposals; deletion is not implemented.

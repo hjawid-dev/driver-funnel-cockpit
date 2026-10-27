@@ -49,7 +49,7 @@ export function PickupStatus({ j, now, onInbox }: { j: Job; now: number; onInbox
       )}
       {onInbox && (
         <button type="button" onClick={onInbox} className="mt-1.5 text-sm font-semibold text-indigo hover:underline">
-          Open messages
+          Open AI assistant
         </button>
       )}
     </div>

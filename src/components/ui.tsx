@@ -28,7 +28,7 @@ export function SectionHeader({ title, aside, info }: { title: string; aside?: R
 
 export function DrawerSection({ title, children, aside, info }: { title: string; children: ReactNode; aside?: ReactNode; info?: ReactNode }) {
   return (
-    <section>
+    <section data-demo-target={title.toLowerCase().replaceAll(' ', '-')} >
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
           {title}
@@ -68,10 +68,6 @@ export function CollapsibleSection({ title, summary, children, open }: { title: 
 }
 
 /** Marks a rule or a number that is my proposal, not a fact from the case. */
-export function Proposed({ title = 'A proposed operating rule, not given in the case: to agree with the team.' }: { title?: string }) {
-  return (
-    <span title={title} className="inline-flex cursor-help items-center rounded border border-dashed border-indigo/50 px-1 py-px align-middle text-[10px] font-semibold uppercase tracking-wide text-indigo normal-case">
-      Proposed
-    </span>
-  );
+export function Proposed({ title = 'A proposed operating rule, not given in the case: validate with the team.' }: { title?: string }) {
+  return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">Proposed<InfoTip label="About this proposal"><p>{title}</p></InfoTip></span>;
 }

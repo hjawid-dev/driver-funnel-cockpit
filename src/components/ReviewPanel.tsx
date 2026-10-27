@@ -19,7 +19,7 @@ interface Props {
 
 const VARIANT_HINT = {
   accepted: 'Decision checks passed; any pre-drive condition is shown on the next step.',
-  accepted_simple: 'Licence 1–2 years: the driver starts on simple drives first.',
+  accepted_simple: 'Licence 1 to <2 years: the driver starts on simple drives first.',
   accepted_flagged: 'Limited availability: flagged for activation follow-up.',
 } as const;
 
@@ -72,9 +72,9 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
         aside={<Proposed title="My proposed written criteria, not given in the case: to agree with the team, and to check with policy and legal." />}
         info={
           <>
-            <p>Thresholds are a starting proposal, to be set with the team.</p>
+            <p>Written thresholds cover licence, identity and photo. Other suitability grounds need an agreed Flovi policy; a second opinion does not replace criteria.</p>
             <p>
-              From the case: ID or personnummer, and a background check. Proposed here: BankID for the ID, and the criminal-record extract shown by the driver, never stored. The exact check, and how sensitive data is handled, must be validated with company policy and legal.
+              Case requirement: ID and a background check. This demo proposes BankID/manual ID and viewing the driver's extract without keeping a copy. Control type, authenticity and handling (including video) require Flovi policy and legal validation; voluntary display alone is not validation.
             </p>
             <p className="text-muted">
               The extract comes by post and can take two weeks, so it doesn't hold up the decision: it is shown, voluntarily, before the first drive. In this call if it has arrived, otherwise in a 5-minute check. We only look at it: no copy, no notes about its content.

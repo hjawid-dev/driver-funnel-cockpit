@@ -187,7 +187,7 @@ function JobDetail({ j, now, onJob, onViewChat, focus }: { j: Job; now: number; 
   const s = opsState(j, now);
   const incident = s === 'needs_person' || s === 'to_close';
   const closed = j.incident?.closedAt !== undefined && j.incident.closedAt <= now;
-  const title = incident
+  const title = j.unassigned ? 'Driver assignment needed' : now > j.deadline && !j.deliveredAt && !closed ? 'Delivery status needed' : incident
     ? j.incident?.outcome
       ? OUTCOME_LABEL[j.incident.outcome.type]
       : jobAlert(j, now)?.kind === 'not_arrived'
@@ -199,7 +199,7 @@ function JobDetail({ j, now, onJob, onViewChat, focus }: { j: Job; now: number; 
   const problem = problemSummary(j, now);
 
   return (
-    <article className={`rounded-2xl border bg-white ${s === 'needs_person' ? 'border-bad/40' : 'border-lavender'}`}>
+    <article data-demo-target="job-detail" className={`rounded-2xl border bg-white ${s === 'needs_person' ? 'border-bad/40' : 'border-lavender'}`}>
       <header className={`flex flex-wrap items-start gap-3 rounded-t-2xl border-b px-4 py-3 sm:px-5 ${s === 'needs_person' ? 'border-bad/20 bg-bad-bg/40' : 'border-lavender'}`}>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -226,16 +226,17 @@ function JobDetail({ j, now, onJob, onViewChat, focus }: { j: Job; now: number; 
             </p>
           )}
         </div>
-        <button type="button" onClick={() => onViewChat(j.driverId)} className="flex items-center gap-1 rounded-md border border-lavender bg-white px-2 py-1 text-xs font-semibold text-indigo hover:border-indigo">
+        <button type="button" disabled={!!j.unassigned} onClick={() => onViewChat(j.driverId)} className="flex items-center gap-1 rounded-md border border-lavender bg-white px-2 py-1 text-xs font-semibold text-indigo hover:border-indigo">
           <Smartphone size={13} aria-hidden /> Driver's chat
         </button>
       </header>
 
       <div className="space-y-5 px-4 py-4 sm:px-5">
         <Facts j={j} />
+        {j.unassigned && <p className="rounded-lg bg-warn-bg p-3 text-sm font-semibold">Next step: Owner Hjalmar arranges a replacement driver. The customer transport remains open; release is not confirmed reassignment.</p>}
         {j.incident?.nextCustomerUpdateAt && !closed && !j.incident.outcome && <p className={`rounded-lg p-3 text-sm ${now >= j.incident.nextCustomerUpdateAt ? 'bg-bad-bg text-bad' : 'bg-card text-muted'}`}>Customer update {now >= j.incident.nextCustomerUpdateAt ? 'overdue' : 'due'} at {hm(j.incident.nextCustomerUpdateAt)} · owner Hjalmar. Log a new update in the playbook.</p>}
         {j.deliveredAt && j.deliveredAt <= now && <section className="rounded-lg bg-card p-3 text-sm"><p className="font-semibold">Customer feedback: {j.customerSatisfied === undefined ? 'not yet collected' : j.customerSatisfied ? 'satisfied' : 'follow-up needed'}</p><div className="mt-2 flex gap-2"><button type="button" onClick={() => onJob({ ...j, customerSatisfied: true }, 'Customer feedback logged: satisfied (demo).')} className={BTN_SM}>Log satisfied</button><button type="button" onClick={() => onJob({ ...j, customerSatisfied: false }, 'Customer feedback logged: follow-up needed (demo).')} className={BTN_SM}>Log follow-up needed</button></div></section>}
-        {incident ? (
+        {now > j.deadline && !j.deliveredAt && !closed && !j.incident && j.departedAt !== undefined && j.departedAt <= now ? <p className="rounded-lg bg-warn-bg p-3 text-sm">Delivery is overdue. Owner Hjalmar contacts the driver to confirm the actual status. Use the driver's view to record departure/delivery; a booking is not activation.</p> : incident ? (
           <IncidentWork j={j} now={now} onJob={onJob} focus={focus} />
         ) : s === 'issue' ? (
           <AssistWork j={j} now={now} onJob={onJob} />
@@ -343,7 +344,7 @@ function IncidentWork({ j, now, onJob, focus }: { j: Job; now: number; onJob: Pr
         </CollapsibleSection>
       )}
 
-      <section id="playbook" aria-label="Playbook" className="scroll-mt-40">
+      <section id="playbook" data-demo-target="playbook" aria-label="Playbook" className="scroll-mt-[calc(var(--present-top,0px)+1rem)]">
         <h3 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
           Playbook <Proposed title="My proposed playbook, not given in the case: to agree with the team." />
         </h3>
@@ -410,7 +411,7 @@ function TimeBar({ j, now }: { j: Job; now: number }) {
   const marks = [
     { t: c.pickupAt, label: 'Pickup', align: 'left' },
     { t: c.decideBy, label: 'Decide by', align: 'center' },
-    { t: c.lastDeparture, label: 'Last departure', align: 'center' },
+    { t: c.lastDeparture, label: 'Est. latest departure', align: 'center' },
     { t: c.deadline, label: 'Deadline', align: 'right' },
   ] as const;
   return (
@@ -430,7 +431,7 @@ function TimeBar({ j, now }: { j: Job; now: number }) {
           </>
         )}
         <InfoTip label="How the clock is counted">
-          <p>Last departure = deadline − drive time − 15 min for photos and handover − 5 min margin.</p>
+          <p>Planning estimate: deadline minus assumed drive time, 15 min handover and 5 min margin. Validate traffic and handover time; five minutes is not a guaranteed traffic buffer.</p>
           <p>Decide by = 35 minutes before the last departure, so there is time to act on what the customer picks.</p>
         </InfoTip>
       </p>
@@ -556,14 +557,17 @@ function AssistWork({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJo
 
 function Resolution({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJob'] }) {
   const [pickup, setPickup] = useState(localInputTime(now + (j.incident?.outcome?.type === 'new_date' ? 24 : 2) * 3600000));
+  const [delivery, setDelivery] = useState('');
+  const [driverConfirmed, setDriverConfirmed] = useState(false);
+  const agreement = { deadline: new Date(delivery).getTime(), driverConfirmed };
   const i = j.incident!;
   const rows: [string, string][] = [
     ['Decision', i.by === 'assistant' ? 'Keys found while the assistant had it' : i.outcome ? OUTCOME_LABEL[i.outcome.type] : '–'],
     ['Cause', i.cause ? CAUSE_LABEL[i.cause] + (i.causeNote ? `: ${i.causeNote}` : '') : '–'],
     ['Waiting time', `${Math.round(incidentClock(j, now).waitedMs / 60000)} min · ${i.waitPaid ? 'compensation confirmed by ops (demo)' : 'not confirmed'}`],
     ...(i.cancelPay ? ([['Drive cancelled', `${i.cancelPay} SEK to the driver`]] as [string, string][]) : []),
-    ['Fee', i.feeWaived ? 'Waived' : 'Charged'],
-    ['Follow-up', i.reviewAt ? `15 min · ${formatDateTime(i.reviewAt)} · ${i.reviewOwner}` : 'None booked'],
+    ['Incident fee', i.feeWaived ? 'Waiver approved (proposed policy)' : 'No waiver logged'],
+    ['Follow-up', i.reviewAt ? `15 min · ${formatDateTime(i.reviewAt)} · ${i.reviewOwner}` : `Cause logged; owner ${i.reviewOwner ?? 'Hjalmar'} reviews asynchronously`],
   ];
   return (
     <>
@@ -578,7 +582,7 @@ function Resolution({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJo
           </div>
         ))}
       </dl>
-      {i.rebooking && <section className="rounded-lg bg-warn-bg p-3 text-sm"><p className="font-semibold">{i.rebooking.status === 'open' ? 'Replacement pickup still needs booking' : `Replacement booked: ${i.rebooking.replacementId}`}</p><p className="text-xs">Owner {i.rebooking.owner} · due {formatDateTime(i.rebooking.dueAt)}</p>{i.rebooking.status === 'open' && <div className="mt-2 flex flex-wrap gap-2"><label className="text-xs">Customer-agreed pickup<input aria-label="Replacement pickup time" type="datetime-local" value={pickup} onChange={e => setPickup(e.target.value)} className="block rounded border p-1" /></label><button type="button" disabled={!pickup || bookReplacement(j, new Date(pickup).getTime(), now) === j} onClick={() => onJob(bookReplacement(j, new Date(pickup).getTime(), now), 'Replacement pickup booked from customer agreement (demo).')} className={BTN}>Log agreed replacement booking</button></div>}</section>}
+      {i.rebooking && <section className="rounded-lg bg-warn-bg p-3 text-sm"><p className="font-semibold">{i.rebooking.status === 'open' ? 'Replacement pickup still needs booking' : `Replacement booked: ${i.rebooking.replacementId}`}</p><p className="text-xs">Owner {i.rebooking.owner} · due {formatDateTime(i.rebooking.dueAt)}</p>{i.rebooking.status === 'open' && <div className="mt-2 flex flex-wrap gap-2"><label className="text-xs">Customer-agreed pickup<input aria-label="Replacement pickup time" type="datetime-local" value={pickup} onChange={e => setPickup(e.target.value)} className="block rounded border p-1" /></label><label className="text-xs">Customer-agreed delivery deadline<input aria-label="Replacement delivery deadline" type="datetime-local" value={delivery} onChange={e => setDelivery(e.target.value)} className="block rounded border p-1" /></label><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={driverConfirmed} onChange={e => setDriverConfirmed(e.target.checked)} />Same driver confirmed available for the replacement</label><button type="button" disabled={!pickup || bookReplacement(j, new Date(pickup).getTime(), now, agreement) === j} onClick={() => onJob(bookReplacement(j, new Date(pickup).getTime(), now, agreement), 'Replacement pickup, delivery time and driver availability confirmed (demo).')} className={BTN}>Log confirmed replacement</button></div>}</section>}
       {i.outcome?.type === 'keys_found' && !j.deliveredAt && <p className="rounded-lg bg-card p-3 text-sm font-semibold">Incident resolved; transport is still open. Track departure and delivery in the driver's view.</p>}
       <p className="text-xs text-muted">The cause feeds the weekly report: the same cause twice is a prevention task, not bad luck.</p>
       <CollapsibleSection title="Incident log" summary={`${i.log.length} entries`}>
@@ -627,12 +631,12 @@ function PrePickupCheck({ j, now, onJob }: { j: Job; now: number; onJob: Props['
   ];
   const current = rows.findIndex((r) => !r.done);
   return (
-    <section aria-label="Pre-pickup check">
+    <section data-demo-target="confirmations" aria-label="Pre-pickup check">
       <h3 className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
         Pre-pickup check <Proposed title="My proposed routine, not given in the case: to agree with the team." />
         <InfoTip label="About the pre-pickup check">
           <p>Each touchpoint has an owner. No reply in 2 hours (or 20 minutes) gives ops a task: call the backup contact.</p>
-          <p className="text-muted">A missing key shows up the evening before, not at the gate.</p>
+          <p className="text-muted">Reply windows (2 h / 20 min) are proposed; late bookings use one immediate confirmation. Call on missing replies, do not assume dispatch is safe.</p>
         </InfoTip>
       </h3>
       <ol className="divide-y divide-lavender rounded-xl border border-lavender">
@@ -667,7 +671,7 @@ const BTN_SM = 'inline-flex items-center gap-1.5 rounded-md border border-indigo
 function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now: number; onJob: Props['onJob']; done: boolean }) {
   const [copied, setCopied] = useState(false);
   const [waitPaid, setWaitPaid] = useState(false);
-  const [feeWaived, setFeeWaived] = useState(j.pilot);
+  const [feeWaived, setFeeWaived] = useState(false);
   const [reviewBooked, setReviewBooked] = useState(false);
   const [reviewAt, setReviewAt] = useState(localInputTime(now + 24 * 3600000));
   const [correction, setCorrection] = useState('');
@@ -773,7 +777,7 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
     }
     case 'decide': {
       const chosen = j.incident?.outcome?.type;
-      const options: Outcome[] = ['keys_found', 'later_today', 'new_date', 'cancelled'];
+      const options: Outcome[] = ['keys_found', 'later_today', 'new_date', 'cancelled', 'ops_stopped'];
       return (
         <>
           <div className="flex flex-wrap gap-2">
@@ -792,7 +796,7 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
             ))}
           </div>
           {now > incidentClock(j, now).lastDeparture && !chosen && <div className="space-y-2 rounded-lg bg-bad-bg p-3"><p className="text-sm font-semibold text-bad">Original departure cut-off passed. Agree a feasible new delivery deadline or rebook/cancel.</p><label className="text-xs">Customer-agreed delivery deadline<input type="datetime-local" value={newDeadline} onChange={e => setNewDeadline(e.target.value)} className="block rounded border p-1" /></label><button type="button" disabled={!newDeadline || new Date(newDeadline).getTime() < now + j.driveMin * 60000 + 20 * 60000} onClick={() => onJob(agreeDeliveryDeadline(j, new Date(newDeadline).getTime(), now), 'Revised delivery deadline agreed with customer and logged (demo).')} className={BTN}>Log customer agreement to new deadline</button></div>}
-          <p className="text-xs text-muted">Log the customer's confirmed choice. A replacement choice leaves an open owned booking task.</p>
+          <p className="text-xs text-muted">Recommend a feasible option, then log the customer's confirmed choice. Customer unreachable? Escalate to the duty lead; log an Ops stop only after authority is confirmed. Replacements remain open work until driver and delivery time are confirmed.</p>
         </>
       );
     }
@@ -801,7 +805,7 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
         !j.incident?.outcome && 'Record the decision',
         j.pilot && !j.incident?.accountOwnerAt && 'Confirm the internal pilot account owner was updated',
         !waitPaid && 'Confirm waiting-time compensation',
-        (!reviewBooked || !reviewAt || new Date(reviewAt).getTime() <= now) && 'Schedule the 15-minute booker review at a future time',
+        j.pilot && (!reviewBooked || !reviewAt || new Date(reviewAt).getTime() <= now) && 'Schedule the 15-minute booker review at a future time',
         cause === 'other' && !causeNote.trim() && 'Describe the cause',
       ].filter(Boolean);
       return (
@@ -811,17 +815,17 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
             <input type="checkbox" checked={waitPaid} onChange={(e) => setWaitPaid(e.target.checked)} className="h-4 w-4 accent-indigo" />
             <span>
               {first}'s waiting-time compensation is confirmed by ops (demo), from {hm(Math.max(j.pickupAt, j.arrivedAt ?? j.pickupAt))}
-              {cancelPayFor(j) > 0 ? `, plus ${cancelPayFor(j)} SEK (half the reward: the drive didn't happen)` : ''}
+              {cancelPayFor(j) > 0 ? `, plus ${cancelPayFor(j)} SEK (proposed half-reward cancellation pay)` : ''}
             </span>
           </label>
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={reviewBooked} onChange={(e) => setReviewBooked(e.target.checked)} className="h-4 w-4 accent-indigo" />
-            Schedule 15 minutes with the booker: what went wrong and the fix
+            {j.pilot ? 'Pilot: schedule a 15-minute booker review' : 'Optional: book a review if the issue warrants it'}
           </label>
-          <label className="block text-xs">Booker review time (owner Hjalmar)<input aria-label="Booker review time" type="datetime-local" value={reviewAt} onChange={e => setReviewAt(e.target.value)} className="mt-1 block rounded border p-1 text-sm" /></label>
+          <label className="block text-xs">Follow-up owner Hjalmar · meeting time if scheduled<input aria-label="Booker review time" type="datetime-local" value={reviewAt} onChange={e => setReviewAt(e.target.value)} className="mt-1 block rounded border p-1 text-sm" /></label>
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={feeWaived} onChange={(e) => setFeeWaived(e.target.checked)} className="h-4 w-4 accent-indigo" />
-            Fee waived{j.pilot ? ' (pilot: raise it after the pilot)' : ''}
+            Incident fee waiver approved (proposed policy; not the full transport price)
           </label>
           <label className="flex flex-wrap items-center gap-2">
             Cause

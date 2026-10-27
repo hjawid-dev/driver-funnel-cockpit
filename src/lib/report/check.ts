@@ -190,7 +190,7 @@ export function templateReport(wf: WeeklyFacts): WeeklyReport {
     if (f && f.value > 0) actions.push({ text: text(f.value), facts: [id] });
   };
   add('review_overdue', (n) => `Clear the ${n} overdue files in today's review slots.`);
-  add('awaiting_over_7_days', (n) => `Call the ${n} accepted drivers who have not booked a first drive.`);
+  add('awaiting_call_due', (n) => `Call the ${n} drivers with a first-booking follow-up due after 14 days.`);
   add('open_content_gaps', (n) => `Write help articles for the ${n} driver questions the assistant could not answer.`);
   if (actions.length < 2) actions.push({ text: 'Go through the reminder texts with the team.', facts: ['new_applications'] });
   if (actions.length < 2) actions.push({ text: 'Check the first-drive offers with the team.', facts: ['awaiting_first_drive'] });

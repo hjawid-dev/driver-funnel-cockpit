@@ -147,7 +147,7 @@ describe('case-consistent Live Ops', () => {
     const r = closeIncident(tellAccountOwner(j, NOW), { waitPaid: true, feeWaived: true, cause: 'customer_keys', reviewBooked: true, reviewAt: NOW + DAY }, NOW);
     if (!r.ok) throw Error(r.error);
     expect(opsState(r.job, NOW)).toBe('check_due');
-    const booked = bookReplacement(r.job, NOW + 2 * HOUR, NOW);
+    const booked = bookReplacement(r.job, NOW + 2 * HOUR, NOW, { deadline: NOW + 5 * HOUR, driverConfirmed: true });
     expect(replacementJob(booked)).toMatchObject({ pickupAt: NOW + 2 * HOUR, id: `${j.id}-R` });
     expect(replacementJob(booked)?.bookedAt).toBe(NOW);
     expect(pickupChecks(replacementJob(booked)!, NOW).every(c => c.sentAt >= NOW)).toBe(true);
