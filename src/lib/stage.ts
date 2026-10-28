@@ -3,7 +3,7 @@ import { DOC_KEYS } from './types';
 
 /** Stage is derived, never stored. */
 export function deriveStage(a: Applicant): Stage {
-  // Closed because it was never finished: not a decision on the applicant, so it is not counted as a rejection.
+  // Paused because it was never finished: not a decision on the applicant, so it is not counted as a rejection.
   if (a.decision?.type === 'rejected') return a.decision.reason === 'no_response_14d' ? 'closed' : 'rejected';
   if (a.firstGig?.doneAt) return 'active';
   if (a.decision) return 'accepted';
@@ -42,5 +42,5 @@ export const STAGE_LABEL: Record<Stage, string> = {
   accepted: 'Awaiting first gig',
   active: 'Active',
   rejected: 'Rejected',
-  closed: 'Closed, not finished',
+  closed: 'Paused, not finished',
 };

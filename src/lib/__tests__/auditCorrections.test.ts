@@ -48,7 +48,7 @@ describe('case audit: outcome and exception paths', () => {
     const a = mk({ registeredAt: NOW - 16 * DAY, docTimes: { photo: NOW - HOUR } });
     expect(workItems([a], gigs, NOW)[0].status).toBe('Incomplete after 14 days');
     const r = applyDecision(a, { type: 'rejected', reason: 'no_response_14d' }, NOW);
-    expect(r.ok && r.message).toContain('Closed incomplete file');
+    expect(r.ok && r.message).toContain('Paused incomplete file');
   });
   it('keeps 48 calendar hours over a weekend: Friday afternoon gets the Saturday block, in display and call booking alike', () => {
     const friday = new Date('2026-10-23T15:00:00').getTime();

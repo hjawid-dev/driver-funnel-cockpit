@@ -231,7 +231,7 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
   );
 
   return (
-    <div className="space-y-4">
+    <div data-guide-free className="space-y-4">
       <button type="button" onClick={() => setStarted(false)} className="flex items-center gap-1 text-sm font-semibold text-indigo"><ChevronLeft size={15} /> Back</button>
       <Title icon={<Sparkles size={16} />} sub="Four quick questions. They decide nothing on their own.">
         A few questions first
@@ -256,11 +256,11 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
             [1.5, '1–<2 yrs'],
             [3, '2–5 yrs'],
             [6, '5+ yrs'],
-          ].map(([v, l]) => (
-            <Choice key={l} value={v as number} current={licence} set={setLicence}>
-              {l}
-            </Choice>
-          ))}
+          ].map(([v, l]) => {
+            const choice = <Choice key={l} value={v as number} current={licence} set={setLicence}>{l}</Choice>;
+            // Under a year stops the walkthrough at pre-qualification, so it is greyed out there.
+            return (v as number) < 1 ? <span key={l} data-guide-block className="contents">{choice}</span> : choice;
+          })}
         </div>
       </fieldset>
       <fieldset data-guide="application-age" data-guide-done={age !== null}>
@@ -268,7 +268,8 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
         <p className="text-xs text-muted">Proposed insurance threshold for this demo; Flovi must confirm the actual requirement.</p>
         <div className="mt-1 grid grid-cols-2 gap-1.5">
           <Choice value={true} current={age} set={setAge}>Yes</Choice>
-          <Choice value={false} current={age} set={setAge}>No</Choice>
+          {/* The walkthrough follows an eligible applicant, so "No" is greyed out there. */}
+          <span data-guide-block className="contents"><Choice value={false} current={age} set={setAge}>No</Choice></span>
         </div>
       </fieldset>
       <fieldset data-guide="application-times" data-guide-done={slots.length > 0}>
@@ -455,13 +456,13 @@ function Step({ a, apps, gigs, now, onUpdate, onInbox, onDecide }: { a: Applican
       const label = REJECT_REASONS.find((r) => r.value === d.reason)?.label;
       return (
         <div className="space-y-3">
-          <Title icon={<MessageSquare size={16} />}>Decision on your application</Title>
+          <Title icon={<MessageSquare size={16} />}>{d.reason === 'no_response_14d' ? 'Your application is paused' : 'Decision on your application'}</Title>
           <Card tone="soft">
             <p className="text-sm">
-              {d.reason === 'no_response_14d' ? 'We closed your application because it was not completed.' : `We can't offer you driving assignments right now. Reason: ${label}.`}
+              {d.reason === 'no_response_14d' ? 'We have paused your application because it is not complete yet.' : `We can't offer you driving assignments right now. Reason: ${label}.`}
             </p>
           </Card>
-          <p className="text-sm text-muted">You can ask us in the chat to explain the decision and to review it. You get the result of the review within two weeks.</p>
+          <p className="text-sm text-muted">{d.reason === 'no_response_14d' ? 'Message us in the chat when you want to continue, and we will open it again.' : 'You can ask us in the chat to explain the decision and to review it. You get the result of the review within two weeks.'}</p>
           <button type="button" onClick={onInbox} className="text-sm font-semibold text-indigo hover:underline">
             Open AI assistant
           </button>

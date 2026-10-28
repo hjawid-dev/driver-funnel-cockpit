@@ -488,13 +488,13 @@ function CasePrevention({ j, open }: { j: Job; open?: boolean }) {
             2 · Yesterday <span className="num">{hm(t24)}</span>.
           </strong>{' '}
           Text the {j.contact.role.toLowerCase()}: time, keys, who is on site. No reply by{' '}
-          <span className="num">{hm(t24 + REPLY_WAIT_24_MS)}</span>: call the backup.
+          <span className="num">{hm(t24 + REPLY_WAIT_24_MS)}</span>: call the contact.
         </li>
         <li>
           <strong>
             3 · Today <span className="num">{hm(t60)}</span>.
           </strong>{' '}
-          Reconfirm. No reply by <span className="num">{hm(t60 + REPLY_WAIT_60_MS)}</span>: call the {j.backup.role.toLowerCase()}, and warn the customer early.
+          Reconfirm. No reply by <span className="num">{hm(t60 + REPLY_WAIT_60_MS)}</span>: call the contact.
         </li>
         <li>
           <strong>4 · On arrival.</strong> {firstName(j)} taps "I'm here". No keys after {NO_KEYS_ASSIST_MS / 60_000} minutes: the issue is visible to ops; the assistant asks what is wrong and offers a fixed contact message, and a person takes over {ASSIST_MS / 60_000} minutes later, at the latest {ESCALATE_BEFORE_DECIDE_MS / 60_000} minutes before the customer must decide. Ops knows at once, not after 25 minutes.
@@ -617,7 +617,7 @@ const CHECK_TEXT: Record<PickupCheck['state'], { text: string; cls: string }> = 
   waiting: { text: 'Sent, waiting for a reply', cls: 'text-warn' },
   confirmed: { text: 'Confirmed by the contact', cls: 'text-ok' },
   by_phone: { text: 'Confirmed by phone', cls: 'text-ok' },
-  no_reply: { text: 'No reply: call the backup', cls: 'text-bad' },
+  no_reply: { text: 'No reply: call the contact', cls: 'text-bad' },
 };
 
 function PrePickupCheck({ j, now, onJob }: { j: Job; now: number; onJob: Props['onJob'] }) {
@@ -635,7 +635,7 @@ function PrePickupCheck({ j, now, onJob }: { j: Job; now: number; onJob: Props['
       done: c.state === 'confirmed' || c.state === 'by_phone',
       action:
         call && c.state === 'no_reply' ? (
-          <button type="button" onClick={() => onJob(confirmByPhone(j, now, c.key), `${j.id}: pickup confirmed by phone with the ${j.backup.role.toLowerCase()}.`)} className={BTN_SM}>
+          <button type="button" onClick={() => onJob(confirmByPhone(j, now, c.key), `${j.id}: pickup confirmed by phone with the ${j.contact.role.toLowerCase()}.`)} className={BTN_SM}>
             <PhoneCall size={13} aria-hidden /> Log this check confirmed by phone
           </button>
         ) : undefined,
@@ -653,7 +653,7 @@ function PrePickupCheck({ j, now, onJob }: { j: Job; now: number; onJob: Props['
       <h3 className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
         Pre-pickup check <Proposed title="My proposed routine, not given in the case: to agree with the team." />
         <InfoTip label="About the pre-pickup check">
-          <p>Each touchpoint has an owner. No reply in 2 hours (or 20 minutes) gives ops a task: call the backup contact.</p>
+          <p>Each touchpoint has an owner. No reply in 2 hours (or 20 minutes) gives ops a task: call the contact, then the backup if needed.</p>
           <p className="text-muted">Reply windows (2 h / 20 min) are proposed; late bookings use one immediate confirmation. Call on missing replies, do not assume dispatch is safe.</p>
         </InfoTip>
       </h3>
@@ -817,7 +817,7 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
           </div>
           {now > incidentClock(j, now).lastDeparture && !chosen && <div className="space-y-2 rounded-lg bg-bad-bg p-3"><p className="text-sm font-semibold text-bad">Original departure cut-off passed. Agree a feasible new delivery deadline or rebook/cancel.</p><label className="text-xs">Customer-agreed delivery deadline<input type="datetime-local" value={newDeadline} onChange={e => setNewDeadline(e.target.value)} className="block rounded border p-1" /></label><button type="button" disabled={!newDeadline || new Date(newDeadline).getTime() < now + j.driveMin * 60000 + 20 * 60000} onClick={() => onJob(agreeDeliveryDeadline(j, new Date(newDeadline).getTime(), now), 'Revised delivery deadline agreed with customer and logged (demo).')} className={BTN}>Log customer agreement to new deadline</button></div>}
           {chosen && j.incident?.rebooking && <ReplacementForm j={j} now={now} onJob={onJob} />}
-          <p className="text-xs text-muted">Recommend a feasible option, then log the customer's confirmed choice. Customer unreachable? Escalate to the duty lead; log an Ops stop only after authority is confirmed. Replacements remain open work until driver and delivery time are confirmed.</p>
+          <p className="text-xs text-muted">Recommend a feasible option, then log the customer's confirmed choice. No decision by the decision point? The drive is cancelled by default; tell the customer, who can rebook. Replacements remain open work until driver and delivery time are confirmed.</p>
         </>
       );
     }
@@ -826,7 +826,7 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
         !j.incident?.outcome && 'Record the decision',
         j.pilot && !j.incident?.accountOwnerAt && 'Confirm the internal pilot account owner was updated',
         !waitPaid && 'Confirm waiting-time compensation',
-        j.pilot && (!reviewBooked || !reviewAt || new Date(reviewAt).getTime() <= now) && 'Schedule the 15-minute booker review at a future time',
+        j.pilot && (!reviewBooked || !reviewAt || new Date(reviewAt).getTime() <= now) && 'Book the 15-minute follow-up with the customer at a future time',
         cause === 'other' && !causeNote.trim() && 'Describe the cause',
       ].filter(Boolean);
       return (
@@ -841,7 +841,7 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
           </label>
           <label className="flex items-center gap-2">
             <input data-guide="review-booked" type="checkbox" checked={reviewBooked} onChange={(e) => setReviewBooked(e.target.checked)} className="h-4 w-4 accent-indigo" />
-            {j.pilot ? 'Pilot: schedule a 15-minute booker review' : 'Optional: book a review if the issue warrants it'}
+            {j.pilot ? 'Pilot: book a 15-minute follow-up with the customer on what went wrong' : 'Optional: book a follow-up with the customer if the issue warrants it'}
           </label>
           <label className="block text-xs">Follow-up owner Hjalmar · meeting time if scheduled<input aria-label="Booker review time" type="datetime-local" value={reviewAt} onChange={e => setReviewAt(e.target.value)} className="mt-1 block rounded border p-1 text-sm" /></label>
           <label className="flex items-center gap-2">

@@ -8,9 +8,9 @@ A clickable prototype for the Flovi Operations Specialist case, built by Hjalmar
 
 Exceptions first. Julia's pickup opens at Tuesday 09:30: 25 minutes waiting, no keys, no contact, delivery due 12:00. The playbook keeps the driver informed, checks our booking, escalates to the pickup contact/backup and updates the customer and internal pilot account owner.
 
-Ops recommends a feasible next step and logs the confirmed choice. If the customer is unreachable, an Ops stop requires confirmed duty-lead authority. Resolution and delivery are separate. Replacement timing requires customer-agreed pickup **and delivery**. Same-driver confirmation is optional: otherwise a separate unassigned transport stays visible with an owner. The incident can close while that transport remains open. A confirmed same-driver replacement preserves first-drive tracking.
+Ops recommends a feasible next step and logs the confirmed choice. With no decision by the decision point, the drive is cancelled by default; the customer is told and can rebook. Resolution and delivery are separate. Replacement timing requires customer-agreed pickup **and delivery**. Same-driver confirmation is optional: otherwise a separate unassigned transport stays visible with an owner. The incident can close while that transport remains open. A confirmed same-driver replacement preserves first-drive tracking.
 
-Prevention confirms contact, backup and key location at booking, then at T−24 h and T−60 min. Calls happen only on missing replies. Short-notice bookings get one immediate confirmation. A reported problem starts AI support immediately; Ops calls by 10 minutes from that report if unresolved (earlier for safety/deadline risk). Escalation never starts a second countdown. A normal check-in without a key update gets five minutes for handover before the assistant checks in.
+Prevention confirms contact, backup and key location at booking, then 24 hours and 1 hour before pickup. Calls happen only on missing replies. Short-notice bookings get one immediate confirmation. A reported problem starts AI support immediately; Ops calls by 10 minutes from that report if unresolved (earlier for safety/deadline risk). Escalation never starts a second countdown. A normal check-in without a key update gets five minutes for handover before the assistant checks in.
 
 ## Case 2: Driver Funnel
 
@@ -20,7 +20,7 @@ Written checks cover licence, identity and photo. Proposed experience tiers are 
 
 Drivers self-book matching jobs. Ready drivers without a booking receive a reminder at day 7 and Ops contact at day 14 after acceptance. These are separate from the three pre-decision document reminders (2 h, 24 h, day 7); outstanding extracts use the pre-drive-check flow. Actual blockers take precedence: no fitting work is an owner task; an extract still in the post cannot have its check booked yet. Contact outcomes change the next action. A booked drive without delivery stays operational work; a released reservation leaves the customer transport visible as unassigned.
 
-At 14 days, an incomplete application gets a **human review**, not a claim that the driver has not responded. Check recent replies/progress before closing; keep engaged applicants open. Administrative closure is distinct from a suitability rejection.
+At 14 days, an incomplete application is **paused**, not rejected: a person checks recent replies/progress first and keeps engaged applicants open. The file opens again when the applicant gets in touch.
 
 ## Measure and improve
 

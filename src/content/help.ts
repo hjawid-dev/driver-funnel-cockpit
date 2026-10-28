@@ -91,7 +91,7 @@ Most jobs are on weekdays between 07:00 and 18:00, but there are evening and wee
     title: 'Can I apply again?',
     category: 'Applying',
     tags: ['apply again', 'reapply', 'closed', 'stängd', 'new application'],
-    body: `Yes. If your application was closed because it wasn't finished, you can start a new one at any time.
+    body: `Yes. If your application was paused because it wasn't finished, message us and we open it again, or start a new one at any time.
 If you were not accepted, you can apply again after 6 months, or earlier if what stopped you has changed (for example, you have now had your licence for a year).
 You can always ask why a decision was made and ask for a review, here in the chat. A person confirms your request, usually within 15 minutes, and you get the result of the review within two weeks.`,
   },
@@ -164,9 +164,9 @@ If you have a first drive booked, show the extract by the day before. If it hasn
     title: 'Reminders while your application is open',
     category: 'Documents',
     tags: ['reminder', 'påminnelse', 'messages', 'notifications', 'stop', 'spam'],
-    body: `While something is missing we send up to three reminders in the chat: about 2 hours, 1 day and 3 days after you started. Each one says exactly what is left.
+    body: `While something is missing we send up to three reminders in the chat: about 2 hours, 1 day and 7 days after you started. Each one says exactly what is left.
 You can answer a reminder right there: "Remind me tomorrow", "Remind me in 3 days", or "Stop reminders". Your application stays open either way.
-If nothing has happened in 14 days, a person on our team looks at your application before it is closed. You can always start again.`,
+If nothing has happened in 14 days, a person on our team checks in and then pauses your application. Message us when you want to continue, and we open it again.`,
   },
 
   // ---------------- The call and decision ----------------

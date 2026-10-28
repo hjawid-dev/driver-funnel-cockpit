@@ -193,6 +193,10 @@ const INTERACTIVE = GUIDE_INTERACTIVE;
 export function guideAllows(target: Element | null): boolean {
   if (!target) return true;
   if (target.closest(NAVIGATION)) return true;
+  // Answers the walkthrough cannot continue from (e.g. under the minimum age) stay blocked.
+  if (target.closest('[data-guide-block]')) return false;
+  // A form the presenter fills in freely: every field stays usable while Continue is ringed.
+  if (target.closest('[data-guide-free]')) return true;
   const action = document.querySelector('[data-demo-focus]');
   if (action) return action.contains(target) || (action instanceof HTMLLabelElement && !!action.control && action.control === target);
   return [...document.querySelectorAll('[data-guide-lit]')].some(section => section.contains(target));

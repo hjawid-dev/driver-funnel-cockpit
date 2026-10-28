@@ -75,9 +75,9 @@ function deriveAutomationEvents(apps: Applicant[], from: number, to: number): Au
       push(snooze.until, 'ops', 'nudge', `Requested reminder sent to ${a.name}`);
     }
 
-    // 14 days without a complete file: a person closes it (never automatic).
+    // 14 days without a complete file: a person pauses it (never automatic, never a rejection).
     const t14 = a.registeredAt + NO_RESPONSE_MS;
-    if (!completeBy(t14) && !decidedBy(t14)) push(t14, 'ops', 'close_task', `Task: ${a.name}'s file is incomplete after 14 days. Review recent contact before any closure.`);
+    if (!completeBy(t14) && !decidedBy(t14)) push(t14, 'ops', 'close_task', `Task: ${a.name}'s file is incomplete after 14 days. Check recent contact, then pause it.`);
 
     // Extract call reminder.
     if (a.callAt) {
@@ -98,7 +98,7 @@ function deriveAutomationEvents(apps: Applicant[], from: number, to: number): Au
 
     if (d.type === 'rejected') {
       if (d.reason === 'no_response_14d') {
-        push(d.at, 'driver', 'decision', 'Your application is closed', `Hi ${first(a)}, we closed your application because it was not completed. You are welcome to apply again.`);
+        push(d.at, 'driver', 'decision', 'Your application is paused', `Hi ${first(a)}, we have paused your application because it is not complete yet. Message us here when you want to continue, and we will open it again.`);
       } else {
         const label = REJECT_REASONS.find((r) => r.value === d.reason)?.label ?? 'See below';
         push(
@@ -226,7 +226,7 @@ export function liveOpsEvents(jobs: Job[], from: number, to: number): AutoEvent[
       const deadline = c.replyBy;
       const atDeadline = pickupChecks(j, deadline).find((x) => x.key === c.key)!;
       if (inWindow(deadline) && atDeadline.state === 'no_reply') {
-        out.push({ ...base, at: deadline, kind: 'pickup_task', title: `Task: no reply to the ${c.label} message for ${j.id}. Call the ${j.backup.role.toLowerCase()}.` });
+        out.push({ ...base, at: deadline, kind: 'pickup_task', title: `Task: no reply to the pre-pickup message (${c.label}) for ${j.id}. Call the ${j.contact.role.toLowerCase()}.` });
       }
     }
 

@@ -175,7 +175,7 @@ export interface Check {
 }
 
 function check(key: Check['key'], sentAt: number, wait: number, repliedAt: number | undefined, j: Job, now: number): Check {
-  const label = j.bookedAt !== undefined && j.bookedAt >= j.pickupAt - 2 * HOUR ? 'At late booking' : key === '24h' ? 'T−24 h' : 'T−60 min';
+  const label = j.bookedAt !== undefined && j.bookedAt >= j.pickupAt - 2 * HOUR ? 'At late booking' : key === '24h' ? '24 h before pickup' : '1 h before pickup';
   if (now < sentAt) return { key, label, sentAt, replyBy: sentAt + wait, state: 'scheduled' };
   if (done(repliedAt, now) && repliedAt! >= sentAt) return { key, label, sentAt, replyBy: sentAt + wait, state: 'confirmed' };
   if (done(j.phoneChecks?.[key], now) && j.phoneChecks![key]! >= sentAt) return { key, label, sentAt, replyBy: sentAt + wait, state: 'by_phone' };
@@ -196,7 +196,7 @@ export function pickupChecks(j: Job, now: number): Check[] {
   ];
 }
 
-/** A pickup nobody has confirmed: ops calls the backup contact now, before the driver is at the gate. */
+/** A pickup nobody has confirmed: ops calls the contact now (then the backup), before the driver is at the gate. */
 export function needsConfirmation(j: Job, now: number): boolean {
   if (done(j.arrivedAt, now)) return false;
   return pickupChecks(j, now).some((c) => c.state === 'no_reply');
@@ -368,8 +368,8 @@ export const PLAYBOOK: PlaybookStep[] = [
   { key: 'own_error', title: 'Rule out our own error', what: 'Check address, time, contact and that the confirmations went out. It decides who to call.' },
   { key: 'escalate', title: 'Call the contact, then the backup', what: 'The next rung after a text: a call. The driver asks anyone on site (reception, workshop, key box) meanwhile.' },
   { key: 'customer', title: 'Customer hears it from us', what: 'Send an update before they ask: what happened, what we are doing, when they hear from us next. A pilot customer: tell the account owner too.' },
-  { key: 'decide', title: 'Decision point', what: 'Recommend a feasible option and confirm it with the customer. If unreachable, escalate to the duty lead; record an Ops stop only with confirmed authority.' },
-  { key: 'close', title: 'Close the loop', what: 'Confirm waiting compensation, log the cause and owner. Proposed cancellation pay: half the reward. Book a review for pilot incidents; fee waivers need approval.' },
+  { key: 'decide', title: 'Decision point', what: 'Recommend a feasible option and confirm it with the customer. No decision by the decision point: the drive is cancelled by default, and the customer is told and can rebook.' },
+  { key: 'close', title: 'Close the loop', what: 'Confirm waiting compensation, log the cause and owner. Proposed cancellation pay: half the reward. Book a follow-up with the customer to find what went wrong.' },
 ];
 
 export const OUTCOME_LABEL: Record<Outcome, string> = {
@@ -377,7 +377,7 @@ export const OUTCOME_LABEL: Record<Outcome, string> = {
   later_today: 'Customer chose later today',
   new_date: 'Customer chose a new date',
   cancelled: 'Customer cancelled',
-  ops_stopped: 'Authorised Ops stop: customer unreachable',
+  ops_stopped: 'No decision: cancelled by default',
 };
 
 const hm = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
@@ -400,7 +400,7 @@ export function markStep(j: Job, step: StepKey, now: number): Job {
 export function setOutcome(j: Job, outcome: Outcome, now: number): Job {
   if (j.incident?.closedAt !== undefined || j.incident?.outcome) return j;
   if (outcome === 'keys_found' && now > incidentClock(j, now).lastDeparture) return j;
-  const next = withIncident(j, now, (i) => ({ ...i, outcome: { type: outcome, at: now }, waitingEndedAt: now, ...(outcome === 'later_today' || outcome === 'new_date' || outcome === 'ops_stopped' ? { rebooking: { owner: REVIEWER, dueAt: now + HOUR, status: 'open' as const } } : {}), steps: { ...i.steps, decide: now } }), `Decision: ${OUTCOME_LABEL[outcome].toLowerCase()} (${REVIEWER})`);
+  const next = withIncident(j, now, (i) => ({ ...i, outcome: { type: outcome, at: now }, waitingEndedAt: now, ...(outcome === 'later_today' || outcome === 'new_date' ? { rebooking: { owner: REVIEWER, dueAt: now + HOUR, status: 'open' as const } } : {}), steps: { ...i.steps, decide: now } }), `Decision: ${OUTCOME_LABEL[outcome].toLowerCase()} (${REVIEWER})`);
   return outcome === 'keys_found' ? { ...next, keysAt: next.keysAt ?? now } : next;
 }
 
@@ -428,7 +428,7 @@ export function closeIncident(j: Job, opts: { waitPaid: boolean; feeWaived: bool
   const note = cleanNote(opts.note ?? '');
   if (cause === 'other' && !note) return { ok: false, error: 'Say what happened: "other" needs a few words.' };
   if (j.pilot && !j.incident.accountOwnerAt) return { ok: false, error: 'Log the update to the pilot account owner before closing.' };
-  if (j.pilot && (!opts.reviewBooked || !opts.reviewAt || opts.reviewAt <= now)) return { ok: false, error: 'Schedule the 15-minute booker review at a future time before closing.' };
+  if (j.pilot && (!opts.reviewBooked || !opts.reviewAt || opts.reviewAt <= now)) return { ok: false, error: 'Book the 15-minute follow-up with the customer at a future time before closing.' };
   const pay = cancelPayFor(j);
   const job = withIncident(
     j,
@@ -445,7 +445,7 @@ export function closeIncident(j: Job, opts: { waitPaid: boolean; feeWaived: bool
       closedAt: now,
       steps: { ...i.steps, close: now },
     }),
-    `Closed: waiting time paid${pay ? ` plus ${pay} SEK for the drive that didn't happen` : ''}${opts.feeWaived ? ', fee waived (pilot)' : ''}, cause: ${CAUSE_LABEL[cause].toLowerCase()}${note ? ` ("${note}")` : ''}${opts.reviewBooked ? ', review with the booker booked' : ''} (${REVIEWER})`,
+    `Closed: waiting time paid${pay ? ` plus ${pay} SEK for the drive that didn't happen` : ''}${opts.feeWaived ? ', fee waived (pilot)' : ''}, cause: ${CAUSE_LABEL[cause].toLowerCase()}${note ? ` ("${note}")` : ''}${opts.reviewBooked ? ', follow-up with the customer booked' : ''} (${REVIEWER})`,
   );
   return { ok: true, job };
 }
@@ -465,7 +465,7 @@ export function driverUpdate(j: Job, outcome: Outcome, now: number): string {
     if (now > c.lastDeparture) return 'The keys are available, but the departure cut-off has passed. Wait for ops to confirm a revised delivery plan before leaving.';
     return `Keys found, thanks for waiting! You can head off: leave by ${hm(c.lastDeparture)} to make ${hm(j.deadline)}. Your waiting time from ${waitFrom} is paid.`;
   }
-  if (outcome === 'ops_stopped') return `We could not reach the customer and an authorised Ops lead stopped this pickup. You can leave. Waiting-time compensation and the proposed cancellation payment are logged by Ops; the customer transport remains a follow-up task.`;
+  if (outcome === 'ops_stopped') return `The customer did not decide in time, so the drive is cancelled by default. You don't need to wait any longer and can leave the pickup. Your waiting time from ${waitFrom} is paid, plus ${Math.round(j.reward * CANCEL_SHARE)} SEK, half the job's pay, since the drive didn't happen. Thanks for staying!`;
   const what = outcome === 'later_today' ? 'to move the pickup to later today, and we\'ll come back to you about it' : outcome === 'new_date' ? 'a new date for this drive' : 'to cancel this drive';
   const extra = `, plus ${Math.round(j.reward * CANCEL_SHARE)} SEK, half the job's pay, since the drive didn't happen`;
   return `The customer chose ${what}. You don't need to wait any longer and can leave the pickup. Your waiting time from ${waitFrom} is paid${extra}. Thanks for staying!`;

@@ -36,8 +36,8 @@ export function applyDecision(a: Applicant, input: DecisionInput, now: number, b
   let message: string;
   if (input.type === 'rejected') {
     const label = REJECT_REASONS.find((r) => r.value === input.reason)?.label ?? String(input.reason);
-    text = `${input.reason === 'no_response_14d' ? 'Closed incomplete file' : 'Rejected'}: ${label}${decision.note ? ` (${decision.note})` : ''}${decision.secondReviewer ? `, confirmed by ${decision.secondReviewer}` : ''}`;
-    message = `${input.reason === 'no_response_14d' ? 'Closed incomplete file' : 'Rejected'}: ${a.name}. Reason: ${label}.`;
+    text = `${input.reason === 'no_response_14d' ? 'Paused incomplete file' : 'Rejected'}: ${label}${decision.note ? ` (${decision.note})` : ''}${decision.secondReviewer ? `, confirmed by ${decision.secondReviewer}` : ''}`;
+    message = `${input.reason === 'no_response_14d' ? 'Paused incomplete file' : 'Rejected'}: ${a.name}. Reason: ${label}.`;
   } else {
     // Accepted with a condition when the extract hasn't been shown: it is shown before the first drive.
     const pending = !a.extractShown;

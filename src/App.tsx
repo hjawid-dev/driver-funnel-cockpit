@@ -680,7 +680,7 @@ export default function App() {
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <h2 id="queue-title" className="flex items-center gap-1.5 text-sm font-semibold">
                     Candidates
-                    <Proposed title="The follow-up rules are my proposal, not given in the case: reminders at 2 h, 24 h and day 7 (never 20:00–09:00), one call from the owner if documents are still missing after the second reminder, human review of incomplete files at 14 days; review recent replies before closure, two review blocks a day (one at weekends); owner/backup arranges an exception before 48 h when documents or available call times are a blocker, the driver books from matching offers, reminder at 7 days without booking, call at 14." />
+                    <Proposed title="The follow-up rules are my proposal, not given in the case: reminders at 2 h, 24 h and day 7 (never 20:00–09:00), one call from the owner if documents are still missing after the second reminder, incomplete files paused (not rejected) at 14 days after a check of recent replies, two review blocks a day (one at weekends); owner/backup arranges an exception before 48 h when documents or available call times are a blocker, the driver books from matching offers, reminder at 7 days without booking, call at 14." />
                   </h2>
                   <span className="flex items-center gap-1.5 text-xs text-muted">
                     <CalendarClock size={14} className="text-indigo" aria-hidden />

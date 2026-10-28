@@ -196,7 +196,7 @@ const SHORT_REASON: Record<RejectReason, string> = {
   requirements_not_met: 'Requirements',
   no_valid_licence: 'Licence',
   id_unverified: 'ID',
-  no_response_14d: 'Incomplete file',
+  no_response_14d: 'Paused (incomplete)',
   other: 'Other',
 };
 
@@ -283,7 +283,7 @@ export function computeFunnel(apps: Applicant[]): Funnel {
       parts: [
         { label: 'missing documents', count: apps.filter(a => deriveStage(a) === 'registered' && !reachedDocs(a)).length, to: 'missing' },
         { label: 'pre-qualifying exit', count: apps.filter(a => deriveStage(a) === 'rejected' && !reachedDocs(a)).length, to: 'rejected' },
-        { label: 'closed, not finished', count: apps.filter(a => deriveStage(a) === 'closed' && !reachedDocs(a)).length, to: 'closed' },
+        { label: 'paused, not finished', count: apps.filter(a => deriveStage(a) === 'closed' && !reachedDocs(a)).length, to: 'closed' },
         { label: 'submitted', count: reached('docs'), movedOn: true },
       ],
     },
@@ -294,7 +294,7 @@ export function computeFunnel(apps: Applicant[]): Funnel {
       parts: [
         { label: 'in review', count: now('review'), to: 'review' },
         { label: 'complement requested', count: apps.filter(a => deriveStage(a) === 'registered' && reachedDocs(a)).length, to: 'missing' },
-        { label: 'closed after submission', count: apps.filter(a => deriveStage(a) === 'closed' && reachedDocs(a) && !isReviewDecision(a)).length, to: 'closed' },
+        { label: 'paused after submission', count: apps.filter(a => deriveStage(a) === 'closed' && reachedDocs(a) && !isReviewDecision(a)).length, to: 'closed' },
         { label: 'reviewed', count: reached('reviewed'), movedOn: true },
       ],
     },

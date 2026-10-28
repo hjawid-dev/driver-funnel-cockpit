@@ -173,7 +173,7 @@ export function validateDecision(a: Applicant, input: DecisionInput, now: number
     if (!input.reason) return 'Pick a reason code to reject.';
     if (input.reason === 'other' && !input.note?.trim()) return '"Other" needs a note.';
     if (input.reason === 'no_response_14d') {
-      if (stage !== 'registered' || !isNoResponse(a, now)) return 'Only incomplete files older than 14 days can be closed as an incomplete file after human review.';
+      if (stage !== 'registered' || !isNoResponse(a, now)) return 'Only incomplete files older than 14 days can be paused, after a human check.';
       return null;
     }
     // A pre-qualifying requirement that isn't met is closed by a person, not automatically.

@@ -30,7 +30,7 @@ describe('the candidate queue', () => {
     expect(r).toMatchObject({ needsAction: false });
     expect(r.next).toMatch(/^Reminders run · owner calls .* if still missing$/);
     expect(r.detail).toMatch(/Missing: extract, photo/);
-    expect(s).toMatchObject({ needsAction: true, next: 'Review recent contact; close only if no longer progressing', tone: 'warn' });
+    expect(s).toMatchObject({ needsAction: true, next: 'Check recent contact; pause if not progressing', tone: 'warn' });
   });
 
   it('asks for a call when an accepted driver has had no first gig in 14 days', () => {

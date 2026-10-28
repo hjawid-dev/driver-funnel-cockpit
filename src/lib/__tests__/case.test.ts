@@ -85,7 +85,7 @@ describe('prevention that reaches the cause: the site, the account owner, the dr
     expect(driverUpdate(julia, 'cancelled', NOW)).toMatch(/plus 250 SEK, half the job's pay/);
     const r = closeIncident(decided('cancelled'), { waitPaid: true, feeWaived: true, cause: 'customer_keys', reviewBooked: true }, NOW);
     expect(r.ok && r.job.incident).toMatchObject({ cancelPay: 250, reviewBooked: true });
-    expect(r.ok && r.job.incident!.log.at(-1)!.text).toMatch(/plus 250 SEK.*review with the booker booked/);
+    expect(r.ok && r.job.incident!.log.at(-1)!.text).toMatch(/plus 250 SEK.*follow-up with the customer booked/);
   });
 
   it('a pilot customer: the account owner is told, and it is logged', () => {

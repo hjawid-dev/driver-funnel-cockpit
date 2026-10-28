@@ -32,7 +32,7 @@ export function driverContext(a: Applicant | null, gigs: Gig[], now: number, job
     first_gig: 'Accepted as a driver: can pick a first drive in the app',
     booked: 'Accepted as a driver: first drive booked',
     active: 'Active driver',
-    closed: a.decision?.reason === 'no_response_14d' ? 'Application closed because it was not finished' : 'Not accepted (decision made by a person)',
+    closed: a.decision?.reason === 'no_response_14d' ? 'Application paused because it was not finished; the team opens it again when the applicant wants to continue' : 'Not accepted (decision made by a person)',
   };
 
   if (['id', 'licence', 'photo', 'extract'].includes(step) && missing.length) facts.push(`Still missing: ${missing.map((k) => DOC_LABEL[k]).join(', ')}`);

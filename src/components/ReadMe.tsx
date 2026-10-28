@@ -28,7 +28,7 @@ export function ReadMe({ onClose }: { onClose: () => void }) {
         <div className="space-y-4 px-6 py-5 text-sm leading-relaxed text-navy/90">
           <section>
             <h3 className={h}>What problem it solves</h3>
-            <p className="mt-1"><strong>Live Ops (Part 1):</strong> a driver stuck at a pickup should never wait 25 minutes alone. The driver reports it in the app, an AI assistant texts the site, and after 10 minutes Ops takes over with a playbook: keep the driver, rule out a booking error, escalate, update the customer, decide, close. A pre-pickup check (T−24 h, T−60 min) catches missing keys before arrival.</p>
+            <p className="mt-1"><strong>Live Ops (Part 1):</strong> a driver stuck at a pickup should never wait 25 minutes alone. The driver reports it in the app (or has no keys 5 minutes after checking in), an AI assistant texts the site, and if it is not solved 10 minutes later, Ops takes over with a playbook: keep the driver, rule out a booking error, escalate, update the customer, decide, close. A pre-pickup check (24 hours and 1 hour before pickup) catches missing keys before arrival.</p>
             <p className="mt-1"><strong>Driver Funnel (Part 2):</strong> a few-minute application with one missing item at a time and automatic reminders; a review queue sorted by the 48-hour deadline; written criteria; first drives followed to delivery, because accepted is not active; four weekly metrics.</p>
           </section>
           <section>

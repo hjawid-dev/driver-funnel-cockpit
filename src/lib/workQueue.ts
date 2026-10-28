@@ -45,14 +45,14 @@ function missingItem(a: Applicant, now: number): WorkItem {
   const missing = outstandingDocs(a).map((k) => DOC_SHORT[k]);
   const detail = `${missing.length ? `Missing: ${missing.join(', ')}` : 'Nothing missing'} · registered ${ago(a.registeredAt, now)}`;
   const base = { a, stage: 'registered' as const, detail };
-  if (a.prequalIssue) return { ...base, status: "Doesn't meet a must-have", tone: 'bad', next: 'Close the file with a reason', needsAction: true, rank: 2 };
-  if (isNoResponse(a, now)) return { ...base, status: 'Incomplete after 14 days', tone: 'warn', next: 'Review recent contact; close only if no longer progressing', needsAction: true, rank: 2 };
+  if (a.prequalIssue) return { ...base, status: "Doesn't meet a requirement", tone: 'bad', next: 'Close the file with a reason', needsAction: true, rank: 2 };
+  if (isNoResponse(a, now)) return { ...base, status: 'Incomplete after 14 days', tone: 'warn', next: 'Check recent contact; pause if not progressing', needsAction: true, rank: 2 };
   const sla = slaStatus(a.registeredAt, now);
   const n = nudgeState(a, now);
   const status = sla.bucket === 'ok' ? n.label : `Decision ${sla.label.toLowerCase()}`;
   const tone = sla.bucket === 'overdue' ? 'bad' as const : sla.bucket === 'warn' ? 'warn' as const : 'muted' as const;
   // Two quick reminders, then one personal call from the owner; never a second call or a string of messages.
-  if (ownerCalled(a)) return { ...base, status, tone, next: n.nextAt ? `Called · last reminder ${formatDateTime(n.nextAt)}` : 'Called · review at day 14', needsAction: false, rank: 6 };
+  if (ownerCalled(a)) return { ...base, status, tone, next: n.nextAt ? `Called · last reminder ${formatDateTime(n.nextAt)}` : 'Called · pause at day 14 if still missing', needsAction: false, rank: 6 };
   const callAt = ownerCallAt(a);
   if (now >= callAt) return { ...base, status, tone: sla.bucket === 'overdue' ? 'bad' : 'warn', next: 'Owner calls once: ask what is blocking', needsAction: true, rank: sla.bucket === 'overdue' ? 1 : 3 };
   return { ...base, status, tone, next: `Reminders run · owner calls ${formatDateTime(callAt)} if still missing`, needsAction: false, rank: sla.bucket === 'ok' ? 8 : 5 };

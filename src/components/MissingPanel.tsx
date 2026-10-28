@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Ban, Check, FlaskConical, Send } from 'lucide-react';
+import { Check, FlaskConical, Pause, Send } from 'lucide-react';
 import type { Applicant, DocKey, DocStatus } from '../lib/types';
 import { isNoResponse, nudgeMessage, nudgeState, outstandingDocs, reminderTimes } from '../lib/nudges';
 import { applyDecision, closeNoResponse, logNudge, receiveDocument, type ActionResult } from '../lib/actions';
@@ -131,11 +131,11 @@ export function MissingPanel({ a, now, onResult }: Props) {
               onClick={() => onResult(closeNoResponse(a, now), true)}
               className="inline-flex items-center gap-1.5 rounded-lg border border-bad px-3 py-2 text-sm font-semibold text-bad hover:bg-bad hover:text-white"
             >
-              <Ban size={15} aria-hidden /> Close incomplete file
+              <Pause size={15} aria-hidden /> Pause incomplete file
             </button>
           )}
         </div>
-        {stale && <p className="mt-1.5 text-xs text-muted">Review recent replies and progress before closing. Keep engaged applicants open; closure records an incomplete file, not a suitability rejection.</p>}
+        {stale && <p className="mt-1.5 text-xs text-muted">Check recent replies and progress first; keep engaged applicants open. Pausing is not a rejection: the file opens again when the applicant gets in touch.</p>}
       </DrawerSection>
     </>
   );
