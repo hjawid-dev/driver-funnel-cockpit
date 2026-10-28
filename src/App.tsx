@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarClock, Route, Smartphone } from 'lucide-react';
+import { BookOpen, CalendarClock, Route, Smartphone } from 'lucide-react';
 import { useClock, useDemoData } from './state';
 import { computeFunnel, computeKpis, type FunnelKey } from './lib/kpis';
 import { nextReviewSlot } from './lib/sla';
 import { caseTime, formatDateTime, formatDuration } from './lib/time';
 import { AllApplicants, type StageFilter } from './components/AllApplicants';
 import { HubspotModal } from './components/HubspotModal';
+import { ReadMe } from './components/ReadMe';
 import { ApplicantDrawer } from './components/ApplicantDrawer';
 import { Toast, useToast } from './components/Toast';
 import type { ActionResult } from './lib/actions';
@@ -65,6 +66,7 @@ export default function App() {
   const [liveSel, setLiveSel] = useState<LiveSelection>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [showHubspot, setShowHubspot] = useState(false);
+  const [showReadMe, setShowReadMe] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [present, setPresent] = useState<number | null>(null);
   const [guideRun, setGuideRun] = useState(0);
@@ -636,6 +638,15 @@ export default function App() {
                 </button>
               )}
               <button
+                type="button" data-readme
+                onClick={() => setShowReadMe(true)}
+                title="A short note on this prototype: the problem, who uses it, what comes next"
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white"
+              >
+                <BookOpen size={15} aria-hidden /> <span className="hidden sm:inline">Read me</span>
+                <span className="sr-only sm:hidden">Read me</span>
+              </button>
+              <button
                 type="button"
                 onClick={() => openAsDriver(phoneId)}
                 title="Open the driver app as a driver sees it"
@@ -720,12 +731,12 @@ export default function App() {
           />
         )}
         {showHubspot && <HubspotModal onClose={closeHubspot} />}
+        {showReadMe && <ReadMe onClose={() => setShowReadMe(false)} />}
         {showReport && <ReportModal onReady={() => setReportBusy(false)} apps={apps} threads={threads} jobs={jobs} gigs={gigs} now={now} onClose={closeReport} />}
         {present === null && <Toast message={toast.message} onDismiss={toast.dismiss} />}
 
         <footer className="border-t border-lavender px-4 py-6 text-center text-xs text-muted">
           Driver Funnel builds a supply of qualified drivers. Live Ops keeps that supply delivering. · Prototype by Hjalmar Widlund · demo data, no real people
-          <span className="mt-1 block">Assumptions, numbers and rules are estimates to show the thinking and sketch a solution; none are validated yet. Flovi policies and industry best practice are not yet included and can be added to the prototype later.</span>
         </footer>
       </div>
       {present !== null && <GuideSpotlight />}

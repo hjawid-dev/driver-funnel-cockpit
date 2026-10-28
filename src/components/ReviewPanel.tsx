@@ -131,7 +131,7 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
           )}
         </div>
         <p className="mt-2 rounded-lg bg-warn-bg px-3 py-2 text-xs text-navy">
-          <strong>Order of checks:</strong> the extract is seen before the first drive, not before acceptance. Waiting for it (it can take two weeks) would make the 48-hour decision impossible. Not the order we would prefer, but the only way to meet 48 hours from application.
+          <strong>Order of checks:</strong> the extract is seen before the first drive, not before acceptance. Waiting for it (it can take two weeks) would make the 48-hour decision impossible. Not the order I would prefer, but the only way to meet 48 hours from application.
         </p>
       </DrawerSection>}
 

@@ -64,7 +64,6 @@ export function PresentBar({ step, onStep, onExit, evidence, status, feedback, r
         {receipt && <p role="status" className={`mt-3 text-sm font-semibold ${status.kind === 'complete' || feedback ? 'text-ok' : 'text-indigo'}`}>{status.kind === 'complete' || feedback ? '✓ ' : ''}{receipt}</p>}
         {hint && <p className="guide-hint mt-3" aria-live="polite">→ {hint}</p>}
       </div>
-      {PRESENT_STEPS.findIndex(p => p.part === s.part) === step && <p className="rounded-lg bg-card px-3 py-2 text-xs leading-relaxed text-muted"><strong className="text-navy">A sketch, not a finished policy.</strong> Assumptions, numbers and rules are estimates to show the thinking; none are validated yet. Flovi policies and industry best practice are not included and can be added later.</p>}
       <section aria-label="Why this matters" className="border-l-2 border-lavender pl-3 text-sm leading-relaxed">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Why this matters</h3>
         <p className="mt-1 text-navy/80">{s.solution}</p>

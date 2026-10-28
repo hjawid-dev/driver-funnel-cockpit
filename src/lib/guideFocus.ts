@@ -185,7 +185,7 @@ function setHint(text: string) { if (text !== hint) { hint = text; listeners.for
 // ---------- Only the ringed control works during the walkthrough ----------
 
 /** Guide navigation that always works: case tabs, chapters, All steps, exit, back and Continue. */
-const NAVIGATION = '.guide-panel [aria-label="Choose case"], .guide-panel [aria-label="Case chapters"], .guide-panel details, .guide-panel [aria-label="Exit case walkthrough"], .guide-panel-foot, [data-guide="guide-report"]';
+const NAVIGATION = '.guide-panel [aria-label="Choose case"], .guide-panel [aria-label="Case chapters"], .guide-panel details, .guide-panel [aria-label="Exit case walkthrough"], .guide-panel-foot, [data-guide="guide-report"], [data-readme]';
 export const GUIDE_INTERACTIVE = 'button, a[href], input, select, textarea, label, summary, [role="button"], [tabindex]:not([tabindex="-1"])';
 const INTERACTIVE = GUIDE_INTERACTIVE;
 
