@@ -47,6 +47,8 @@ function build(
     extractLater?: boolean;
     extractCheckAt?: number;
     activationReason?: Applicant['activationReason'];
+    /** Documents received came in with the application itself (no later progress). */
+    withApplication?: boolean;
   },
   now: number,
 ): Omit<Applicant, 'id'> {
@@ -60,7 +62,7 @@ function build(
   const share: Record<DocKey, number> = { id: 0.05, licence: 0.15, photo: 0.4, extract: 1 };
   for (const k of DOC_KEYS) {
     if (docs[k] === 'missing' || docs[k] === 'pending') continue;
-    const at = t.complete && k === 'extract' ? (t.extractLater ? now - DAY : t.complete) : t.reg + span * Math.min(share[k], 0.9);
+    const at = t.withApplication ? t.reg + 10 * MIN : t.complete && k === 'extract' ? (t.extractLater ? now - DAY : t.complete) : t.reg + span * Math.min(share[k], 0.9);
     docTimes[k] = Math.min(at, now - MIN);
   }
   for (const k of DOC_KEYS) if (docTimes[k]) log.push({ at: docTimes[k]!, text: k === 'extract' ? 'Extract ready to show (nothing uploaded)' : `Document received: ${k}` });
@@ -85,7 +87,7 @@ function build(
   if (t.extractCheckAt) log.push({ at: now - 20 * HOUR, text: 'Extract check booked for the next free time (5 min, video)' });
   if (t.activationReason) log.push({ at: t.activationReason.at, text: 'Why no first drive yet: noted by ops after a call' });
   if (t.done) log.push({ at: t.done, text: `First gig completed (${t.onTime === false ? 'late' : 'on time, no incident'})` });
-  for (const n of t.nudges ?? []) log.push({ at: n, text: 'Manual nudge logged' });
+  for (const n of t.nudges ?? []) log.push({ at: n, text: 'Owner’s call logged' });
   log.sort((x, y) => x.at - y.at);
 
   return {
@@ -171,14 +173,16 @@ export function generateSeed(now: number): Applicant[] {
     [{ name: 'Ali Mohammed', area: 'Järfälla', lic: 9, docs: { licence: U, extract: M, photo: M } }, 9 * DAY, []],
     [{ name: 'Freja Lundberg', area: 'Täby', lic: 5, docs: { licence: U, id: M, extract: P } }, 11 * DAY, []],
     [{ name: 'William Lindström', area: 'Sundbyberg', lic: 30, docs: { licence: U, extract: M } }, 12 * DAY, [6]],
-    [{ name: 'Nora Axelsson', area: 'Kungsholmen', lic: 7, docs: { licence: M, extract: P } }, 13 * DAY, [8]],
+    // Nora's one call from the owner is still to be logged: that is the walkthrough's step.
+    [{ name: 'Nora Axelsson', area: 'Kungsholmen', lic: 7, docs: { licence: M, extract: P } }, 13 * DAY, []],
     [{ name: 'Adam Jakobsson', area: 'Haninge', lic: 2, docs: { licence: U, id: M, extract: M, photo: M } }, 16 * DAY, []],
     [{ name: 'Selma Holm', area: 'Sollentuna', lic: 11, docs: { licence: U, extract: M, photo: M } }, 19 * DAY, [6]],
     [{ name: 'Elias Sandberg', area: 'Södermalm', lic: 25, docs: { licence: M, id: M, extract: M, photo: M } }, 25 * DAY, []],
   ];
   for (const [b, regAgo, nudgeDays] of missing) {
     const reg = ago(regAgo);
-    out.push(build(b, { reg, nudges: nudgeDays.map((d) => reg + d * DAY) }, now));
+    // Nora is the walkthrough's example: her ID and photo came with the application, so her reminders show the plain 2 h / 24 h / day-7 schedule.
+    out.push(build(b, { reg, nudges: nudgeDays.map((d) => reg + d * DAY), withApplication: b.name === 'Nora Axelsson' }, now));
   }
 
   // ---------- Awaiting first gig: 6 (accepted ~1, 4, 9, 12, 18, 34 days ago) ----------

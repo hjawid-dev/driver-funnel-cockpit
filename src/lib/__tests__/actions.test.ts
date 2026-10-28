@@ -55,10 +55,10 @@ describe('receiveDocument', () => {
 });
 
 describe('nudges and no-response', () => {
-  it('logs a manual nudge and says no SMS was sent', () => {
+  it('logs the owner’s call and says no call was actually made', () => {
     const r = logNudge(mk(), NOW);
     expect(r.ok && r.applicant.nudges).toEqual([NOW]);
-    expect(r.ok && r.message).toMatch(/no SMS sent/);
+    expect(r.ok && r.message).toMatch(/no call made/);
   });
   it('closes an old incomplete file with the no-response code', () => {
     const r = closeNoResponse(mk({ registeredAt: NOW - 20 * DAY }), NOW);

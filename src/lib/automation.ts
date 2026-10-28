@@ -1,7 +1,7 @@
 import type { Applicant } from './types';
 import { activationReminderReady } from './activation';
 import { REJECT_REASONS } from './types';
-import { NUDGE_OFFSETS, NO_RESPONSE_MS, nudgeMessage, reminderSilenced } from './nudges';
+import { NO_RESPONSE_MS, nudgeMessage, reminderSilenced, reminderTimes } from './nudges';
 import { DAY, HOUR, atLocal, formatDateTime } from './time';
 import type { ChatThread } from './chat/types';
 import { slaFor } from './chat/threads';
@@ -59,12 +59,12 @@ function deriveAutomationEvents(apps: Applicant[], from: number, to: number): Au
     const decidedBy = (t: number) => !!a.decision && a.decision.at <= t;
     const completeBy = (t: number) => (a.firstDocsSubmittedAt ?? a.docsCompleteAt ?? Infinity) <= t;
 
-    // Reminders while the file is incomplete (2 h, 24 h, 72 h after registration).
-    NUDGE_OFFSETS.forEach((o, i) => {
-      const t = a.registeredAt + o;
+    // Reminders while the file is incomplete (2 h, 24 h and day 7; never at night; see reminderTimes).
+    const reminders = reminderTimes(a);
+    reminders.forEach((t, i) => {
       if (completeBy(t) || decidedBy(t) || reminderSilenced(a, t)) return;
       const stillIncomplete = !a.docsCompleteAt && !a.decision;
-      push(t, 'driver', 'nudge', `Reminder ${i + 1} of 3`, stillIncomplete ? nudgeMessage(a) : `Hi ${first(a)}, a few things were still missing in your application.`);
+      push(t, 'driver', 'nudge', `Reminder ${i + 1} of ${reminders.length}`, stillIncomplete ? nudgeMessage(a) : `Hi ${first(a)}, a few things were still missing in your application.`);
       push(t, 'ops', 'nudge', `Auto-nudge ${i + 1} sent to ${a.name}`);
     });
 

@@ -1,6 +1,7 @@
 import type { Applicant, DecisionType, RejectReason } from './types';
 import { deriveStage } from './stage';
 import { isNoResponse } from './nudges';
+import { isServedArea } from './gigs';
 
 /**
  * Written review criteria, three tiers.
@@ -28,7 +29,7 @@ export interface MustHave {
   detail: string;
 }
 
-export type BorderlineKey = 'licence_1_2' | 'limited_availability';
+export type BorderlineKey = 'licence_1_2' | 'limited_availability' | 'outside_area';
 
 export interface BorderlineRule {
   key: BorderlineKey;
@@ -111,6 +112,14 @@ export function evaluate(a: Applicant): Evaluation {
       key: 'limited_availability',
       chip: 'Limited availability',
       rule: 'Limited availability → accept, check matching route demand',
+    });
+  }
+  // Informational: the accept type stays the same; the first drive waits for routes in the area.
+  if (!isServedArea(a.area)) {
+    borderline.push({
+      key: 'outside_area',
+      chip: 'Outside job areas',
+      rule: 'Lives outside today’s job areas → accept, first drive when routes open there',
     });
   }
 

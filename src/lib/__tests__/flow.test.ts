@@ -151,9 +151,9 @@ describe('callSlots', () => {
 });
 
 describe('automationEvents', () => {
-  it('sends the 2/24/72 h reminders to an incomplete applicant, and mirrors them for ops', () => {
+  it('sends the 2 h, 24 h and day-7 reminders to an incomplete applicant, and mirrors them for ops', () => {
     const a = apply();
-    const ev = automationEvents([a], NOW, NOW + 4 * DAY);
+    const ev = automationEvents([a], NOW, NOW + 8 * DAY);
     expect(ev.filter((e) => e.kind === 'nudge' && e.audience === 'driver')).toHaveLength(3);
     expect(ev.filter((e) => e.kind === 'nudge' && e.audience === 'ops')).toHaveLength(3);
   });

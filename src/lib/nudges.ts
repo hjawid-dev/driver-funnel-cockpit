@@ -1,9 +1,60 @@
 import type { Applicant, DocKey } from './types';
-import { DAY, HOUR, formatDateTime, formatDuration } from './time';
+import { DAY, HOUR, MIN, formatDateTime, formatDuration } from './time';
+import { nextReviewSlot } from './sla';
 
-/** Automatic reminders after registration: +2 h, +24 h, +72 h. */
-export const NUDGE_OFFSETS = [2 * HOUR, 24 * HOUR, 72 * HOUR];
+/** Automatic reminders after registration: +2 h, +24 h and day 7. Then a person, not more messages. */
+export const NUDGE_OFFSETS = [2 * HOUR, 24 * HOUR, 7 * DAY];
 export const NO_RESPONSE_MS = 14 * DAY;
+/** Reminders are never sent at night: 20:00–09:00 waits until 09:00. */
+export const QUIET_FROM = 20;
+export const QUIET_TO = 9;
+/** At most one reminder in any 12 hours. */
+const MIN_GAP = 12 * HOUR;
+
+/** A time inside quiet hours moves to 09:00; any other time is kept. */
+export function outsideQuietHours(t: number): number {
+  const d = new Date(t);
+  const h = d.getHours();
+  if (h >= QUIET_TO && h < QUIET_FROM) return t;
+  if (h >= QUIET_FROM) d.setDate(d.getDate() + 1);
+  d.setHours(QUIET_TO, 0, 0, 0);
+  return d.getTime();
+}
+
+/**
+ * When the scheduled reminders go out for this applicant: 2 h, 24 h and day 7 after registering,
+ * never at night, at least 12 h apart, and moved on while the driver is making progress, so nobody
+ * is reminded about a file they are working on. Documents sent with the application itself do not count.
+ */
+export function reminderTimes(a: Applicant): number[] {
+  const progress = Object.values(a.docTimes ?? {}).filter((t): t is number => typeof t === 'number' && t > a.registeredAt + 30 * MIN);
+  const out: number[] = [];
+  let prev = -Infinity;
+  NUDGE_OFFSETS.forEach((o, i) => {
+    let t = Math.max(a.registeredAt + o, prev + MIN_GAP);
+    // Progress restarts the wait: the same interval as the schedule (2 h, then 22 h, then 6 days).
+    const last = Math.max(-Infinity, ...progress.filter((p) => p > prev && p < t));
+    if (last > -Infinity) t = Math.max(t, last + o - (NUDGE_OFFSETS[i - 1] ?? 0));
+    t = outsideQuietHours(t);
+    out.push(t);
+    prev = t;
+  });
+  return out;
+}
+
+/**
+ * If documents are still missing after the second reminder, the owner calls once: in the first
+ * review block at least 3 h after it, which leaves time to finish before the 48-hour target.
+ */
+export function ownerCallAt(a: Applicant): number {
+  return nextReviewSlot(reminderTimes(a)[1] + 3 * HOUR).at;
+}
+
+/** The owner has called (logged as a manual follow-up after the second reminder). */
+export function ownerCalled(a: Applicant): boolean {
+  const second = reminderTimes(a)[1];
+  return a.nudges.some((t) => t >= second);
+}
 
 export interface NudgeState {
   autoSent: number[]; // scheduled nudges that have fired
@@ -24,7 +75,7 @@ export function reminderSilenced(a: Applicant, t: number): boolean {
 export function nudgeState(a: Applicant, now: number): NudgeState {
   // Scheduled nudges stop once the file is complete, or when the driver pauses or stops them.
   const cutoff = Math.min(now, a.firstDocsSubmittedAt ?? a.docsCompleteAt ?? Infinity, a.decision?.at ?? Infinity);
-  const scheduled = NUDGE_OFFSETS.map((o) => a.registeredAt + o).filter((t) => !reminderSilenced(a, t));
+  const scheduled = reminderTimes(a).filter((t) => !reminderSilenced(a, t));
   const snooze = a.reminders?.snooze;
   if (snooze && !reminderSilenced({ ...a, reminders: { offAt: a.reminders?.offAt } }, snooze.until)) scheduled.push(snooze.until);
   scheduled.sort((x, y) => x - y);

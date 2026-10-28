@@ -75,8 +75,8 @@ export function logNudge(a: Applicant, now: number): ActionResult {
   if (deriveStage(a) !== 'registered') return { ok: false, error: 'Nudges are only for incomplete files.' };
   return {
     ok: true,
-    applicant: withLog({ ...a, nudges: [...a.nudges, now] }, now, 'Manual nudge logged (demo, no SMS sent)'),
-    message: 'Nudge logged (demo, no SMS sent)',
+    applicant: withLog({ ...a, nudges: [...a.nudges, now] }, now, 'Owner’s call logged (demo, no call made)'),
+    message: 'Owner’s call logged (demo, no call made)',
   };
 }
 

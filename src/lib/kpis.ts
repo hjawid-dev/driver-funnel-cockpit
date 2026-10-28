@@ -100,7 +100,7 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
 
   return [
     {
-      key: 'cohortConversion', label: 'Application → active', value: conversion, display: fmtPct(conversion),
+      key: 'cohortConversion', label: 'Cohort: active within 30 days', value: conversion, display: fmtPct(conversion),
       target: 'Diagnostic · no target', caption: `${converted} of ${mature.length} registrations with 30+ days of follow-up`,
       info: ['Share of applicants completing a first drive within 30 days of registration. Only registrations with at least 30 days of follow-up count; all mature history.', 'Supporting cohort diagnostic, with no assigned target. The 35% target belongs to the separate monthly New active ÷ applications measure.'],
       status: 'info',
@@ -165,15 +165,15 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
     },
     {
       key: 'appToActive',
-      label: 'New active ÷ applications',
+      label: 'Application-to-active',
       value: northStar,
       display: fmtPct(northStar),
-      sub: 'North star · a 30-day flow',
+      sub: 'North star · new active ÷ applications, a 30-day flow',
       target: 'Target 35%',
       caption: `Last 30 days · ${newActive} new active ÷ ${newApps} applications (a flow, not a cohort)`,
       info: [
         'A flow, like the case\'s "25 of 120 a month": drivers who completed a first gig in the last 30 days, divided by applications in the same 30 days. They are not the same people, so it is throughput, not conversion.',
-        'Application → active is the separate cohort measure. A flow ratio can rise when registrations fall, and can exceed 100% while clearing older applications.',
+        '"Cohort: active within 30 days" is the separate cohort measure. A flow ratio can rise when registrations fall, and can exceed 100% while clearing older applications.',
         `${newActive} new active ÷ ${newApps} applications · case baseline 21%`,
       ],
       status: band(northStar, 35, 25), northStar: true,

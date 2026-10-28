@@ -19,6 +19,9 @@ const REGION: Record<string, 'north' | 'central' | 'south'> = {
   Nacka: 'south',
 };
 
+/** Areas with jobs today. */
+export const isServedArea = (area: string) => area in REGION;
+
 export function distanceScore(a: string, b: string): number {
   if (a === b) return 0;
   return REGION[a] && REGION[a] === REGION[b] ? 1 : 2;

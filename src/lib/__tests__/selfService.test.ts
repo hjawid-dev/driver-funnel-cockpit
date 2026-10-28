@@ -9,7 +9,7 @@ import { validateChatRequest } from '../chat/guard';
 import { toTurns } from '../chat/client';
 import { createChatHandler, type ModelClient } from '../chat/server';
 import { automationEvents, driverInbox } from '../automation';
-import { nudgeState } from '../nudges';
+import { nudgeState, reminderTimes } from '../nudges';
 import { restore, serialize } from '../persist';
 import { generateGigs } from '../gigs';
 import { generateSeed } from '../seed';
@@ -104,14 +104,15 @@ describe('carrying out a confirmed action', () => {
 });
 
 describe('reminders the driver controls', () => {
-  // Registered 3 h ago: the 2 h reminder has gone out, the 24 h and 72 h ones are ahead.
+  // Registered 3 h ago: the 2 h reminder has gone out, the 24 h and day-7 ones are ahead.
   it('"Remind me tomorrow" pauses the scheduled reminders and sends one at the chosen time', () => {
     const later = actionOptions(atExtract, apps, gigs, NOW).find((o) => o.id === 'LATER_1D')!;
     const r = applyChatAction(atExtract, later.action, apps, gigs, NOW);
     if (!r.ok) throw new Error('expected ok');
     const until = (later.action as { until: number }).until;
-    const events = automationEvents([r.applicant], NOW, NOW + 5 * DAY).filter((e) => e.audience === 'driver' && e.kind === 'nudge');
-    expect(events.map((e) => e.at)).toEqual([until, atExtract.registeredAt + 72 * HOUR].sort((x, y) => x - y));
+    const events = automationEvents([r.applicant], NOW, NOW + 8 * DAY).filter((e) => e.audience === 'driver' && e.kind === 'nudge');
+    // The paused 24 h reminder is replaced by the one asked for; the day-7 reminder still follows.
+    expect(events.map((e) => e.at)).toEqual([until, reminderTimes(atExtract)[2]].sort((x, y) => x - y));
     expect(events.some((e) => e.title === 'The reminder you asked for')).toBe(true);
     expect(nudgeState(r.applicant, NOW).label).toMatch(/^Driver asked for a reminder/);
   });

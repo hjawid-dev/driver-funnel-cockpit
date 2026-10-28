@@ -1,9 +1,9 @@
 import type { Applicant, DocKey, Gig } from './types';
 import { deriveStage } from './stage';
 import { slaStatus } from './sla';
-import { isNoResponse, nudgeState, outstandingDocs } from './nudges';
+import { isNoResponse, nudgeState, outstandingDocs, ownerCallAt, ownerCalled } from './nudges';
 import { activationBucket, activationReason, ACTIVATION_REASON_LABEL } from './activation';
-import { ago, DAY } from './time';
+import { ago, DAY, formatDateTime } from './time';
 import type { Job } from './liveOps';
 import { evaluate } from './criteria';
 
@@ -48,11 +48,14 @@ function missingItem(a: Applicant, now: number): WorkItem {
   if (a.prequalIssue) return { ...base, status: "Doesn't meet a must-have", tone: 'bad', next: 'Close the file with a reason', needsAction: true, rank: 2 };
   if (isNoResponse(a, now)) return { ...base, status: 'Incomplete after 14 days', tone: 'warn', next: 'Review recent contact; close only if no longer progressing', needsAction: true, rank: 2 };
   const sla = slaStatus(a.registeredAt, now);
-  if (sla.bucket === 'overdue') return { ...base, status: `Decision ${sla.label.toLowerCase()}`, tone: 'bad', next: 'Owner contacts applicant: resolve missing documents', needsAction: true, rank: 1 };
-  if (sla.bucket === 'warn') return { ...base, status: `Decision ${sla.label.toLowerCase()}`, tone: 'warn', next: 'Owner contacts applicant: resolve missing documents', needsAction: true, rank: 3 };
   const n = nudgeState(a, now);
-  if (n.nextAt === null && !a.reminders?.offAt) return { ...base, status: 'Reminder schedule complete', tone: 'warn', next: 'Request the documents in person', needsAction: true, rank: 5 };
-  return { ...base, status: n.label, tone: 'muted', next: 'Reminders run by themselves', needsAction: false, rank: 8 };
+  const status = sla.bucket === 'ok' ? n.label : `Decision ${sla.label.toLowerCase()}`;
+  const tone = sla.bucket === 'overdue' ? 'bad' as const : sla.bucket === 'warn' ? 'warn' as const : 'muted' as const;
+  // Two quick reminders, then one personal call from the owner; never a second call or a string of messages.
+  if (ownerCalled(a)) return { ...base, status, tone, next: n.nextAt ? `Called · last reminder ${formatDateTime(n.nextAt)}` : 'Called · review at day 14', needsAction: false, rank: 6 };
+  const callAt = ownerCallAt(a);
+  if (now >= callAt) return { ...base, status, tone: sla.bucket === 'overdue' ? 'bad' : 'warn', next: 'Owner calls once: ask what is blocking', needsAction: true, rank: sla.bucket === 'overdue' ? 1 : 3 };
+  return { ...base, status, tone, next: `Reminders run · owner calls ${formatDateTime(callAt)} if still missing`, needsAction: false, rank: sla.bucket === 'ok' ? 8 : 5 };
 }
 
 function reviewItem(a: Applicant, now: number): WorkItem {

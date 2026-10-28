@@ -6,7 +6,7 @@ const ROWS: { cockpit: string; hubspot: string; required: string; workflow: stri
     cockpit: 'Missing documents',
     hubspot: 'Registered',
     required: 'Pre-qualifying answers (licence years, minimum age set by insurance, availability) · status for licence, ID, photo · extract ordered: yes/no',
-    workflow: 'Nudges at +2 h, +24 h, +72 h via driver chat · a requirement not met is shown to the applicant and a human closes the file · human review of incomplete files at 14 days; check recent contact before closure',
+    workflow: 'Reminders at +2 h, +24 h and day 7 via driver chat, never 20:00–09:00 and moved on when the driver makes progress · owner calls once in the first review block 3 h after the second reminder · a requirement not met is shown to the applicant and a human closes the file · human review of incomplete files at 14 days; check recent contact before closure',
   },
   {
     cockpit: '(automatic)',

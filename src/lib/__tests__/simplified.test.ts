@@ -27,7 +27,8 @@ describe('the candidate queue', () => {
     const items = workItems([recent, stale], [], NOW);
     const r = items.find((w) => w.a.id === 'R')!;
     const s = items.find((w) => w.a.id === 'S')!;
-    expect(r).toMatchObject({ needsAction: false, next: 'Reminders run by themselves' });
+    expect(r).toMatchObject({ needsAction: false });
+    expect(r.next).toMatch(/^Reminders run · owner calls .* if still missing$/);
     expect(r.detail).toMatch(/Missing: extract, photo/);
     expect(s).toMatchObject({ needsAction: true, next: 'Review recent contact; close only if no longer progressing', tone: 'warn' });
   });

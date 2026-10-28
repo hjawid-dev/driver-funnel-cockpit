@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Ban, Check, FlaskConical, Send } from 'lucide-react';
 import type { Applicant, DocKey, DocStatus } from '../lib/types';
-import { isNoResponse, NUDGE_OFFSETS, nudgeMessage, nudgeState, outstandingDocs } from '../lib/nudges';
+import { isNoResponse, nudgeMessage, nudgeState, outstandingDocs, reminderTimes } from '../lib/nudges';
 import { applyDecision, closeNoResponse, logNudge, receiveDocument, type ActionResult } from '../lib/actions';
 import { MIN_AGE } from '../lib/driverFlow';
-import { formatDateTime, HOUR } from '../lib/time';
+import { formatDateTime } from '../lib/time';
 import { DOC_LABEL, DocStatusPill } from './chips';
 import { DrawerSection } from './ui';
 
@@ -92,14 +92,13 @@ export function MissingPanel({ a, now, onResult }: Props) {
 
       <DrawerSection title="Nudges" aside={<span className="text-xs text-muted">{nudge.autoSent.length} auto reminders sent</span>} info={<>
         <p className="font-semibold">Reminder schedule</p>
-        <p>Proposed reminders at 2, 24 and 72 hours; the 72-hour reminder does not extend the 48-hour decision target. Owner contacts applicants at 24 hours if documents are missing. The driver can pause or stop them in the chat.</p>
+        <p>Proposed: reminders at 2 h, 24 h and day 7, never between 20:00 and 09:00, at least 12 h apart, and moved on when the driver makes progress. If documents are still missing after the second reminder, the owner calls once, in the first review block at least 3 h later. Then no more calls; the day-14 review decides. The driver can pause or stop reminders in the chat.</p>
         <ol className="space-y-1">
-          {NUDGE_OFFSETS.map((o, i) => {
-            const at = a.registeredAt + o;
+          {reminderTimes(a).map((at, i) => {
             const sent = nudge.autoSent.includes(at);
             return (
-              <li key={o}>
-                <span className="font-semibold">+{o / HOUR} h · {sent ? `Reminder ${i + 1} sent` : 'Not sent'}</span>
+              <li key={i}>
+                <span className="font-semibold">{['2 h', '24 h', 'Day 7'][i]} · {sent ? `Reminder ${i + 1} sent` : 'Not sent'}</span>
                 <span className="num block text-muted">{formatDateTime(at)}</span>
               </li>
             );

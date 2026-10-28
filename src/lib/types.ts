@@ -108,7 +108,7 @@ export interface Applicant {
   /** The extract call the applicant booked in a review slot. The decision is made in this call. */
   callAt?: number;
   /**
-   * Manual nudges only ("Send nudge now"). The scheduled 2/24/72 h nudges are
+   * Manual follow-ups only (the owner's logged call). The scheduled 2 h / 24 h / day-7 reminders are
    * a HubSpot workflow in production, so here they are derived from registeredAt.
    */
   nudges: number[];

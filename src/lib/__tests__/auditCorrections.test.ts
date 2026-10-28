@@ -3,6 +3,7 @@ import { NOW, inReview, mk } from './helpers';
 import { DAY, HOUR, MIN } from '../time';
 import { computeKpis } from '../kpis';
 import { nextReviewSlot } from '../sla';
+import { ownerCallAt } from '../nudges';
 import { callSlots } from '../booking';
 import { workItems } from '../workQueue';
 import { generateGigs } from '../gigs';
@@ -33,9 +34,15 @@ describe('case audit: outcome and exception paths', () => {
     const k = computeKpis(apps, NOW).find(k => k.key === 'timeToDecision')!;
     expect(k.value).toBe(60); expect(k.sub).toContain('Median 20 h'); expect(k.status).toBe('risk');
   });
-  it('contacts incomplete applicants before the 48-hour deadline without resetting it', () => {
+  it('has the owner call an incomplete applicant once, after the two reminders, and then leaves it', () => {
     const a = mk({ registeredAt: NOW - 25 * HOUR, docs: { ...mk().docs, photo: 'missing' } });
-    expect(workItems([a], gigs, NOW)[0]).toMatchObject({ needsAction: true, next: 'Owner contacts applicant: resolve missing documents' });
+    const call = ownerCallAt(a);
+    expect(workItems([a], gigs, call - HOUR)[0]).toMatchObject({ needsAction: false });
+    expect(workItems([a], gigs, call)[0]).toMatchObject({ needsAction: true, next: 'Owner calls once: ask what is blocking' });
+    expect(call - a.registeredAt).toBeLessThan(48 * HOUR);
+    const called = { ...a, nudges: [call + 10 * 60_000] };
+    expect(workItems([called], gigs, call + HOUR)[0].needsAction).toBe(false);
+    expect(workItems([called], gigs, call + HOUR)[0].next).toMatch(/^Called/);
   });
   it('does not call incompleteness proof of silence', () => {
     const a = mk({ registeredAt: NOW - 16 * DAY, docTimes: { photo: NOW - HOUR } });
