@@ -12,6 +12,7 @@ export interface Kpi {
   value: number | null; // % or hours
   display: string; // "72%" / "81 h"
   sub?: string; // short secondary line, e.g. "ops part 31 h"
+  detail?: string; // a line shown on the card itself
   target: string; // "Target 85%"
   caption: string; // cohort rule + n
   info: string[]; // what the number means and how it is counted, shown behind a "?"
@@ -123,6 +124,8 @@ export function computeKpis(apps: Applicant[], now: number): Kpi[] {
       value: mean,
       display: fmtHours(mean),
       sub: `Median ${fmtHours(med)} · ${fmtPct(within48)} within 48 h · ops median ${fmtHours(opsMed)}`,
+      // Shown on the card: the share that met 48 h, and the part Ops controls (complete file → decision).
+      detail: `${fmtPct(within48)} within 48 h · Ops part ${fmtHours(opsMed)} median`,
       target: 'Target < 48 h',
       caption: `${decided.length} decisions${oldest !== null ? ` · oldest in queue ${Math.floor(oldest)} h` : ''}`,
       info: [

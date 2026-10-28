@@ -12,7 +12,7 @@ const ROWS: { cockpit: string; hubspot: string; required: string; workflow: stri
     cockpit: '(automatic)',
     hubspot: 'Documents submitted',
     required: 'Licence, ID and photo in place, extract ordered (it comes by post, so the decision does not wait for it) · docs_complete_at',
-    workflow: 'Auto-move to Under review · reviewer task in the next review slot (weekday blocks 09:00 / 14:00; exception before SLA breach)',
+    workflow: 'Auto-move to Under review · reviewer task in the next review slot (09:00 / 14:00 on weekdays, 10:00 at weekends; exception before SLA breach)',
   },
   {
     cockpit: 'Review queue',
@@ -127,8 +127,8 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
               <p className="mt-1 text-xs text-muted">Proposed production configuration; none is connected in this demo:</p>
               <ul className="mt-2 space-y-1 text-xs">
                 <li>Pipeline stages, required fields and reason-code dropdowns</li>
-                <li>Workflows for reminders, SLA alerts and tasks (the "Move time" button shows them running)</li>
-                <li>Weekday review blocks at 09:00 and 14:00; four 15-minute appointments per block, with owner/backup exceptions before 48 hours</li>
+                <li>Workflows for reminders, SLA alerts and tasks (the walkthrough’s demo-time buttons show them running)</li>
+                <li>Review blocks at 09:00 and 14:00 on weekdays and 10:00 at weekends, so 48 calendar hours hold over a weekend; four 15-minute appointments per block, with owner/backup exceptions before 48 hours</li>
                 <li>Funnel and KPI reports from the timestamps</li>
                 <li>The help desk inbox and ticket SLAs for questions the assistant hands over</li>
                 <li>The knowledge base: the 36 help articles the assistant answers from</li>

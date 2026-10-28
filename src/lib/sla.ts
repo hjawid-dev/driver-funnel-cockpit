@@ -26,15 +26,18 @@ export function byUrgency(a: Applicant, b: Applicant): number {
   return a.registeredAt - b.registeredAt;
 }
 
-/** Two fixed review slots a day. */
+/** Two fixed review slots on weekdays. */
 export const REVIEW_SLOTS = [9, 14];
+/** One review slot on Saturday and Sunday, so a Friday-afternoon registration still gets a decision within 48 calendar hours. */
+export const WEEKEND_REVIEW_SLOTS = [10];
+/** Review hours on a given weekday (0 = Sunday). */
+export const reviewHoursOn = (weekday: number) => (weekday === 0 || weekday === 6 ? WEEKEND_REVIEW_SLOTS : REVIEW_SLOTS);
 
 /** Next review slot from now: { at, label: "14:00 today" | "09:00 tomorrow" }. */
 export function nextReviewSlot(now: number): { at: number; time: string; day: string; label: string } {
   for (let offset = 0; offset < 8; offset++) {
     const day = new Date(now); day.setDate(day.getDate() + offset);
-    if (day.getDay() === 0 || day.getDay() === 6) continue;
-    for (const h of REVIEW_SLOTS) {
+    for (const h of reviewHoursOn(day.getDay())) {
       const slot = new Date(day); slot.setHours(h, 0, 0, 0);
       if (slot.getTime() <= now) continue;
       const name = offset === 0 ? 'today' : offset === 1 ? 'tomorrow' : slot.toLocaleDateString('en-GB', { weekday: 'long' });

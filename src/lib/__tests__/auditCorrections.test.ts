@@ -43,10 +43,11 @@ describe('case audit: outcome and exception paths', () => {
     const r = applyDecision(a, { type: 'rejected', reason: 'no_response_14d' }, NOW);
     expect(r.ok && r.message).toContain('Closed incomplete file');
   });
-  it('agrees on the next weekday between review-block display and call booking', () => {
+  it('keeps 48 calendar hours over a weekend: Friday afternoon gets the Saturday block, in display and call booking alike', () => {
     const friday = new Date('2026-10-23T15:00:00').getTime();
     const slot = nextReviewSlot(friday);
-    expect(new Date(slot.at).getDay()).toBe(1); expect(slot.at).toBe(callSlots(friday, [])[0]); expect(slot.day).toBe('Monday');
+    expect(new Date(slot.at).getDay()).toBe(6); expect(slot.time).toBe('10:00'); expect(slot.at).toBe(callSlots(friday, [])[0]);
+    expect(slot.at - friday).toBeLessThan(48 * HOUR);
   });
   it('flags a passed booking and an interrupted drive instead of treating booking as activation', () => {
     const a = { ...accepted(), firstGig: { gigId: 'OLD', bookedFor: NOW - DAY } };

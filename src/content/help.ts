@@ -175,7 +175,7 @@ If nothing has happened in 14 days, a person on our team looks at your applicati
     title: 'Booking your onboarding call',
     category: 'The call and decision',
     tags: ['book call', 'boka samtal', 'onboarding call', 'interview', 'intervju', 'video call', 'time', 'slot'],
-    body: `As soon as your extract is ordered, the app shows free times. You don't have to wait for it to arrive. Calls are held in two weekday review blocks, around 09:00 and 14:00 on weekdays. Each block has four 15-minute appointments. If daytime calls do not fit, contact Ops for an exception before your original 48-hour deadline; the deadline does not reset. You get a reminder 1 hour before.
+    body: `As soon as your extract is ordered, the app shows free times. You don't have to wait for it to arrive. Calls are held in the review blocks: 09:00 and 14:00 on weekdays, and 10:00 on Saturdays and Sundays. Each block has four 15-minute appointments. If daytime calls do not fit, contact Ops for an exception before your original 48-hour deadline; the deadline does not reset. You get a reminder 1 hour before.
 The call is 15 minutes, by video. You need your driving licence and a phone or computer with a camera, and your extract if it has arrived.`,
   },
   {

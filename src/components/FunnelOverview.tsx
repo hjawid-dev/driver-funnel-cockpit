@@ -12,6 +12,7 @@ export function FunnelKpis({ kpis, baseline, onReport, reportBusy = false }: { k
       <h3 className="flex items-center gap-1 text-sm font-semibold leading-tight">{k.label}<InfoTip label={`About ${k.label.toLowerCase()}`}>{k.info.map((line, i) => <p key={i}>{line}</p>)}{k.sub && <p>{k.sub}</p>}<p>{k.caption}</p></InfoTip></h3>
       <div className="mt-1.5 flex flex-wrap items-center gap-2"><span className="num whitespace-nowrap text-2xl font-semibold">{k.display}</span>{d && <span title="Change in this demo only" className="num rounded bg-card px-1.5 text-xs">{d.text}</span>}</div>
       {PERIOD[k.key] && <p className="mt-1 text-xs text-muted">{PERIOD[k.key]}</p>}
+      {k.detail && <p className="mt-1 text-xs font-medium text-navy/80">{k.detail}</p>}
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs"><StatusChip status={k.status} /><span className="text-muted">{k.key === 'timeToDecision' ? 'Case target ≤ 48 h' : k.target}</span></div>
     </article>;
   };

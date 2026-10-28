@@ -38,8 +38,9 @@ describe('action options', () => {
     // Spread out: at most two times per review slot, over at least three days.
     const days = new Set(actionOptions(atCall, apps, gigs, NOW).map((o) => new Date((o.action as { at: number }).at).toDateString()));
     expect(days.size).toBeGreaterThanOrEqual(3);
-    // Calls are on weekdays only, as the help article says.
-    expect([...days].every((d) => ![0, 6].includes(new Date(d).getDay()))).toBe(true);
+    // Calls follow the review blocks, as the help article says: 09:00/14:00 on weekdays, 10:00 at weekends.
+    const times = actionOptions(atCall, apps, gigs, NOW).map((o) => new Date((o.action as { at: number }).at));
+    expect(times.every((t) => ([0, 6].includes(t.getDay()) ? [10] : [9, 14]).includes(t.getHours()))).toBe(true);
     expect(ids(callBooked).every((id) => id.startsWith('S'))).toBe(true);
     expect(ids(accepted).every((id) => id.startsWith('G'))).toBe(true);
     expect(ids(accepted).length).toBeGreaterThan(0);
