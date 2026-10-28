@@ -46,9 +46,9 @@ export function ReadMe({ onClose }: { onClose: () => void }) {
           <section>
             <h3 className={h}>What I would improve next</h3>
             <ol className="mt-1 list-decimal space-y-0.5 pl-5">
-              <li>Validate the assumptions with the team, Flovi’s data, insurance and legal.</li>
-              <li>Connect it to HubSpot (stages, owners, deadlines) and real SMS.</li>
-              <li>Test with real drivers and Ops; track the four metrics on live cohorts.</li>
+              <li>A complete damage-case workflow: photo evidence, follow-up and resolution.</li>
+              <li>Replacement-driver assignment with availability checks and confirmed acceptance.</li>
+              <li>Incident-cost tracking, to find recurring problems and cut avoidable costs.</li>
             </ol>
           </section>
         </div>
