@@ -1,52 +1,33 @@
 # Driver Funnel Cockpit
 
-A clickable prototype for the Flovi Operations Specialist case, built by Hjalmar Widlund with Claude Code and Codex. Fictional data; external services, calls, verification and compensation are simulated.
+A clickable prototype for the company interview case (Operations Specialist, Stockholm), built by Hjalmar Widlund with Claude Code and Codex. It covers both parts of the case in one tool, because they connect: the driver funnel produces the drivers that live operations depend on.
 
-**Live:** https://driver-funnel-cockpit.vercel.app
+**Live:** https://driver-funnel-cockpit.vercel.app · start with **Explore cases** for a guided walkthrough, or open **Read me** in the header for the short note.
 
-## Case 1: Live Ops
+## Case 1 · Live Ops: driver stuck at pickup
 
-Exceptions first. Julia's pickup opens at Tuesday 09:30: 25 minutes waiting, no keys, no contact, delivery due 12:00. The playbook keeps the driver informed, checks our booking, escalates to the pickup contact/backup and updates the customer and internal pilot account owner.
+- **Driver app:** the driver checks in and reports a problem in one tap. A fixed, pre-approved text goes to the pickup contact and backup; the AI assistant answers at once and never decides.
+- **Ops takeover:** if it is not solved within 10 minutes, Ops gets the incident with a six-step playbook: keep the driver, rule out our own error, escalate, update the customer, decide, close the loop.
+- **Decision clock:** the decision point is worked back from the delivery deadline (12:00 − 50 min drive − 15 min handover − 5 min margin = 10:50, minus 35 min = 10:15). With no decision by then, the drive is cancelled by default and the driver's wait is paid.
+- **Prevention:** contact, backup and key location are required at booking, then confirmed 24 h and 1 h before pickup. Ops only calls when a reply is missing.
 
-Ops recommends a feasible next step and logs the confirmed choice. With no decision by the decision point, the drive is cancelled by default; the customer is told and can rebook. Resolution and delivery are separate. Replacement timing requires customer-agreed pickup **and delivery**. Same-driver confirmation is optional: otherwise a separate unassigned transport stays visible with an owner. The incident can close while that transport remains open. A confirmed same-driver replacement preserves first-drive tracking.
+## Case 2 · Driver Funnel: application to active
 
-Prevention confirms contact, backup and key location at booking, then 24 hours and 1 hour before pickup. Calls happen only on missing replies. Short-notice bookings get one immediate confirmation. A reported problem starts AI support immediately; Ops calls by 10 minutes from that report if unresolved (earlier for safety/deadline risk). Escalation never starts a second countdown. A normal check-in without a key update gets five minutes for handover before the assistant checks in.
+- **Application:** four questions and one missing item at a time. The police extract never blocks booking the onboarding call.
+- **Follow-up:** reminders at 2 h, 24 h and day 7 (never 20:00–09:00), then one call from the owner. Files still incomplete at 14 days are paused, not rejected.
+- **48-hour decisions:** a queue sorted by deadline, a 15-minute video call booked by the applicant, and fixed call times including weekends.
+- **Written criteria:** the review only offers the decision the rules allow, for example "simple drives first" for licences held 1–2 years.
+- **Activation:** accepted drivers book a matching first drive themselves. Ops follows it to delivery, because accepted is not active.
+- **Metrics:** application-to-active (north star), documents within 7 days, mean decision time and activation within 14 days, with acceptance and first-drive outcome as guardrails. A weekly report is checked number by number.
 
-## Case 2: Driver Funnel
+## Also included
 
-The candidate queue keeps **Next step**, urgency and missing items visible. A named owner and backup work the whole registration-to-decision clock, including document collection. Incomplete files get reminders at 2 h, 24 h and day 7 (never 20:00–09:00, at least 12 h apart, moved on when the driver makes progress); if documents are still missing after the second reminder, the owner calls once, in the first review block at least 3 h later. No further calls: the day-14 review decides. Calls and reviews use fixed blocks: 09:00 and 14:00 on weekdays and 10:00 on Saturdays and Sundays, four 15-minute appointments each, so a Friday-afternoon registration can still meet the 48-calendar-hour target; owner/backup arrange any other exception. Open incomplete cases still count as SLA misses, not as decisions. The decision-time card shows the mean as in the case, plus the share decided within 48 h and the Ops part (complete file to decision), so applicant delay and Ops speed are read separately.
+- A driver chat assistant (Claude) that answers from 40 help articles, proposes actions the driver confirms, and hands over to a person. An 85-question eval with traps runs with `npm run eval`.
+- A HubSpot mapping of every stage, field and workflow, plus proposed data-handling controls (no criminal-record data stored, generic reason codes, retention schedule).
 
-Written checks cover licence, identity and photo. Proposed experience tiers are minimum 1 year, 1 to <2 years simple drives first, and ≥2 years standard. All demo first drives are easy standard-car routes; later progression is not automated. Other suitability grounds require an agreed Flovi policy and Operations Manager / Team Lead review. Ordering the proposed extract does not block acceptance; showing it is required before driving.
+## Assumptions
 
-Drivers self-book matching jobs. Ready drivers without a booking receive a reminder at day 7 and Ops contact at day 14 after acceptance. These are separate from the three pre-decision document reminders (2 h, 24 h, day 7); outstanding extracts use the pre-drive-check flow. Actual blockers take precedence: no fitting work is an owner task; an extract still in the post cannot have its check booked yet. Contact outcomes change the next action. A booked drive without delivery stays operational work; a released reservation leaves the customer transport visible as unassigned.
-
-At 14 days, an incomplete application is **paused**, not rejected: a person checks recent replies/progress first and keeps engaged applicants open. The file opens again when the applicant gets in touch.
-
-## Measure and improve
-
-Four primary metrics:
-- **New active ÷ applications:** new active drivers divided by new applications in the last 30 days. Target 35%; the case's monthly flow is 25/120 ≈21%. This compares monthly flows, not the conversion of the same applicants.
-- **Documents within 7 days:** mature registrations; pilot target 85%. The case's ~70% has no defined completion window.
-- **Mean decision time:** registration to first human decision, comparable to the case's six-day mean and 48-hour target. Median, share within 48 h and open overdue work remain available.
-- **Activation within 14 days:** initial acceptances with 14+ days of follow-up; pilot target 75%, based on completed drives.
-
-Acceptance, first-drive delivery outcome and mature-cohort conversion sit under **Guardrails and cohort detail**. Delivery outcome uses the original deadline, incident status and assessed customer feedback; customer-caused incidents are not driver fault. Unknown feedback stays unknown. The 95% outcome guardrail is a pilot hypothesis. Mature-cohort conversion is first delivery within 30 days among registrations aged 30+ days. It is a supporting diagnostic without a target; 35% belongs only to the monthly flow KPI.
-
-Weekly: identify a blocker, choose one process change and compare appropriate outcomes. The report has numerical checks, not a guarantee that its interpretation is correct. No business improvement is claimed from demo actions. No driver-capacity or recruitment conclusion is drawn from a fixed jobs-per-driver ratio. AI answer share is diagnostic, with no 95% automation target.
-
-## Case facts and policy proposals
-
-Case facts include 120 applications/25 active per month, ~30% incomplete documents, six-day mean registration-to-decision, the 48-hour target, required documents and the supplied pickup facts.
-
-Proposals requiring Flovi validation: 35/85/75% pilot targets and cohort windows; licence/age thresholds (20 is an example, not verified insurance policy); background-check method and handling including video; reminders at 2 h, 24 h and day 7 with one owner call; 14-day incomplete-file review; review blocks and exception coverage; day-7/day-14 follow-up, a 3-day retry after an unsuccessful call and monthly dormant review; the 10:15 decision point based on assumed 50-minute driving time, 15-minute handover and 5-minute margin; confirmation reply windows; staffing/service levels; compensation rates/half-reward cancellation proposal, fee-waiver authority and retention periods (6 months incomplete, 2 years rejected/closed). No deletion is implemented.
-
-Five days before a conditional first booking is a planning floor, **not a guarantee of extract arrival**. The proposed extract may take two weeks to process plus post, longer in some international cases. Only an arrived extract can have a check booked; about five minutes of conversation reserves a 15-minute appointment. The proposed 24-hour release deadline protects a reassignment opportunity, not a guarantee of replacement capacity.
-
-## Explore the demo
-
-**Explore cases** starts a user walkthrough with fresh data. Four Case 1 chapters cover Report & AI, Ops takeover, Decision & closure and Prevention. Five Case 2 chapters cover Documents, Decision within 48h, First drive, Follow-up and Measure. All sixteen underlying steps remain accessible under **All steps**. The guide is one fixed panel at the top left, the same in every step: process chapters, a short problem/solution explanation, one line saying what to do next, and Continue at the bottom. On wide screens it is a column and the app moves right, so it never covers a control. Each state lights a whole section to read (the open playbook card, the phone screen, the criteria and decision, Ahmed’s pickup row and job) and rings the one control to use; the section stays still while the ring moves inside it. One shade covers the rest of the app in every step, measured every frame so drawers and accordions stay aligned; drawers do not add a second shade, and app confirmations appear in the guide instead of floating toasts. The page scrolls only when the lit section is out of view. The guide moves on by itself only inside Julia’s incident, where the view stays the same; elsewhere it stays on the result until Continue. Saved actions advance the guide without scrolling back to the top. The new applicant stays on their own onboarding-call confirmation until choosing Continue. Ida’s actual day-7 message is framed until the user continues to Anton. The pickup example targets the missing-keys choice directly, then uses the ten-minute demo clock without a Still waiting button. **Why this matters** is always shown and gives the reason, never a repeat of the text above it. During the walkthrough only the ringed control works (plus the guide’s own navigation), so the demo cannot be steered around; there is no Skip, and Continue unlocks when the step is done. **Back** undoes the last click: data, demo time, the open view and the guide step return to just before it, click by click. Jumping to an earlier chapter or step restores how the demo was when that step was first entered. Moving demo time happens only through the guide’s own buttons; the Demo menu keeps the clock, the HubSpot mapping and reset, and **Driver’s phone** sits in the header. **Read me** in the header is the short note for the build-it bonus: what the tool solves, who uses it and when, why it covers both parts, that numbers and rules are unvalidated estimates, and what I would improve next.
-
-Case 1 is a labelled solution replay from arrival at 09:05, with phone and Live Ops side by side; the original brief remains a separate 09:30 call after 25 minutes waiting. A pickup solved before human takeover skips unnecessary escalation and explains the transition to prevention. Reset demo restarts at the first step. Manual follow-up shows an inline receipt before advancing; reports show loading immediately. The guide never accepts, books, delivers or invents replies. Registration is saved separately from document-checklist completion. Ahmed remains the same person from review through first delivery; Nora, Ida and Anton are separate examples. The full funnel dashboard stays open during the walkthrough. Driver questions always shows Help content gaps and The assistant this week as open sections. The four metrics conclude the walkthrough; the weekly report and HubSpot mapping are optional detail.
+Targets, thresholds, timings and compensation are my proposals to show the thinking. None are validated against the company's policies, insurance or legal review. All data is fictional, and calls, texts, BankID and HubSpot are simulated.
 
 ## Run
 
@@ -55,11 +36,7 @@ npm install
 npm run dev
 npm test
 npm run build
-npm run eval  # AI evaluations; requires ANTHROPIC_API_KEY
+npm run eval  # needs ANTHROPIC_API_KEY
 ```
 
-React, TypeScript, Vite and Tailwind. GitHub main deploys through Vercel. Browser-local demo data has no production backend.
-
-[Submission note](docs/submission-note.md) · [Domain and metric definitions](docs/case-consistency.md) · [Audit resolution](docs/case-audit-resolution.md)
-
-**Submission boundary:** the brief names Lovable or Google AI Studio; this prototype was built with Claude Code/Codex. Acceptance of that platform choice must be confirmed with the reviewer; no alternative-platform build is claimed.
+React, TypeScript, Vite and Tailwind. Demo data lives in the browser; `main` deploys to Vercel.

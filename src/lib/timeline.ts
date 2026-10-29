@@ -26,9 +26,9 @@ export function buildTimeline(a: Applicant, now: number): TimelineEvent[] {
   }
 
   const n = nudgeState(a, now);
-  n.autoSent.forEach((t, i) => ev.push({ at: t, kind: 'nudge', label: `Auto-nudge ${i + 1}`, detail: 'Scheduled workflow' }));
-  n.manual.forEach((t) => ev.push({ at: t, kind: 'nudge', label: 'Manual nudge', detail: 'Logged by ops' }));
-  if (n.nextAt) ev.push({ at: n.nextAt, kind: 'nudge', label: `Auto-nudge ${n.autoSent.length + 1}`, detail: 'Scheduled', upcoming: true });
+  n.autoSent.forEach((t, i) => ev.push({ at: t, kind: 'nudge', label: `Reminder ${i + 1}`, detail: 'Scheduled workflow' }));
+  n.manual.forEach((t) => ev.push({ at: t, kind: 'nudge', label: 'Owner call', detail: 'Logged by ops' }));
+  if (n.nextAt) ev.push({ at: n.nextAt, kind: 'nudge', label: `Reminder ${n.autoSent.length + 1}`, detail: 'Scheduled', upcoming: true });
 
   const submitted = a.firstDocsSubmittedAt ?? a.docsCompleteAt;
   if (submitted) ev.push({ at: submitted, kind: 'complete', label: 'File complete', detail: 'Auto-queued for review' });
@@ -37,7 +37,8 @@ export function buildTimeline(a: Applicant, now: number): TimelineEvent[] {
     const d = a.decision;
     if (d.type === 'rejected') {
       const reason = REJECT_REASONS.find((r) => r.value === d.reason)?.label ?? 'No reason';
-      ev.push({ at: d.at, kind: 'decision', label: 'Rejected', detail: `${reason}${d.note ? ` · ${d.note}` : ''} · ${d.by}`, tone: 'bad' });
+      const paused = d.reason === 'no_response_14d';
+      ev.push({ at: d.at, kind: 'decision', label: paused ? 'Paused' : 'Rejected', detail: `${reason}${d.note ? ` · ${d.note}` : ''} · ${d.by}`, ...(paused ? {} : { tone: 'bad' as const }) });
     } else {
       ev.push({
         at: d.at,

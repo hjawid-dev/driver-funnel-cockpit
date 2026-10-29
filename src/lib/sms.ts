@@ -26,7 +26,7 @@ export const REASON_LABEL: Record<PickupReason, string> = {
 };
 
 export const SENDER = 'Driver Ops';
-export const OPS_PHONE = '08-520 100 00';
+export const OPS_PHONE = '08-465 004 00';
 export const MAX_FIELD = 60;
 export const MAX_TEXT = 320; // two SMS segments
 

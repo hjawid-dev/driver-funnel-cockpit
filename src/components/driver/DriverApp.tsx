@@ -265,7 +265,7 @@ function Start({ onCreate, onChat }: { onCreate: (a: Application) => void; onCha
       </fieldset>
       <fieldset data-guide="application-age" data-guide-done={age !== null}>
         <legend className="text-sm font-semibold">Are you {MIN_AGE} or older?</legend>
-        <p className="text-xs text-muted">Proposed insurance threshold for this demo; Flovi must confirm the actual requirement.</p>
+        <p className="text-xs text-muted">Example threshold for this demo; the insurer sets the real requirement.</p>
         <div className="mt-1 grid grid-cols-2 gap-1.5">
           <Choice value={true} current={age} set={setAge}>Yes</Choice>
           {/* The walkthrough follows an eligible applicant, so "No" is greyed out there. */}

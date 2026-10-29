@@ -65,7 +65,7 @@ function deriveAutomationEvents(apps: Applicant[], from: number, to: number): Au
       if (completeBy(t) || decidedBy(t) || reminderSilenced(a, t)) return;
       const stillIncomplete = !a.docsCompleteAt && !a.decision;
       push(t, 'driver', 'nudge', `Reminder ${i + 1} of ${reminders.length}`, stillIncomplete ? nudgeMessage(a) : `Hi ${first(a)}, a few things were still missing in your application.`);
-      push(t, 'ops', 'nudge', `Auto-nudge ${i + 1} sent to ${a.name}`);
+      push(t, 'ops', 'nudge', `Reminder ${i + 1} sent to ${a.name}`);
     });
 
     // A reminder the driver asked for in the chat ("remind me tomorrow").

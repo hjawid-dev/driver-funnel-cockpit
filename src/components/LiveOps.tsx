@@ -805,7 +805,8 @@ function StepDetail({ step, j, now, onJob, done }: { step: StepKey; j: Job; now:
               <button
                 key={o}
                 type="button"
-                disabled={!!chosen || (o === 'keys_found' && now > incidentClock(j, now).lastDeparture)}
+                disabled={!!chosen || (o === 'keys_found' && now > incidentClock(j, now).lastDeparture) || (o === 'ops_stopped' && now < incidentClock(j, now).decideBy)}
+                title={o === 'ops_stopped' && now < incidentClock(j, now).decideBy ? `Available from the decision point, ${hm(incidentClock(j, now).decideBy)}` : undefined}
                 onClick={() => onJob(setOutcome(j, o, now), `${j.id}: ${OUTCOME_LABEL[o].toLowerCase()}.`)}
                 className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${
                   chosen === o ? 'border-ok bg-ok-bg text-ok' : 'border-lavender hover:border-indigo hover:text-indigo disabled:opacity-50 disabled:hover:border-lavender disabled:hover:text-navy'

@@ -34,6 +34,11 @@ export function formatDateTime(ts: number): string {
   return `${date}, ${time}`;
 }
 
+/** "18 Oct 2028": a calendar date with the year, for dates far ahead such as deletion. */
+export function formatDate(ts: number): string {
+  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 /** The Part 1 case's moment: the latest Tuesday 09:30, local time, at or before `now`. */
 export function caseTime(now: number): number {
   const d = new Date(now);

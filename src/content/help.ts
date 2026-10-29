@@ -36,8 +36,8 @@ export const HELP: HelpArticle[] = [
     category: 'Applying',
     tags: ['requirements', 'krav', 'age', 'ålder', 'qualify', 'eligible', 'who can apply'],
     body: `To drive with us you need:
-- Proposed minimum age 20; actual insurance requirements must be confirmed with Flovi.
-- Proposed policy: a valid Swedish or EU B licence held at least 1 year. From 1 to under 2 years, simple drives first; at least 2 years, standard experience tier. Flovi and its insurer must confirm thresholds.
+- At least 20 years old (an example threshold in this demo; the insurer sets the real one).
+- A valid Swedish or EU/EEA B licence held at least 1 year. From 1 to under 2 years you start with simple drives; from 2 years you can take all jobs. These thresholds are demo examples, to be confirmed with the insurer.
 - Verified ID/personnummer: BankID where possible, otherwise a manual identity check by ops.
 - The right to work in Sweden.
 - A smartphone with mobile data.
@@ -236,7 +236,7 @@ You can also widen your area or times under your profile, or ask in the chat and
     category: 'First drive',
     tags: ['simple drives', 'enkla uppdrag', 'restricted', 'limited jobs', 'new licence'],
     body: `Drivers who have had their licence for 1 to under 2 years start with simple drives: up to about 25 km, with standard cars (no premium cars or vans).
-After a few drives without remarks, and once you have had your licence for 2 years, you get the full range of jobs automatically.`,
+Once you have had your licence for 2 years, a person on our team opens the full range of jobs for you. The exact rule is still being agreed.`,
   },
 
   // ---------------- Jobs and pay ----------------
@@ -339,7 +339,7 @@ In an emergency or if anyone is hurt, call 112 first.`,
     body: `At the pickup, tap "I'm here" in today's job, and "Got the keys" when you have them. If something is wrong, tap "Problem at pickup" and pick what it is, or write here.
 Keys missing, nobody there, or the car isn't there: that one tap sends a fixed, pre-approved message to the pickup contact and the backup in the booking, and you see what was sent. It can't be changed, and nothing you or the assistant write is sent to the customer.
 Damage, an accident or feeling unsafe goes straight to a person. If anyone is hurt or you are in danger, call 112 first.
-Stay at the pickup. Your waiting time is paid from the agreed pickup time, whatever happens with the job. Proposed compensation: if Ops releases you without completing the drive, half the reward is added to waiting compensation. Rates and fee-waiver authority require Flovi approval; this demo only logs confirmation.
+Stay at the pickup. Your waiting time is paid from the agreed pickup time, whatever happens with the job. If Ops releases you and the drive doesn't happen, half the job's pay is added on top of your waiting time (demo amounts).
 If it isn't solved within 10 minutes, a person from ops calls you and agrees the next step with the customer, so you never have to cancel or decide anything yourself.`,
   },
   {
@@ -428,7 +428,7 @@ Don't share sensitive details in the chat, such as health information or anythin
     category: 'Contact',
     tags: ['contact', 'kontakt', 'phone', 'telefon', 'call us', 'ring', 'email', 'opening hours', 'öppettider', 'human', 'person'],
     body: `Write in the chat. The assistant answers right away; ask for a person whenever you want.
-Proposed service model, subject to staffing approval: Ops 07:00–20:00 daily, target reply within 15 minutes; urgent support during every ongoing drive, target call within 10 minutes. These are demo service levels, not verified Flovi coverage.
+Proposed service model, subject to staffing approval: Ops 07:00–20:00 daily, target reply within 15 minutes; urgent support during every ongoing drive, target call within 10 minutes. These are demo service levels.
 We don't have a public phone number; if a call is easier, ask in the chat and we call you.`,
   },
 ];

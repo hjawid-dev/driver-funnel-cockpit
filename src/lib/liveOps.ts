@@ -37,7 +37,7 @@ export interface Job {
   contact: Contact;
   backup: Contact;
   keyLocation: string;
-  /** The pickup contact's replies to the pre-pickup messages (sent at T−24 h and T−60 min). */
+  /** The pickup contact's replies to the pre-pickup messages (sent 24 h and 1 h before pickup). */
   confirmed24At?: number;
   confirmed60At?: number;
   /** Ops reached the contact another way (phone), which settles a missing reply. */
@@ -400,6 +400,8 @@ export function markStep(j: Job, step: StepKey, now: number): Job {
 export function setOutcome(j: Job, outcome: Outcome, now: number): Job {
   if (j.incident?.closedAt !== undefined || j.incident?.outcome) return j;
   if (outcome === 'keys_found' && now > incidentClock(j, now).lastDeparture) return j;
+  // "No decision" only exists once the decision point has passed.
+  if (outcome === 'ops_stopped' && now < incidentClock(j, now).decideBy) return j;
   const next = withIncident(j, now, (i) => ({ ...i, outcome: { type: outcome, at: now }, waitingEndedAt: now, ...(outcome === 'later_today' || outcome === 'new_date' ? { rebooking: { owner: REVIEWER, dueAt: now + HOUR, status: 'open' as const } } : {}), steps: { ...i.steps, decide: now } }), `Decision: ${OUTCOME_LABEL[outcome].toLowerCase()} (${REVIEWER})`);
   return outcome === 'keys_found' ? { ...next, keysAt: next.keysAt ?? now } : next;
 }
@@ -758,8 +760,8 @@ export function seedJobs(apps: Applicant[], now: number, opts: { asInCase?: bool
       deadline: pickupAt + s.hours * HOUR,
       reward: s.reward,
       price: s.price,
-      contact: { role: 'Service desk', phone: '08-123 45 00' },
-      backup: { role: 'Site manager', phone: '070-123 45 67' },
+      contact: { role: 'Service desk', phone: '08-465 004 10' },
+      backup: { role: 'Site manager', phone: '070-174 06 10' },
       keyLocation: 'Key box by the service entrance',
       ...(s.asInCase ? { asInCase: true } : {}),
       ...(s.newSite ? { newSite: true } : {}),
@@ -798,8 +800,8 @@ export function solutionExample(j: Job): Job {
 
 // ---------- A new driver's first drive ----------
 
-const CONTACT: Contact = { role: 'Service desk', phone: '08-123 45 00' };
-const BACKUP: Contact = { role: 'Site manager', phone: '070-123 45 67' };
+const CONTACT: Contact = { role: 'Service desk', phone: '08-465 004 10' };
+const BACKUP: Contact = { role: 'Site manager', phone: '070-174 06 10' };
 
 /**
  * The job for an accepted driver's booked first drive. In the demo the pickup contact confirms

@@ -78,7 +78,9 @@ function build(
     };
     const label =
       decision.type === 'rejected'
-        ? `Rejected: ${REJECT_REASONS.find((r) => r.value === decision!.reason)!.label}`
+        ? decision.reason === 'no_response_14d'
+          ? 'Paused: incomplete after 14 days'
+          : `Rejected: ${REJECT_REASONS.find((r) => r.value === decision!.reason)!.label}`
         : DECISION_LABEL[decision.type];
     log.push({ at: decision.at, text: `${label} · by Ops team` });
   }

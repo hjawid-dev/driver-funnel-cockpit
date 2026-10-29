@@ -35,11 +35,13 @@ describe('privacy by design', () => {
     for (const a of seed.filter((x) => x.firstGig?.doneAt)) expect(a.extractShown).toBe(true);
   });
 
-  it('retention: rejected after 2 years, incomplete after 6 months', () => {
+  it('retention: rejected after 2 years, incomplete or paused after 6 months', () => {
     const rejected = seed.find((a) => a.decision?.type === 'rejected' && a.docsCompleteAt)!;
     expect(retention(rejected).deleteAt).toBe(rejected.decision!.at + 730 * DAY);
     const incomplete = seed.find((a) => !a.docsCompleteAt && !a.decision)!;
     expect(retention(incomplete).deleteAt).toBe(incomplete.registeredAt + 183 * DAY);
+    const paused = seed.find((a) => a.decision?.reason === 'no_response_14d')!;
+    expect(retention(paused).deleteAt).toBe(paused.registeredAt + 183 * DAY);
     const active = seed.find((a) => a.firstGig?.doneAt)!;
     expect(retention(active).deleteAt).toBeNull();
   });

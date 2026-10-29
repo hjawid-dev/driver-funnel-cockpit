@@ -73,14 +73,14 @@ const JOBS: Job[] = [
     id: 'JOB-202', driverId: 'DRV-9008', driverName: 'Julia Lindgren', customer: 'Solna Bilcenter', pilot: true,
     from: 'Dealership, Solna', to: 'Customer, Upplands Väsby', area: 'Solna', km: 35, driveMin: 50,
     pickupAt: NOW - 2 * MIN, deadline: NOW + 178 * MIN, reward: 500, price: 780,
-    contact: { role: 'Service desk', phone: '08-123 45 00' }, backup: { role: 'Site manager', phone: '070-123 45 67' },
+    contact: { role: 'Service desk', phone: '08-465 004 10' }, backup: { role: 'Site manager', phone: '070-174 06 10' },
     keyLocation: 'Key box by the service entrance', arrivedAt: NOW - 3 * MIN,
   },
   {
     id: 'JOB-205', driverId: 'DRV-9009', driverName: 'Omar Khalil', customer: 'Sundbyberg Motor', pilot: false,
     from: 'Dealership, Sundbyberg', to: 'Customer, Täby', area: 'Sundbyberg', km: 18, driveMin: 35,
     pickupAt: NOW - 12 * MIN, deadline: NOW + 168 * MIN, reward: 360, price: 600,
-    contact: { role: 'Service desk', phone: '08-123 45 00' }, backup: { role: 'Site manager', phone: '070-123 45 67' },
+    contact: { role: 'Service desk', phone: '08-465 004 10' }, backup: { role: 'Site manager', phone: '070-174 06 10' },
     keyLocation: 'Key box by the service entrance', arrivedAt: NOW - 14 * MIN, problemAt: NOW - 9 * MIN,
   },
 ];

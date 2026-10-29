@@ -324,7 +324,7 @@ const HISTORY: { name: string; daysAgo: number; lines: Line[]; waiting?: Handove
   ] },
   { name: 'Mohammed Yusuf', daysAgo: 3.9, lines: [
     ['driver', 'I need to move my call on Thursday', 0],
-    ['ai', "I can't move a booked call myself, so I've passed this to a person in ops. Tell them which times suit you; they usually reply within 15 minutes.", 0.2, { sources: ['call-reschedule'], handover: 'personal' }],
+    ['ai', "Your call starts in less than 2 hours, so I can't move it here. I've passed this to a person in ops; tell them which times suit you. They usually reply within 15 minutes.", 0.2, { sources: ['call-reschedule'], handover: 'personal' }],
     ['ops', 'Moved to Friday 09:15. See you then!', 6, { by: 'Hjalmar' }],
     ['note', 'The assistant is answering again. Ask for a person any time.', 7],
   ] },

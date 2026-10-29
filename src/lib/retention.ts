@@ -4,9 +4,9 @@ import { DAY } from './time';
 
 /**
  * Storage limitation (GDPR art. 5.1 e). Starting proposal, to be set with a DPO:
- * - incomplete applications: deleted 6 months after registration
- * - rejected or closed: deleted 2 years after the decision (discrimination claims must be
- *   brought within two years)
+ * - incomplete or paused applications: deleted 6 months after registration
+ * - rejected: deleted 2 years after the decision, to cover possible discrimination claims
+ *   (common Swedish practice; to confirm with legal)
  * - open files and active drivers: kept while the relationship lasts; payment records follow
  *   the bookkeeping rules (7 years) in the payroll system, not here
  */
@@ -20,8 +20,11 @@ export interface Retention {
 
 export function retention(a: Applicant): Retention {
   const stage = deriveStage(a);
-  if (stage === 'rejected' || stage === 'closed') {
+  if (stage === 'rejected') {
     return { deleteAt: a.decision!.at + REJECTED_RETENTION_DAYS * DAY, label: 'Deleted 2 years after the decision' };
+  }
+  if (stage === 'closed') {
+    return { deleteAt: a.registeredAt + INCOMPLETE_RETENTION_DAYS * DAY, label: 'Paused: deleted 6 months after registration unless reopened' };
   }
   if (stage === 'registered') {
     return { deleteAt: a.registeredAt + INCOMPLETE_RETENTION_DAYS * DAY, label: 'Deleted 6 months after registration if still incomplete' };

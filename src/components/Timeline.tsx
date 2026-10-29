@@ -13,7 +13,7 @@ export function Timeline({ a, now }: { a: Applicant; now: number }) {
   const events = buildTimeline(a, now);
   const end = a.decision?.at ?? now;
   return (
-    <CollapsibleSection title="Timeline" summary={`Registered → ${a.decision ? 'decision' : 'now'}: ${formatDuration(end - a.registeredAt)}`}>
+    <CollapsibleSection title="Timeline" summary={`Registered → ${a.decision ? (a.decision.reason === 'no_response_14d' ? 'paused' : 'decision') : 'now'}: ${formatDuration(end - a.registeredAt)}`}>
       <ol className="relative ml-1.5 border-l border-lavender">
         {events.map((e, i) => (
           <li key={i} className="relative pl-5 pb-3 last:pb-0">

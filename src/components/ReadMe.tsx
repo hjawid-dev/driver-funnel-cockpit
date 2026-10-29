@@ -41,7 +41,7 @@ export function ReadMe({ onClose }: { onClose: () => void }) {
           </section>
           <section>
             <h3 className={h}>A sketch, not a finished policy</h3>
-            <p className="mt-1">Numbers, thresholds and rules are my estimates to show the thinking and sketch a solution; none are validated yet. Flovi’s policies and industry best practice are not included and can be added later. Demo data only; integrations are simulated.</p>
+            <p className="mt-1">Numbers, thresholds and rules are my estimates to show the thinking and sketch a solution; none are validated yet. The company’s own policies are not included and can be added later. The background-check method must be confirmed with legal. Demo data only; integrations are simulated.</p>
           </section>
           <section>
             <h3 className={h}>What I would improve next</h3>

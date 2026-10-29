@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { ShieldCheck, X } from 'lucide-react';
+import { HELP } from '../content/help';
 
 const ROWS: { cockpit: string; hubspot: string; required: string; workflow: string }[] = [
   {
@@ -131,7 +132,7 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
                 <li>Review blocks at 09:00 and 14:00 on weekdays and 10:00 at weekends, so 48 calendar hours hold over a weekend; four 15-minute appointments per block, with owner/backup exceptions before 48 hours</li>
                 <li>Funnel and KPI reports from the timestamps</li>
                 <li>The help desk inbox and ticket SLAs for questions the assistant hands over</li>
-                <li>The knowledge base: the 36 help articles the assistant answers from</li>
+                <li>The knowledge base: the {HELP.length} help articles the assistant answers from</li>
                 <li>A Monday workflow that posts the weekly report to Slack</li>
               </ul>
             </div>
@@ -165,8 +166,8 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
             </h3>
             <ul className="mt-2 grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
               <li>
-                <strong>No criminal-record data stored.</strong> Proposed control: the applicant shows an extract before the first drive. The method and handling require policy/legal validation. Only
-                "extract shown: yes" is recorded. This does not certify the method's legal suitability.
+                <strong>No criminal-record data stored.</strong> Proposed control: the applicant shows their own extract before the first drive, and only
+                "extract shown: yes" is recorded. The police advise employers against asking for this extract type, so the method needs legal sign-off.
               </li>
               <li>
                 <strong>No traffic-offence data.</strong> Licence validity is checked with Transportstyrelsen; offences are never recorded.
@@ -180,10 +181,10 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
                 weeks.
               </li>
               <li>
-                <strong>Retention.</strong> Proposed schedule: incomplete after 6 months, rejected after 2 years. Actual deletion is not implemented in this demo.
+                <strong>Retention.</strong> Proposed schedule: incomplete or paused after 6 months, rejected after 2 years (common practice to cover discrimination claims; confirm with legal). Deletion is not implemented in this demo.
               </li>
               <li>
-                <strong>Fair criteria.</strong> Minimum age and licence years are tied to insurance and safety; the photo standard is the
+                <strong>Fair criteria.</strong> Minimum age and licence years are tied to insurance and safety (Swedish licences have a two-year probation period); the photo standard is the
                 same for everyone; limited availability never rejects.
               </li>
               <li>
@@ -193,11 +194,11 @@ export function HubspotModal({ onClose }: { onClose: () => void }) {
                 <strong>HubSpot setup.</strong> EU data centre, data processing agreement, no extracts or offence data in any field.
               </li>
               <li>
-                <strong>The AI says it is an AI</strong> (AI Act art. 50), sees first name and status only, never decides, and every action it
-                proposes needs the driver's tap.
+                <strong>The AI says it is an AI</strong> (AI Act art. 50), sees first name and application status only (no ID number, notes or extract), never decides, and every action it
+                proposes needs the driver's tap. The provider is in the US: data processing agreement and transfer safeguards required.
               </li>
               <li>
-                <strong>Tested, not assumed.</strong> A fixed set of 63 questions in several languages, with traps, is run on every prompt or
+                <strong>Tested, not assumed.</strong> A fixed set of 85 questions in several languages, with traps, is run on every prompt or
                 article change.
               </li>
             </ul>

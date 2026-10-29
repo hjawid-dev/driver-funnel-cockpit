@@ -5,7 +5,7 @@ import { DOC_KEYS } from '../lib/types';
 import { deriveStage, STAGE_LABEL } from '../lib/stage';
 import { slaStatus } from '../lib/sla';
 import { fmtYears } from '../lib/criteria';
-import { ago, formatDateTime } from '../lib/time';
+import { ago, formatDate, formatDateTime } from '../lib/time';
 import { retention } from '../lib/retention';
 import type { ActionResult } from '../lib/actions';
 import { DOC_LABEL, DocStatusPill, SlaChip } from './chips';
@@ -145,7 +145,7 @@ function RetentionText({ a }: { a: Applicant }) {
   return (
     <span>
       {r.label}
-      {r.deleteAt && <span className="text-muted font-normal"> · {formatDateTime(r.deleteAt).split(',')[0]}</span>}
+      {r.deleteAt && <span className="text-muted font-normal"> · {formatDate(r.deleteAt)}</span>}
     </span>
   );
 }

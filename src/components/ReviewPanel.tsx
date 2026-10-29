@@ -72,9 +72,9 @@ export function ReviewPanel({ a, now, onUpdate, onResult, preDrive = false }: Pr
         aside={<Proposed title="My proposed written criteria, not given in the case: to agree with the team, and to check with policy and legal." />}
         info={
           <>
-            <p>Written thresholds cover licence, identity and photo. Other suitability grounds need an agreed Flovi policy; a second opinion does not replace criteria.</p>
+            <p>Written thresholds cover licence, identity and photo. Other suitability grounds need an agreed company policy; a second opinion does not replace criteria.</p>
             <p>
-              Case requirement: ID and a background check. This demo proposes BankID/manual ID and viewing the driver's extract without keeping a copy. Control type, authenticity and handling (including video) require Flovi policy and legal validation; voluntary display alone is not validation.
+              Case requirement: ID and a background check. This demo proposes BankID/manual ID and viewing the driver's extract without keeping a copy. Control type, authenticity and handling (including video) require company policy and legal validation; voluntary display alone is not validation. Note: the police describe the own-data extract as meant for the individual and advise against employers asking for it.
             </p>
             <p className="text-muted">
               The extract comes by post and can take two weeks, so it doesn't hold up the decision: it is shown, voluntarily, before the first drive. In this call if it has arrived, otherwise in a 5-minute check. We only look at it: no copy, no notes about its content.

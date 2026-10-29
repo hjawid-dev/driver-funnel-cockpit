@@ -13,7 +13,7 @@ describe('buildTimeline', () => {
     const reg = NOW - 30 * HOUR;
     const a = mk({ registeredAt: reg, docTimes: { id: reg + HOUR }, docs: { licence: 'missing', id: 'verified', extract: 'pending', photo: 'missing' } });
     const t = buildTimeline(a, NOW);
-    expect(t.map((e) => e.label)).toEqual(['Registered', 'ID (BankID) received', 'Auto-nudge 1', 'Auto-nudge 2', 'Auto-nudge 3']);
+    expect(t.map((e) => e.label)).toEqual(['Registered', 'ID (BankID) received', 'Reminder 1', 'Reminder 2', 'Reminder 3']);
     expect(t.at(-1)!.upcoming).toBe(true);
   });
   it('shows decision with reason and first-gig quality', () => {

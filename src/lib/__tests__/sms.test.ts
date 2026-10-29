@@ -19,8 +19,8 @@ const job = (over: Partial<Job> = {}): Job => ({
   deadline: NOW + 3 * HOUR,
   reward: 500,
   price: 780,
-  contact: { role: 'Service desk', phone: '08-123 45 00' },
-  backup: { role: 'Site manager', phone: '070-123 45 67' },
+  contact: { role: 'Service desk', phone: '08-465 004 10' },
+  backup: { role: 'Site manager', phone: '070-174 06 10' },
   keyLocation: 'Key box',
   ...over,
 });
@@ -28,7 +28,7 @@ const job = (over: Partial<Job> = {}): Job => ({
 describe('automated texts to the pickup contact', () => {
   it('a fixed template with fields from the booking, marked as automated', () => {
     expect(composeText(job(), 'keys_missing')).toBe(
-      `Driver Ops: Our driver is at Dealership, Solna for pickup JOB-1 (${new Date(NOW).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}), but the keys are not at the agreed place (Key box). Where are they? Reply here or call 08-520 100 00. (Automated message)`,
+      `Driver Ops: Our driver is at Dealership, Solna for pickup JOB-1 (${new Date(NOW).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}), but the keys are not at the agreed place (Key box). Where are they? Reply here or call 08-465 004 00. (Automated message)`,
     );
   });
   it('a booking field cannot smuggle in a link, a line break or instructions with symbols', () => {
@@ -40,7 +40,7 @@ describe('automated texts to the pickup contact', () => {
   });
   it('only to the contact and backup in the booking, at most once each, and not when switched off', () => {
     expect(recipients(job()).map((r) => r.role)).toEqual(['Service desk', 'Site manager']);
-    expect(recipients(job({ backup: { role: 'Site manager', phone: '08-123 45 00' } }))).toHaveLength(1);
+    expect(recipients(job({ backup: { role: 'Site manager', phone: '08-465 004 10' } }))).toHaveLength(1);
     expect(recipients(job({ contact: { role: 'Desk', phone: 'call me maybe' } })).map((r) => r.role)).toEqual(['Site manager']);
     const first = prepareTexts(job(), 'no_contact', NOW, true);
     expect(first.ok && first.texts).toHaveLength(2);

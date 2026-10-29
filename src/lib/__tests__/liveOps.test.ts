@@ -59,8 +59,8 @@ const job = (over: Partial<Job> = {}): Job => ({
   deadline: NOW + 3 * HOUR,
   reward: 500,
   price: 780,
-  contact: { role: 'Service desk', phone: '08-123 45 00' },
-  backup: { role: 'Site manager', phone: '070-123 45 67' },
+  contact: { role: 'Service desk', phone: '08-465 004 10' },
+  backup: { role: 'Site manager', phone: '070-174 06 10' },
   keyLocation: 'Key box',
   ...over,
 });
@@ -230,6 +230,15 @@ describe('the driver hears the decision in the chat', () => {
     const j = checkIn(job(), NOW);
     expect(driverUpdate(j, 'keys_found', NOW + 20 * MIN)).toMatch(/leave by \d\d:\d\d/);
     expect(driverUpdate(j, 'new_date', NOW + 40 * MIN)).toMatch(/don't need to wait.*waiting time .* is paid/);
+  });
+  it('no decision: cancelled by default only from the decision point, with no rebooking task', () => {
+    const j = checkIn(job(), NOW);
+    const decideBy = incidentClock(j, NOW).decideBy;
+    expect(setOutcome(j, 'ops_stopped', decideBy - MIN).incident?.outcome).toBeUndefined();
+    const stopped = setOutcome(j, 'ops_stopped', decideBy);
+    expect(stopped.incident?.outcome?.type).toBe('ops_stopped');
+    expect(stopped.incident?.rebooking).toBeUndefined();
+    expect(driverUpdate(stopped, 'ops_stopped', decideBy)).toMatch(/cancelled by default.*waiting time .* is paid/);
   });
   it('lists closed incidents from the last 12 hours', () => {
     const decided = setOutcome(checkIn(job(), NOW), 'cancelled', NOW + 30 * MIN);

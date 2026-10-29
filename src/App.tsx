@@ -604,7 +604,7 @@ export default function App() {
       <div className="min-w-0 flex-1 flex flex-col">
         <div ref={topRef} data-guide-header className={`${present !== null ? 'sticky top-0 z-[60]' : ''} ${open ? 'lg:w-[calc(100%_-_520px)]' : ''}`}>
         <header className="bg-navy text-white">
-          <div className="mx-auto max-w-7xl px-4 h-14 flex items-center gap-3">
+          <div className="mx-auto max-w-7xl px-3 sm:px-4 h-14 flex items-center gap-2 sm:gap-3">
             <span className="hidden sm:inline font-semibold tracking-tight whitespace-nowrap">Driver Ops</span>
             <nav aria-label="Pages" className="sm:ml-2 flex rounded-lg bg-white/10 p-0.5 text-sm font-semibold">
               {(['live', 'funnel'] as const).map((p) => (
@@ -613,7 +613,7 @@ export default function App() {
                   type="button"
                   onClick={() => showPage(p)}
                   aria-current={page === p ? 'page' : undefined}
-                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1 ${page === p ? 'bg-white text-navy' : 'text-white/80 hover:text-white'}`}
+                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 sm:px-3 py-1 ${page === p ? 'bg-white text-navy' : 'text-white/80 hover:text-white'}`}
                 >
                   {PAGE_LABEL[p]}
                   {p === 'live' && urgent > 0 && (
@@ -631,7 +631,7 @@ export default function App() {
                   type="button"
                   onClick={startPresenting}
                   title="Explore case 1 and case 2 step by step with fresh demo data"
-                  className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white"
+                  className="flex items-center gap-1.5 rounded-md px-2 sm:px-2.5 py-1.5 text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white"
                 >
                   <Route size={15} aria-hidden /> <span className="hidden sm:inline">Explore cases</span>
                   <span className="sr-only sm:hidden">Explore cases</span>
@@ -641,7 +641,7 @@ export default function App() {
                 type="button" data-readme
                 onClick={() => setShowReadMe(true)}
                 title="A short note on this prototype: the problem, who uses it, what comes next"
-                className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white"
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 sm:px-2.5 py-1.5 text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white"
               >
                 <BookOpen size={15} aria-hidden /> <span className="hidden sm:inline">Read me</span>
                 <span className="sr-only sm:hidden">Read me</span>
@@ -650,7 +650,7 @@ export default function App() {
                 type="button"
                 onClick={() => openAsDriver(phoneId)}
                 title="Open the driver app as a driver sees it"
-                className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white"
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 sm:px-2.5 py-1.5 text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white"
               >
                 <Smartphone size={15} aria-hidden /> <span className="hidden sm:inline">Driver's phone</span>
                 <span className="sr-only sm:hidden">Driver's phone</span>

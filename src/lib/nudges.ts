@@ -119,7 +119,7 @@ const ASK: Record<DocKey, { missing: string; pending: string }> = {
 export function nudgeMessage(a: Applicant): string {
   const first = a.name.split(' ')[0];
   const items = outstandingDocs(a);
-  if (!items.length) return `Hi ${first}, your file is complete. Your original decision deadline is ${formatDateTime(a.registeredAt + 48 * HOUR)}; completing documents does not restart the clock.`;
+  if (!items.length) return `Hi ${first}, your file is complete. We aim to decide by ${formatDateTime(a.registeredAt + 48 * HOUR)}, within 48 hours of when you registered.`;
   const lines = items.map((k) => `• ${ASK[k][a.docs[k] === 'pending' ? 'pending' : 'missing']}`);
   return [`Hi ${first}, you're almost ready for your first drive. ${items.length === 1 ? 'One thing left' : `${items.length} things left`}:`, ...lines].join('\n');
 }
